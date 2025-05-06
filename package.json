@@ -1,5 +1,5 @@
 {
-  "name": "simplecrmelectron",
+  "name": "simplecrm",
   "version": "0.1.0",
   "private": true,
   "main": "dist-electron/main.js",
@@ -104,7 +104,7 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "com.example.simplecrmelectron",
+    "appId": "com.zondiac.simplecrm",
     "productName": "SimpleCRM",
     "files": [
       "dist/",
@@ -117,7 +117,8 @@
       "output": "dist-build"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "src/app/simplecrmlogo.ico"
     },
     "nsis": {
       "oneClick": false,

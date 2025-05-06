@@ -1,10 +1,73 @@
-import { Link } from "@tanstack/react-router"
-import { ArrowRight, BarChart3, Clock, Users } from "lucide-react"
+"use client";
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, BarChart3, Clock, Users, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { dashboardService, DashboardStats, RecentCustomer, UpcomingTask } from "@/services/data/dashboardService";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Home() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentCustomers, setRecentCustomers] = useState<RecentCustomer[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoadingStats(true);
+        setLoadingCustomers(true);
+        setLoadingTasks(true);
+        setError(null);
+
+        const [statsData, customersData, tasksData] = await Promise.all([
+          dashboardService.getDashboardStats(),
+          dashboardService.getRecentCustomers(5),
+          dashboardService.getUpcomingTasks(5),
+        ]);
+
+        setStats(statsData);
+        setRecentCustomers(customersData);
+        setUpcomingTasks(tasksData);
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err);
+        setError("Fehler beim Laden der Dashboard-Daten.");
+      } finally {
+        setLoadingStats(false);
+        setLoadingCustomers(false);
+        setLoadingTasks(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const getInitials = (name?: string) => {
+    if (!name) return "";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
+
+  if (error) {
+    return (
+      <main className="flex-1 mt-0">
+        <div className="container mx-auto max-w-7xl py-6">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-red-500">{error}</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 mt-0">
       <div className="container mx-auto max-w-7xl py-6">
@@ -24,8 +87,8 @@ export default function Home() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">+2 seit letztem Monat</p>
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.totalCustomers ?? 0}</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">+{stats?.newCustomersLastMonth ?? 0} seit letztem Monat</p>}
             </CardContent>
           </Card>
           <Card>
@@ -34,8 +97,8 @@ export default function Home() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12.500 €</div>
-              <p className="text-xs text-muted-foreground">3 Deals in der Pipeline</p>
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.activeDealsValue?.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) ?? '0 €'}</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">{stats?.activeDealsCount ?? 0} Deals in der Pipeline</p>}
             </CardContent>
           </Card>
           <Card>
@@ -44,8 +107,8 @@ export default function Home() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">7</div>
-              <p className="text-xs text-muted-foreground">2 fällig heute</p>
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.pendingTasksCount ?? 0}</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">{stats?.dueTodayTasksCount ?? 0} fällig heute</p>}
             </CardContent>
           </Card>
           <Card>
@@ -54,8 +117,8 @@ export default function Home() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24%</div>
-              <p className="text-xs text-muted-foreground">+5% seit letztem Monat</p>
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.conversionRate ?? 0}%</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground"> {/* Placeholder for change, as this is hard to get from current data */}</p>}
             </CardContent>
           </Card>
         </div>
@@ -64,32 +127,46 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle>Neueste Kunden</CardTitle>
-              <CardDescription>Sie haben insgesamt 24 Kunden.</CardDescription>
+              {loadingCustomers ? <Skeleton className="h-4 w-1/2 mt-1" /> : <CardDescription>Sie haben insgesamt {stats?.totalCustomers ?? 0} Kunden.</CardDescription>}
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentCustomers.map((customer) => (
-                  <div key={customer.id} className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <span className="text-sm font-medium text-primary">
-                        {customer.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </span>
+              {loadingCustomers ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                      <Skeleton className="h-4 w-1/4" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium leading-none">{customer.name}</p>
-                      <p className="text-sm text-muted-foreground">{customer.email}</p>
+                  ))}
+                </div>
+              ) : recentCustomers.length > 0 ? (
+                <div className="space-y-4">
+                  {recentCustomers.map((customer) => (
+                    <div key={customer.id} className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <span className="text-sm font-medium text-primary">
+                          {getInitials(customer.name)}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium leading-none">{customer.name}</p>
+                        <p className="text-sm text-muted-foreground">{customer.email}</p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{customer.dateAdded}</div>
                     </div>
-                    <div className="text-sm text-muted-foreground">{customer.date}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p>Keine neuen Kunden.</p>
+              )}
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full">
-                <Link href="/customers" className="flex w-full items-center justify-center">
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/customers" className="flex w-full items-center justify-center">
                   Alle Kunden anzeigen
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
@@ -99,35 +176,52 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle>Bevorstehende Aufgaben</CardTitle>
-              <CardDescription>Sie haben 7 ausstehende Aufgaben.</CardDescription>
+              {loadingTasks ? <Skeleton className="h-4 w-1/2 mt-1" /> : <CardDescription>Sie haben {stats?.pendingTasksCount ?? 0} ausstehende Aufgaben.</CardDescription>}
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {upcomingTasks.map((task) => (
-                  <div key={task.id} className="flex items-center gap-4">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                        task.priority === "Hoch"
-                          ? "bg-red-100 text-red-600"
-                          : task.priority === "Mittel"
-                            ? "bg-amber-100 text-amber-600"
-                            : "bg-green-100 text-green-600"
-                      }`}
-                    >
-                      <Clock className="h-5 w-5" />
+              {loadingTasks ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                      <Skeleton className="h-4 w-1/4" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium leading-none">{task.title}</p>
-                      <p className="text-sm text-muted-foreground">{task.customer}</p>
+                  ))}
+                </div>
+              ) : upcomingTasks.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingTasks.map((task) => (
+                    <div key={task.id} className="flex items-center gap-4">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                          task.priority === "High" || task.priority === "Hoch"
+                            ? "bg-red-100 text-red-600"
+                            : task.priority === "Medium" || task.priority === "Mittel"
+                              ? "bg-amber-100 text-amber-600"
+                              : "bg-green-100 text-green-600"
+                        }`}
+                      >
+                        <Clock className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium leading-none">{task.title}</p>
+                        <p className="text-sm text-muted-foreground">{task.customerName ?? `Kunde ID: ${task.customer_id}`}</p>
+                      </div>
+                      <div className="text-sm text-muted-foreground">{task.dueDate}</div>
                     </div>
-                    <div className="text-sm text-muted-foreground">{task.dueDate}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p>Keine bevorstehenden Aufgaben.</p>
+              )}
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full">
-                <Link href="/tasks" className="flex w-full items-center justify-center">
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/tasks" className="flex w-full items-center justify-center">
                   Alle Aufgaben anzeigen
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
@@ -137,90 +231,6 @@ export default function Home() {
         </div>
       </div>
     </main>
-  )
+  );
 }
-
-const recentCustomers = [
-  {
-    id: 1,
-    name: "Johann Schmidt",
-    email: "johann@acmecorp.de",
-    date: "vor 2 Tagen",
-  },
-  {
-    id: 2,
-    name: "Sarah Müller",
-    email: "sarah@techinc.de",
-    date: "vor 3 Tagen",
-  },
-  {
-    id: 3,
-    name: "Michael Braun",
-    email: "michael@lokalgeschaeft.de",
-    date: "vor 5 Tagen",
-  },
-  {
-    id: 4,
-    name: "Emilia Davis",
-    email: "emilia@handwerksbaeckerei.de",
-    date: "vor 1 Woche",
-  },
-  {
-    id: 5,
-    name: "David Wilson",
-    email: "david@wilsondesign.de",
-    date: "vor 2 Wochen",
-  },
-  {
-    id: 6,
-    name: "Jennifer Taylor",
-    email: "jennifer@taylorfit.de",
-    date: "vor 3 Wochen",
-  },
-];
-
-const upcomingTasks = [
-  {
-    id: 1,
-    title: "Nachfassanruf",
-    customer: "Johann Schmidt",
-    dueDate: "Heute",
-    priority: "Hoch",
-  },
-  {
-    id: 2,
-    title: "Angebot senden",
-    customer: "Sarah Müller",
-    dueDate: "Heute",
-    priority: "Mittel",
-  },
-  {
-    id: 3,
-    title: "Produktdemo",
-    customer: "Michael Braun",
-    dueDate: "Morgen",
-    priority: "Hoch",
-  },
-  {
-    id: 4,
-    title: "Check-in-E-Mail",
-    customer: "Emilia Davis",
-    dueDate: "In 2 Tagen",
-    priority: "Niedrig",
-  },
-  {
-    id: 5,
-    title: "Rechnungserinnerung",
-    customer: "David Wilson",
-    dueDate: "In 3 Tagen",
-    priority: "Mittel",
-  },
-  {
-    id: 6,
-    title: "Installation planen",
-    customer: "Jennifer Taylor",
-    dueDate: "In 4 Tagen",
-    priority: "Mittel",
-  },
-];
 

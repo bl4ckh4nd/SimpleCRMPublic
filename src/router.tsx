@@ -13,7 +13,6 @@ import TasksPage from './app/tasks/page'
 import CalendarPage from './app/calendar/page' // Added CalendarPage import
 import LoginPage from './app/login/page'
 import ErrorPage from './app/error/page'
-import TestPage from './app/test/page'
 import SettingsPage from './app/settings/page'
 // Import Product page components
 import ProductsPage from './app/products/page';
@@ -107,11 +106,6 @@ const errorRoute = new Route({
   component: ErrorPage,
 })
 
-const testRoute = new Route({
-  getParentRoute: () => rootRoute,
-  path: '/test',
-  component: TestPage,
-})
 
 const settingsRoute = new Route({
   getParentRoute: () => rootRoute,
@@ -142,7 +136,6 @@ const routeTree = rootRoute.addChildren([
   calendarRoute, // Added calendarRoute to tree
   loginRoute,
   errorRoute,
-  testRoute,
   settingsRoute,
   productsRoute, // Added products route to tree
 ])
