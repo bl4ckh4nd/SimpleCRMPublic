@@ -1,0 +1,7 @@
+/* Import Geist Sans and Geist Mono from Google CDN */
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;700&family=Geist+Sans:wght@400;500;700&display=swap');
+
+:root {
+  --font-geist-sans: 'Geist Sans', system-ui, sans-serif;
+  --font-geist-mono: 'Geist Mono', monospace;
+}
