@@ -232,11 +232,11 @@ export function createCustomer(customerData: any): any {
         INSERT INTO ${CUSTOMERS_TABLE} (
             name, firstName, company, email, phone, mobile,
             street, zipCode, city, country, status, notes,
-            affiliateLink, dateAdded, lastModifiedLocally
+            affiliateLink, lastModifiedLocally
         ) VALUES (
             @name, @firstName, @company, @email, @phone, @mobile,
             @street, @zipCode, @city, @country, @status, @notes,
-            @affiliateLink, @now, @now
+            @affiliateLink, @now
         )
     `);
     
