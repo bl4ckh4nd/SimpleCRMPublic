@@ -3,7 +3,7 @@
 // Define basic App types based on usage and plan
 export interface Customer {
     id: string; // Frontend might use string ID
-    jtl_kKunde: number;
+    jtl_kKunde?: number;
     name: string;
     firstName?: string;
     company?: string;
@@ -11,7 +11,7 @@ export interface Customer {
     phone?: string;
     mobile?: string;
     street?: string;
-    zipCode?: string;
+    zip?: string;
     city?: string;
     country?: string;
     status: string;

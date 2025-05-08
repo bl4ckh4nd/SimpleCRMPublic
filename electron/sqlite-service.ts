@@ -1,3 +1,4 @@
+
 import Database from 'better-sqlite3';
 import path from 'path';
 import { app } from 'electron';
@@ -176,8 +177,17 @@ export function getAllCustomers(): any[] {
 
 // Add a function to get a single customer by ID
 export function getCustomerById(id: number | string): any {
-    const stmt = getDb().prepare(`SELECT * FROM ${CUSTOMERS_TABLE} WHERE id = ?`);
-    return stmt.get(id);
+    const stmt = getDb().prepare(`
+        SELECT id, jtl_kKunde, name, firstName, company, email, phone, mobile,
+               street, city, country, status, notes, affiliateLink,
+               jtl_dateCreated, jtl_blocked, dateAdded, lastModifiedLocally, lastSynced,
+               COALESCE(zipCode, '') AS zip
+        FROM ${CUSTOMERS_TABLE}
+        WHERE id = ?
+    `);
+    const customer = stmt.get(id);
+    console.log(`[SQLite] getCustomerById(${id}):`, JSON.stringify(customer)); // Log fetched customer
+    return customer;
 }
 
 // Example: Upsert using raw SQL (adapt based on actual JTL fields)
@@ -189,7 +199,7 @@ export function upsertCustomer(customerData: any): void {
             lastSynced
         ) VALUES (
             @jtl_kKunde, @name, @firstName, @company, @email, @phone, @mobile,
-            @street, @zipCode, @city, @country, @jtl_dateCreated, @jtl_blocked,
+            @street, @zip, @city, @country, @jtl_dateCreated, @jtl_blocked,
             CURRENT_TIMESTAMP
         ) ON CONFLICT(jtl_kKunde) DO UPDATE SET
             name = excluded.name,
@@ -199,7 +209,7 @@ export function upsertCustomer(customerData: any): void {
             phone = excluded.phone,
             mobile = excluded.mobile,
             street = excluded.street,
-            zipCode = excluded.zipCode,
+            zipCode = excluded.zip, -- Use excluded.zip to update zipCode column
             city = excluded.city,
             country = excluded.country,
             jtl_dateCreated = excluded.jtl_dateCreated,
@@ -213,7 +223,7 @@ export function upsertCustomer(customerData: any): void {
                 phone != excluded.phone OR
                 mobile != excluded.mobile OR
                 street != excluded.street OR
-                zipCode != excluded.zipCode OR
+                zipCode != excluded.zip OR -- Compare zipCode column with incoming excluded.zip
                 city != excluded.city OR
                 country != excluded.country OR
                 jtl_dateCreated != excluded.jtl_dateCreated OR
@@ -226,24 +236,39 @@ export function upsertCustomer(customerData: any): void {
 // Add a function to create a new customer
 export function createCustomer(customerData: any): any {
     const now = new Date().toISOString();
+    // Conditionally include jtl_kKunde in the insert statement
+    const columns = [
+        'name', 'firstName', 'company', 'email', 'phone', 'mobile',
+        'street', 'zipCode', 'city', 'country', 'status', 'notes',
+        'affiliateLink', 'lastModifiedLocally'
+    ];
+    const valuesPlaceholders = [
+        '@name', '@firstName', '@company', '@email', '@phone', '@mobile',
+        '@street', '@zip', '@city', '@country', '@status', '@notes',
+        '@affiliateLink', '@now'
+    ];
+
+    const dataToInsert: any = {
+        ...customerData,
+        now: now,
+        status: customerData.status || 'Active'
+    };
+
+    if (customerData.jtl_kKunde !== undefined && customerData.jtl_kKunde !== null) {
+        columns.unshift('jtl_kKunde');
+        valuesPlaceholders.unshift('@jtl_kKunde');
+        dataToInsert.jtl_kKunde = customerData.jtl_kKunde;
+    }
+
     const stmt = getDb().prepare(`
         INSERT INTO ${CUSTOMERS_TABLE} (
-            name, firstName, company, email, phone, mobile,
-            street, zipCode, city, country, status, notes,
-            affiliateLink, lastModifiedLocally
+            ${columns.join(', ')}
         ) VALUES (
-            @name, @firstName, @company, @email, @phone, @mobile,
-            @street, @zipCode, @city, @country, @status, @notes,
-            @affiliateLink, @now
+            ${valuesPlaceholders.join(', ')}
         )
     `);
     
-    const result = stmt.run({
-        ...customerData,
-        now: now,
-        // Ensure status has a default value if not provided
-        status: customerData.status || 'Active'
-    });
+    const result = stmt.run(dataToInsert);
     
     if (result.lastInsertRowid) {
         return getCustomerById(Number(result.lastInsertRowid));
@@ -255,24 +280,37 @@ export function updateCustomer(id: number, customerData: any): any {
     const now = new Date().toISOString();
     
     // Construct the SET part of the query dynamically based on provided fields
-    const updateFields = Object.keys(customerData)
-        .filter(key => key !== 'id' && key !== 'jtl_kKunde') // Don't update primary keys
-        .map(key => `${key} = @${key}`)
-        .join(', ');
+    // Separate zip from other data to handle column name difference
+    const { zip, ...otherCustomerData } = customerData;
+    
+    const updateFieldKeys = Object.keys(otherCustomerData)
+        .filter(key => key !== 'id' && key !== 'jtl_kKunde'); // Don't update primary keys
+        
+    const updateAssignments = updateFieldKeys.map(key => `${key} = @${key}`);
+
+    if (zip !== undefined) {
+        updateAssignments.push(`zipCode = @zip`);
+    }
     
     // Add lastModifiedLocally timestamp
+    updateAssignments.push(`lastModifiedLocally = @now`);
+    
     const query = `
         UPDATE ${CUSTOMERS_TABLE}
-        SET ${updateFields}, lastModifiedLocally = @now
+        SET ${updateAssignments.join(', ')}
         WHERE id = @id
     `;
     
     const stmt = getDb().prepare(query);
-    const result = stmt.run({
-        ...customerData,
+    const paramsToRun: any = {
+        ...otherCustomerData,
         id: id,
         now: now
-    });
+    };
+    if (zip !== undefined) {
+        paramsToRun.zip = zip;
+    }
+    const result = stmt.run(paramsToRun);
     
     if (result.changes > 0) {
         return getCustomerById(id);

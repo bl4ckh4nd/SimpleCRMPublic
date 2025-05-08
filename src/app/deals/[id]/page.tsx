@@ -278,7 +278,7 @@ export default function DealDetailPage() {
     }
 
     const orderInput = {
-      simpleCrmCustomerId: customerForOrder.jtl_kKunde || 0,
+      simpleCrmCustomerId: customerForOrder.id, // Changed from customerForOrder.jtl_kKunde
       cAnrede: customerForOrder.salutation || "",
       cFirma: customerForOrder.company_name || (customerForOrder.is_company ? customerForOrder.name : ""),
       cName: customerForOrder.is_company ? (customerForOrder.contact_person_name || customerForOrder.name) : customerForOrder.name,

@@ -15,7 +15,7 @@ export const JTL_VERSANDARTEN_TABLE = 'jtl_versandarten';
 export const createCustomersTable = `
   CREATE TABLE IF NOT EXISTS ${CUSTOMERS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    jtl_kKunde INTEGER UNIQUE NOT NULL, -- JTL primary key
+    jtl_kKunde INTEGER UNIQUE, -- JTL primary key, nullable for local customers
     name TEXT,
     firstName TEXT,
     company TEXT,
@@ -31,6 +31,7 @@ export const createCustomersTable = `
     status TEXT DEFAULT 'Active', -- App-specific status if needed
     notes TEXT,                  -- App-specific notes
     affiliateLink TEXT,          -- App-specific affiliate link
+    dateAdded DATETIME DEFAULT CURRENT_TIMESTAMP,
     lastModifiedLocally DATETIME DEFAULT CURRENT_TIMESTAMP, -- Track local changes (though sync is one-way for now)
     lastSynced DATETIME          -- Timestamp of the last sync for this record
   );

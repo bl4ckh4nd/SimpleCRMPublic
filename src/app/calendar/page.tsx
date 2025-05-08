@@ -145,14 +145,30 @@ export default function CalendarPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newEventInfo, setNewEventInfo] = useState<Omit<CalendarRBCEvent, 'id'> | null>(null);
-  const [currentView, setCurrentView] = useState<View>(() => {
-    const savedView = typeof window !== 'undefined' ? localStorage.getItem('calendar_view') : null;
-    return (savedView as View) || Views.MONTH;
-  });
+  const [currentView, setCurrentView] = useState<View>(Views.MONTH); // Initialize with a default view
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('calendar_view', currentView);
+      try {
+        const savedView = localStorage.getItem('calendar_view');
+        // Basic validation: check if savedView is a valid View
+        if (savedView && (Object.values(Views) as string[]).includes(savedView)) {
+          setCurrentView(savedView as View);
+        }
+      } catch (error) {
+        console.error('CalendarPage: Failed to access localStorage to get calendar view.', error);
+        // Fallback to default view is implicitly handled by initial useState value
+      }
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && currentView) {
+      try {
+        localStorage.setItem('calendar_view', currentView);
+      } catch (error) {
+        console.error('CalendarPage: Failed to access localStorage to set calendar view.', error);
+      }
     }
   }, [currentView]);
 

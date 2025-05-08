@@ -68,7 +68,7 @@ export default function CustomerDetailPage() {
     status: "Active", // Default status
     notes: "",
     street: "", // Added address fields
-    zipCode: "",
+    zip: "",
     city: "",
     country: "",
     affiliateLink: "",
@@ -90,6 +90,7 @@ export default function CustomerDetailPage() {
         // Pass customerId string directly to the service
         const api = window.electronAPI as any; // Type assertion for direct invoke access
         const dbCustomer = await api.invoke('db:get-customer', customerId);
+        console.log('Fetched customer data in component:', dbCustomer); // Log fetched data
         
         if (dbCustomer) {
           setCustomer(dbCustomer);
@@ -104,7 +105,7 @@ export default function CustomerDetailPage() {
             status: dbCustomer.status || "Active",
             notes: dbCustomer.notes || "",
             street: dbCustomer.street || "",
-            zipCode: dbCustomer.zipCode || "",
+            zip: dbCustomer.zip || "", // Rely on dbCustomer.zip as per backend alias
             city: dbCustomer.city || "",
             country: dbCustomer.country || "",
             affiliateLink: dbCustomer.affiliateLink || "",
@@ -313,11 +314,11 @@ export default function CustomerDetailPage() {
                       />
                     </div>
                      <div className="grid gap-2">
-                      <Label htmlFor="zipCode">PLZ</Label>
+                      <Label htmlFor="zip">PLZ</Label>
                       <Input
-                        id="zipCode"
-                        value={editedCustomer.zipCode}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, zipCode: e.target.value })}
+                        id="zip"
+                        value={editedCustomer.zip || ""} // Rely on editedCustomer.zip
+                        onChange={(e) => setEditedCustomer({ ...editedCustomer, zip: e.target.value })}
                       />
                     </div>
                      <div className="grid gap-2">
@@ -429,10 +430,10 @@ export default function CustomerDetailPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                   <span className="whitespace-pre-line">
                     {customer.street || ""}
-                    {customer.street && (customer.zipCode || customer.city) ? <br /> : ""}
-                    {customer.zipCode || ""} {customer.city || ""}
-                    {(customer.zipCode || customer.city) && customer.country ? <br /> : ""}
-                    {customer.country || (customer.street || customer.zipCode || customer.city ? "" : "-")}
+                    {customer.street && (customer.zip || customer.city) ? <br /> : ""}
+                    {customer.zip ? customer.zip : (customer.city || customer.country ? "PLZ: Nicht angegeben" : "")} {customer.city || ""}
+                    {(customer.zip || customer.city) && customer.country ? <br /> : ""}
+                    {customer.country || (customer.street || customer.zip || customer.city ? "" : "-")}
                   </span>
                 </div>
                 {/* Date fields */}

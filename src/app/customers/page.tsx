@@ -174,15 +174,15 @@ const globalFilterFn: FilterFn<Customer> = (row, columnId, filterValue) => {
   const query = String(filterValue).toLowerCase(); // Ensure query is string and lowercase
 
   // Check across relevant fields
-  return (
-    (customer.name?.toLowerCase().includes(query)) ||
-    (customer.firstName?.toLowerCase().includes(query)) ||
-    (customer.email?.toLowerCase().includes(query)) ||
-    (customer.company?.toLowerCase().includes(query)) ||
-    (customer.phone?.toLowerCase().includes(query)) ||
-    (customer.mobile?.toLowerCase().includes(query)) ||
-    (customer.jtl_kKunde?.toString().includes(query)) // Check JTL ID as string
-  );
+  const nameMatch = customer.name?.toLowerCase().includes(query) ?? false;
+  const firstNameMatch = customer.firstName?.toLowerCase().includes(query) ?? false;
+  const emailMatch = customer.email?.toLowerCase().includes(query) ?? false;
+  const companyMatch = customer.company?.toLowerCase().includes(query) ?? false;
+  const phoneMatch = customer.phone?.toLowerCase().includes(query) ?? false;
+  const mobileMatch = customer.mobile?.toLowerCase().includes(query) ?? false;
+  const jtlIdMatch = customer.jtl_kKunde !== undefined && customer.jtl_kKunde !== null ? customer.jtl_kKunde.toString().includes(query) : false;
+
+  return nameMatch || firstNameMatch || emailMatch || companyMatch || phoneMatch || mobileMatch || jtlIdMatch;
 };
 
 export default function CustomersPage() {

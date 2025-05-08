@@ -112,28 +112,28 @@ export async function createJtlOrder(orderInput: SimpleCrmOrderInput): Promise<J
             { name: 'App_fVersandlandWaehrungFaktor', type: sql.Decimal(25, 13), value: 1.0 },
             // Rechnungsadresse from crmCustomer (passed from frontend as part of orderInput.customerDetails or similar)
             // For now, using crmCustomer directly fetched via simpleCrmCustomerId
-            { name: 'RA_cFirma', type: sql.NVarChar(256), value: crmCustomer.company_name || (crmCustomer.is_company ? crmCustomer.name : null) },
-            { name: 'RA_cVorname', type: sql.NVarChar(510), value: crmCustomer.is_company ? (crmCustomer.contact_person_name || '').split(' ')[0] : (crmCustomer.name || '').split(' ')[0] }, // Basic split
+            { name: 'RA_cFirma', type: sql.NVarChar(256), value: crmCustomer.company_name || (crmCustomer.is_company ? crmCustomer.company : null) },
+            { name: 'RA_cVorname', type: sql.NVarChar(510), value: crmCustomer.is_company ? (crmCustomer.contact_person_name || '').split(' ')[0] : (crmCustomer.firstName || '').split(' ')[0] }, // Basic split
             { name: 'RA_cName', type: sql.NVarChar(510), value: crmCustomer.is_company ? (crmCustomer.contact_person_name || '').substring((crmCustomer.contact_person_name || '').indexOf(' ') + 1).trim() : (crmCustomer.name || '').substring((crmCustomer.name || '').indexOf(' ') + 1).trim()}, // Basic split
-            { name: 'RA_cStrasse', type: sql.NVarChar(510), value: crmCustomer.address_street }, // Assuming street includes number for now
-            { name: 'RA_cPLZ', type: sql.NVarChar(48), value: crmCustomer.address_zip },
-            { name: 'RA_cOrt', type: sql.NVarChar(510), value: crmCustomer.address_city },
-            { name: 'RA_cLand', type: sql.NVarChar(510), value: crmCustomer.address_country || 'Deutschland' },
-            { name: 'RA_cISO', type: sql.NVarChar(10), value: (crmCustomer.address_country_iso || 'DE').toUpperCase() },
+            { name: 'RA_cStrasse', type: sql.NVarChar(510), value: crmCustomer.street }, // Assuming street includes number for now
+            { name: 'RA_cPLZ', type: sql.NVarChar(48), value: crmCustomer.zip },
+            { name: 'RA_cOrt', type: sql.NVarChar(510), value: crmCustomer.city },
+            { name: 'RA_cLand', type: sql.NVarChar(510), value: crmCustomer.country || 'Deutschland' },
+            { name: 'RA_cISO', type: sql.NVarChar(10), value: (crmCustomer.country_iso || 'DE').toUpperCase() },
             { name: 'RA_cTel', type: sql.NVarChar(510), value: crmCustomer.phone || null },
             { name: 'RA_cMail', type: sql.NVarChar(510), value: crmCustomer.email || null },
             { name: 'RA_cZusatz', type: sql.NVarChar(510), value: crmCustomer.notes || null }, // Map notes to cZusatz for billing
 
             // Lieferadresse (assuming same as billing for now, can be different if provided)
             // These should ideally come from orderInput if different shipping address is supported
-            { name: 'LA_cFirma', type: sql.NVarChar(256), value: crmCustomer.company_name || (crmCustomer.is_company ? crmCustomer.name : null) },
-            { name: 'LA_cVorname', type: sql.NVarChar(510), value: crmCustomer.is_company ? (crmCustomer.contact_person_name || '').split(' ')[0] : (crmCustomer.name || '').split(' ')[0] },
+            { name: 'LA_cFirma', type: sql.NVarChar(256), value: crmCustomer.company_name || (crmCustomer.is_company ? crmCustomer.company : null) },
+            { name: 'LA_cVorname', type: sql.NVarChar(510), value: crmCustomer.is_company ? (crmCustomer.contact_person_name || '').split(' ')[0] : (crmCustomer.firstName || '').split(' ')[0] },
             { name: 'LA_cName', type: sql.NVarChar(510), value: crmCustomer.is_company ? (crmCustomer.contact_person_name || '').substring((crmCustomer.contact_person_name || '').indexOf(' ') + 1).trim() : (crmCustomer.name || '').substring((crmCustomer.name || '').indexOf(' ') + 1).trim()},
-            { name: 'LA_cStrasse', type: sql.NVarChar(510), value: crmCustomer.address_street },
-            { name: 'LA_cPLZ', type: sql.NVarChar(48), value: crmCustomer.address_zip },
-            { name: 'LA_cOrt', type: sql.NVarChar(510), value: crmCustomer.address_city },
-            { name: 'LA_cLand', type: sql.NVarChar(510), value: crmCustomer.address_country || 'Deutschland' },
-            { name: 'LA_cISO', type: sql.NVarChar(10), value: (crmCustomer.address_country_iso || 'DE').toUpperCase() },
+            { name: 'LA_cStrasse', type: sql.NVarChar(510), value: crmCustomer.street },
+            { name: 'LA_cPLZ', type: sql.NVarChar(48), value: crmCustomer.zip },
+            { name: 'LA_cOrt', type: sql.NVarChar(510), value: crmCustomer.city },
+            { name: 'LA_cLand', type: sql.NVarChar(510), value: crmCustomer.country || 'Deutschland' },
+            { name: 'LA_cISO', type: sql.NVarChar(10), value: (crmCustomer.country_iso || 'DE').toUpperCase() },
             { name: 'LA_cTel', type: sql.NVarChar(510), value: crmCustomer.phone || null },
             { name: 'LA_cMail', type: sql.NVarChar(510), value: crmCustomer.email || null },
         ];
@@ -238,14 +238,15 @@ export async function createJtlOrder(orderInput: SimpleCrmOrderInput): Promise<J
                         @Pos_cArtNr = tA.cArtNr,
                         @Pos_cName = ISNULL(tAB.cName, tA.cArtNr),
                         @Pos_kSteuerklasse = tA.kSteuerklasse,
-                        @Pos_fMwSt = ISNULL( -- Assign @Pos_fMwSt to the result of this ISNULL
+                        @Pos_fMwSt = ISNULL(
                                         (SELECT TOP 1 ts.fSteuersatz
-                                         FROM dbo.tSteuersatz ts
-                                         WHERE ts.kSteuerklasse = tA.kSteuerklasse 
-                                         ORDER BY ts.nPrio DESC, ts.kSteuersatz DESC),
-                                        0 -- Default value for @Pos_fMwSt if subquery returns NULL
-                                     ), 
-                        @Pos_cEinheit = N'' 
+                                        FROM dbo.tSteuersatz ts
+                                        WHERE ts.kSteuerklasse = tA.kSteuerklasse
+                                        AND ts.kSteuerzone = 1 -- <<< ADDED: Assuming kSteuerzone 1 is standard/domestic
+                                        ORDER BY ts.nPrio DESC, ts.kSteuersatz DESC),
+                                        0
+                                    ),
+                        @Pos_cEinheit = N''
                     FROM dbo.tArtikel tA
                     LEFT JOIN dbo.tArtikelBeschreibung tAB ON tA.kArtikel = tAB.kArtikel AND tAB.kSprache = @App_kSprache AND tAB.kPlattform = @App_kPlattform
                     WHERE tA.kArtikel = @Pos_kArtikel;

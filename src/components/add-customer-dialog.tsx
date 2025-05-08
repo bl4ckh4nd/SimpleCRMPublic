@@ -33,7 +33,7 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
     phone: '',
     mobile: '',
     street: '',
-    zipCode: '',
+    zip: '',
     city: '',
     country: '',
     status: 'Active',
@@ -54,7 +54,7 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
       phone: '',
       mobile: '',
       street: '',
-      zipCode: '',
+      zip: '',
       city: '',
       country: '',
       status: 'Active',
@@ -74,8 +74,9 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
     try {
       // Create a new customer, setting jtl_kKunde to 0 since it's a manual entry
       const newCustomer = await localDataService.createCustomer({
-        ...formData,
-        jtl_kKunde: 0 // This will be ignored by the database as it's a foreign synced ID
+        ...formData
+        // jtl_kKunde is intentionally omitted for local customers,
+        // the backend will handle it as NULL.
       });
       
       toast.success("Kunde erfolgreich erstellt.");
@@ -168,11 +169,11 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="zipCode">PLZ</Label>
+            <Label htmlFor="zip">PLZ</Label>
             <Input
-              id="zipCode"
-              value={formData.zipCode}
-              onChange={(e) => handleChange('zipCode', e.target.value)}
+              id="zip"
+              value={formData.zip}
+              onChange={(e) => handleChange('zip', e.target.value)}
             />
           </div>
           <div className="grid gap-2">

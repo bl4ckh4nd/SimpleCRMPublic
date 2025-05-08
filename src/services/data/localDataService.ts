@@ -11,7 +11,7 @@ const mapDbCustomerToApp = (dbCustomer: any): Customer => ({
     phone: dbCustomer.phone,
     mobile: dbCustomer.mobile,
     street: dbCustomer.street,
-    zipCode: dbCustomer.zipCode,
+    zip: dbCustomer.zip,
     city: dbCustomer.city,
     country: dbCustomer.country,
     status: dbCustomer.status ?? 'Active', // Use default if null
@@ -174,7 +174,7 @@ export const getLocalCustomers = async (): Promise<Customer[]> => {
             company: c.Firma || '', // Adjust field names
             phone: c.Telefon || '',
             street: c.Strasse || '',
-            zipCode: c.PLZ || '',
+            zip: c.PLZ || '',
             city: c.Ort || '',
             country: c.Land || '',
             notes: c.Notiz || '',

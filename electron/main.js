@@ -1,5 +1,5 @@
 // Main Electron process
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol } = require('electron'); // Added 'protocol'
 const path = require('path');
 const windowStateKeeper = require('electron-window-state');
 const fs = require('fs'); // For checking directory existence
@@ -71,55 +71,13 @@ if (isDevelopment) {
     console.log(`[Electron Main] Development mode: Attempting to load URL: ${viteDevServerUrl}`);
     try {
       await windowInstance.loadURL(viteDevServerUrl);
-      console.log('[Electron Main] Vite dev server URL loaded successfully.');
+      console.log('[Electron Main] Development URL loaded successfully.');
     } catch (error) {
-      console.error(`[Electron Main] Failed to load Vite dev server URL (${viteDevServerUrl}):`, error);
-      dialog.showErrorBox("Dev Server Load Error", `Failed to connect to Vite dev server at ${viteDevServerUrl}. Ensure it's running. Error: ${error.message}`);
-      if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
-        app.quit();
-      } else if (app && typeof app.quit === 'function') {
-        app.quit();
-      }
+      console.error(`[Electron Main] Failed to load Vite dev server URL ${viteDevServerUrl}:`, error);
+      dialog.showErrorBox("Dev Server Load Error", `Could not connect to Vite dev server at ${viteDevServerUrl}. Please ensure it's running. Error: ${error.message}`);
     }
   };
-} else {
-  // Production or packaged mode
-  try {
-    const serveModule = require('electron-serve');
-    const serve = serveModule.default || serveModule; // Access .default, fallback to module itself
-    const servePath = path.join(__dirname, '../dist');
-    console.log(`[Electron Main] Production mode: Initializing electron-serve for directory: ${servePath}`);
-    
-    // Calling serve() here registers the 'app://' protocol.
-    // This is the critical part that needs to happen before app is ready.
-    const prodLoadURL = serve({ directory: servePath });
-
-    loadURLFunction = async (windowInstance) => {
-      try {
-        await prodLoadURL(windowInstance);
-        console.log(`[Electron Main] electron-serve loaded content for window from ${servePath}`);
-      } catch (e) {
-        console.error(`[Electron Main] electron-serve failed to load URL:`, e);
-        const errorDetails = e.url ? `URL: ${e.url}` : `Path: ${servePath}`;
-        dialog.showErrorBox("Application Load Error", `Failed to load application content via electron-serve. ${errorDetails}. Error: ${e.message}`);
-        if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
-          app.quit();
-        } else if (app && typeof app.quit === 'function') {
-          app.quit();
-        }
-      }
-    };
-    console.log('[Electron Main] electron-serve initialized and loadURLFunction set for production.');
-  } catch (e) {
-    console.error('[Electron Main] CRITICAL ERROR: Failed to initialize electron-serve:', e);
-    if (app && typeof app.isReady === 'function' && app.isReady()) {
-        dialog.showErrorBox("Electron-Serve Init Error", `Failed to initialize electron-serve: ${e.message}. The application cannot start.`);
-    }
-    // Ensure the app exits. process.exit is used because app.quit() might not be effective
-    // if this critical initialization fails very early.
-    process.exit(1);
-  }
-}
+} // Production mode setup for loadURLFunction will be done inside app.whenReady()
 
 // --- IPC Handlers Setup ---
 // (setupIpcHandlers function definition should be here or imported)
@@ -718,15 +676,112 @@ async function createMainWindow() {
 // --- App Lifecycle ---
 initializeApp()
   .then(() => {
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => { // Added async here
       console.log('[Electron Main] App is ready (after initializeApp).');
-      setupIpcHandlers();      createMainWindow();
+
+      if (!isDevelopment) {
+        // Production or packaged mode: Setup loadURLFunction here
+        try {
+          console.log('[Electron Main] Production mode: Setting up manual file protocol \'app://\'.');
+          const servePath = path.join(__dirname, '../dist'); // __dirname in dist-electron points to app.asar/dist-electron or file equivalent
+
+          if (!fs.existsSync(servePath)) {
+            console.error(`[Electron Main] Production load error: Frontend build directory ${servePath} does not exist.`);
+            dialog.showErrorBox("Application Load Error", `Cannot find application files at ${servePath}. The application might be corrupted or not built correctly.`);
+            loadURLFunction = async () => { throw new Error(`servePath ${servePath} not found, app cannot load.`); };
+            if (app && typeof app.quit === 'function') app.quit();
+          } else {
+            // protocol.registerFileProtocol MUST be called after 'ready'
+            protocol.registerFileProtocol('app', (request, callback) => {
+              try {
+                let urlPath = decodeURI(request.url.slice('app://'.length));
+                
+                // Strip query parameters and hash from urlPath
+                const queryIndex = urlPath.indexOf('?');
+                if (queryIndex !== -1) urlPath = urlPath.substring(0, queryIndex);
+                const hashIndex = urlPath.indexOf('#');
+                if (hashIndex !== -1) urlPath = urlPath.substring(0, hashIndex);
+
+                let resourcePath;
+                // If the path starts with 'index.html/', it's an asset request relative to index.html being treated as a directory.
+                // The actual resource is what comes after 'index.html/'.
+                if (urlPath.startsWith('index.html/')) {
+                  resourcePath = urlPath.substring('index.html/'.length);
+                } else if (urlPath === 'index.html' || urlPath === '' || urlPath === '/') {
+                  // Request for the root, serve index.html
+                  resourcePath = 'index.html';
+                } else {
+                  // Direct request for an asset or an SPA route
+                  resourcePath = urlPath;
+                }
+
+                // Prevent directory traversal attacks by ensuring resourcePath is clean
+                resourcePath = path.normalize(resourcePath).replace(/^(\.\.[\/\\])+/, '');
+
+                const filePath = path.join(servePath, resourcePath);
+                const resolvedFilePath = path.resolve(filePath); // Normalize for security check and fs access
+
+                // Security check: Ensure resolved path is still within servePath
+                if (!resolvedFilePath.startsWith(path.resolve(servePath))) {
+                  console.error(`[Electron Main] Security: Denied access to ${resolvedFilePath} (outside ${path.resolve(servePath)}) for resource ${resourcePath}`);
+                  return callback({ error: -6 }); // net::ERR_FILE_NOT_FOUND
+                }
+
+                if (fs.existsSync(resolvedFilePath) && fs.statSync(resolvedFilePath).isFile()) {
+                  return callback({ path: resolvedFilePath });
+                } else {
+                  // SPA Fallback: If file not found and it looks like a route (no extension or not an asset type we know),
+                  // serve index.html. Check resourcePath as it's the intended resource.
+                  if (!path.extname(resourcePath)) { // Common check for SPA routes
+                    const indexPath = path.join(servePath, 'index.html');
+                    const resolvedIndexPath = path.resolve(indexPath);
+                    if (fs.existsSync(resolvedIndexPath) && fs.statSync(resolvedIndexPath).isFile()) {
+                      return callback({ path: resolvedIndexPath });
+                    }
+                  }
+                  console.warn(`[Electron Main] File not found for 'app://' protocol. Requested URL: ${request.url}, Parsed resourcePath: ${resourcePath}, Resolved: ${resolvedFilePath}`);
+                  return callback({ error: -6 }); // net::ERR_FILE_NOT_FOUND
+                }
+              } catch (err) {
+                console.error(`[Electron Main] Error in 'app://' protocol handler for ${request.url}:`, err);
+                return callback({ error: -2 }); // net::ERR_FAILED
+              }
+            });
+
+            loadURLFunction = async (windowInstance) => {
+              try {
+                await windowInstance.loadURL('app://index.html');
+                console.log('[Electron Main] Production URL (app://index.html) loaded successfully via manual protocol.');
+              } catch (loadErr) {
+                console.error('[Electron Main] Error loading URL via manual protocol in production:', loadErr);
+                dialog.showErrorBox("Application Load Error", `Failed to load application content (app://index.html): ${loadErr.message}`);
+                if (app && typeof app.quit === 'function') app.quit();
+              }
+            };
+            console.log('[Electron Main] Production mode: loadURLFunction configured using manual file protocol.');
+          }
+        } catch (e) {
+          console.error('[Electron Main] CRITICAL ERROR during manual protocol setup:', e);
+          dialog.showErrorBox('Application Initialization Error', `Failed to set up production file serving (manual protocol): ${e.message}`);
+          loadURLFunction = async () => { throw new Error('Manual protocol setup failed critically.'); };
+          if (app && typeof app.quit === 'function') app.quit();
+        }
+      }
+
+      // Ensure loadURLFunction is defined before proceeding
+      if (!loadURLFunction) {
+        console.error('[Electron Main] CRITICAL: loadURLFunction was not defined by the time it was needed after app.ready. Quitting.');
+        dialog.showErrorBox("Application Critical Error", "Failed to configure application loader. The application will now exit.");
+        if (app && typeof app.quit === 'function') app.quit();
+        return; // Stop further execution in this block
+      }
+      
+      setupIpcHandlers();
+      await createMainWindow(); // Ensure createMainWindow is awaited if it's async
     }).catch(err => {
       console.error('[Electron Main] app.whenReady() chain failed:', err);
       dialog.showErrorBox("App Ready Error", `Failed during app.whenReady(): ${err.message}`);
-      if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
-        app.quit();
-      } else if (app && typeof app.quit === 'function') {
+      if (app && typeof app.quit === 'function') {
         app.quit();
       }
     });
