@@ -17,7 +17,15 @@ import {
     SYNC_INFO_TABLE,
     CALENDAR_EVENTS_TABLE,
     DEALS_TABLE,
-    TASKS_TABLE
+    TASKS_TABLE,
+    JTL_FIRMEN_TABLE, // Added
+    JTL_WARENLAGER_TABLE, // Added
+    JTL_ZAHLUNGSARTEN_TABLE, // Added
+    JTL_VERSANDARTEN_TABLE, // Added
+    createJtlFirmenTable, // Added
+    createJtlWarenlagerTable, // Added
+    createJtlZahlungsartenTable, // Added
+    createJtlVersandartenTable // Added
 } from './database-schema';
 import { Product, DealProduct } from './types';
 // Optional: import Knex from 'knex';
@@ -43,6 +51,10 @@ export function initializeDatabase() {
             db.exec(createTasksTable);
             db.exec(createDealProductsTable);
             db.exec(createCalendarEventsTable);
+            db.exec(createJtlFirmenTable); // Added
+            db.exec(createJtlWarenlagerTable); // Added
+            db.exec(createJtlZahlungsartenTable); // Added
+            db.exec(createJtlVersandartenTable); // Added
             indexes.forEach(index => db.exec(index));
             // Seed initial sync info if needed
             setSyncInfo('lastSyncStatus', 'Never');
@@ -59,68 +71,55 @@ export function initializeDatabase() {
         // Here you could add migration logic if schema changes
         // Example: Check if deal_products table exists and create if not
         const checkTableStmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");
-        if (!checkTableStmt.get(DEAL_PRODUCTS_TABLE)) {
-            console.log(`Table ${DEAL_PRODUCTS_TABLE} not found, creating...`);
-            try {
-                db.exec(createDealProductsTable);
-                // Add indexes for the new table if they don't exist
-                const dealIdIndex = `CREATE INDEX IF NOT EXISTS idx_deal_products_deal_id ON ${DEAL_PRODUCTS_TABLE}(deal_id);`;
-                const productIdIndex = `CREATE INDEX IF NOT EXISTS idx_deal_products_product_id ON ${DEAL_PRODUCTS_TABLE}(product_id);`;
-                db.exec(dealIdIndex);
-                db.exec(productIdIndex);
-                console.log(`Table ${DEAL_PRODUCTS_TABLE} and indexes created.`);
-            } catch (error) {
-                console.error(`Failed to create table ${DEAL_PRODUCTS_TABLE} or its indexes:`, error);
+        
+        // Helper function to check and create table with its indexes
+        const ensureTableExists = (tableName: string, createTableSql: string, tableIndexes: string[]) => {
+            if (!checkTableStmt.get(tableName)) {
+                console.log(`Table ${tableName} not found, creating...`);
+                try {
+                    db.exec(createTableSql);
+                    tableIndexes.forEach(indexSql => {
+                        // Ensure the index creation SQL targets the correct table, e.g., by checking if tableName is in indexSql
+                        if (indexSql.includes(tableName)) {
+                           db.exec(indexSql);
+                        }
+                    });
+                    console.log(`Table ${tableName} and its specific indexes created.`);
+                } catch (error) {
+                    console.error(`Failed to create table ${tableName} or its indexes:`, error);
+                }
             }
-        }
+        };
 
-        // Check for deals table
-        if (!checkTableStmt.get(DEALS_TABLE)) {
-            console.log(`Table ${DEALS_TABLE} not found, creating...`);
-            try {
-                db.exec(createDealsTable);
-                const dealCustomerIdIndex = `CREATE INDEX IF NOT EXISTS idx_deals_customer_id ON ${DEALS_TABLE}(customer_id);`;
-                const dealStageIndex = `CREATE INDEX IF NOT EXISTS idx_deals_stage ON ${DEALS_TABLE}(stage);`;
-                db.exec(dealCustomerIdIndex);
-                db.exec(dealStageIndex);
-                console.log(`Table ${DEALS_TABLE} and indexes created.`);
-            } catch (error) {
-                console.error(`Failed to create table ${DEALS_TABLE} or its indexes:`, error);
-            }
-        }
-
-        // Check for tasks table
-        if (!checkTableStmt.get(TASKS_TABLE)) {
-            console.log(`Table ${TASKS_TABLE} not found, creating...`);
-            try {
-                db.exec(createTasksTable);
-                const taskCustomerIdIndex = `CREATE INDEX IF NOT EXISTS idx_tasks_customer_id ON ${TASKS_TABLE}(customer_id);`;
-                const taskDueDateIndex = `CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON ${TASKS_TABLE}(due_date);`;
-                const taskCompletedIndex = `CREATE INDEX IF NOT EXISTS idx_tasks_completed ON ${TASKS_TABLE}(completed);`;
-                db.exec(taskCustomerIdIndex);
-                db.exec(taskDueDateIndex);
-                db.exec(taskCompletedIndex);
-                console.log(`Table ${TASKS_TABLE} and indexes created.`);
-            } catch (error) {
-                console.error(`Failed to create table ${TASKS_TABLE} or its indexes:`, error);
-            }
-        }
-
-        // Check and create calendar_events table if needed
-        if (!checkTableStmt.get(CALENDAR_EVENTS_TABLE)) {
-            console.log(`Table ${CALENDAR_EVENTS_TABLE} not found, creating...`);
-            try {
-                db.exec(createCalendarEventsTable);
-                // Add indexes for the new table
-                const startIndex = `CREATE INDEX IF NOT EXISTS idx_calendar_events_start_date ON ${CALENDAR_EVENTS_TABLE}(start_date);`;
-                const endIndex = `CREATE INDEX IF NOT EXISTS idx_calendar_events_end_date ON ${CALENDAR_EVENTS_TABLE}(end_date);`;
-                db.exec(startIndex);
-                db.exec(endIndex);
-                console.log(`Table ${CALENDAR_EVENTS_TABLE} and indexes created.`);
-            } catch (error) {
-                console.error(`Failed to create table ${CALENDAR_EVENTS_TABLE} or its indexes:`, error);
-            }
-        }
+        ensureTableExists(DEAL_PRODUCTS_TABLE, createDealProductsTable, [
+            `CREATE INDEX IF NOT EXISTS idx_deal_products_deal_id ON ${DEAL_PRODUCTS_TABLE}(deal_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_deal_products_product_id ON ${DEAL_PRODUCTS_TABLE}(product_id);`
+        ]);
+        ensureTableExists(DEALS_TABLE, createDealsTable, [
+            `CREATE INDEX IF NOT EXISTS idx_deals_customer_id ON ${DEALS_TABLE}(customer_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_deals_stage ON ${DEALS_TABLE}(stage);`
+        ]);
+        ensureTableExists(TASKS_TABLE, createTasksTable, [
+            `CREATE INDEX IF NOT EXISTS idx_tasks_customer_id ON ${TASKS_TABLE}(customer_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON ${TASKS_TABLE}(due_date);`,
+            `CREATE INDEX IF NOT EXISTS idx_tasks_completed ON ${TASKS_TABLE}(completed);`
+        ]);
+        ensureTableExists(CALENDAR_EVENTS_TABLE, createCalendarEventsTable, [
+            `CREATE INDEX IF NOT EXISTS idx_calendar_events_start_date ON ${CALENDAR_EVENTS_TABLE}(start_date);`,
+            `CREATE INDEX IF NOT EXISTS idx_calendar_events_end_date ON ${CALENDAR_EVENTS_TABLE}(end_date);`
+        ]);
+        ensureTableExists(JTL_FIRMEN_TABLE, createJtlFirmenTable, [
+            `CREATE INDEX IF NOT EXISTS idx_jtl_firmen_name ON ${JTL_FIRMEN_TABLE}(cName);`
+        ]);
+        ensureTableExists(JTL_WARENLAGER_TABLE, createJtlWarenlagerTable, [
+            `CREATE INDEX IF NOT EXISTS idx_jtl_warenlager_name ON ${JTL_WARENLAGER_TABLE}(cName);`
+        ]);
+        ensureTableExists(JTL_ZAHLUNGSARTEN_TABLE, createJtlZahlungsartenTable, [
+            `CREATE INDEX IF NOT EXISTS idx_jtl_zahlungsarten_name ON ${JTL_ZAHLUNGSARTEN_TABLE}(cName);`
+        ]);
+        ensureTableExists(JTL_VERSANDARTEN_TABLE, createJtlVersandartenTable, [
+            `CREATE INDEX IF NOT EXISTS idx_jtl_versandarten_name ON ${JTL_VERSANDARTEN_TABLE}(cName);`
+        ]);
     }
 
     // Optional Knex initialization
@@ -166,7 +165,6 @@ export function setSyncInfo(key: string, value: string): void {
     `);
     stmt.run(key, value);
 }
-
 
 // --- Customer Operations ---
 // TODO: Implement CRUD for Customers (using direct SQL or Knex)
@@ -288,7 +286,6 @@ export function deleteCustomer(id: number): boolean {
     return result.changes > 0;
 }
 
-
 // --- Product Operations ---
 
 export function getAllProducts(): Product[] {
@@ -385,7 +382,7 @@ export function upsertProduct(productData: any): void {
 
 // --- Deal-Product Link Operations ---
 
-export function addProductToDeal(dealId: number, productId: number, quantity: number, priceAtTime: number): Database.RunResult {
+export function addProductToDeal(dealId: number, productId: number, quantity: number, price: number): Database.RunResult {
     const now = new Date().toISOString();
     const stmt = getDb().prepare(`
         INSERT INTO ${DEAL_PRODUCTS_TABLE} (
@@ -393,14 +390,14 @@ export function addProductToDeal(dealId: number, productId: number, quantity: nu
         ) VALUES (
             @deal_id, @product_id, @quantity, @price_at_time_of_adding, @dateAdded
         ) ON CONFLICT(deal_id, product_id) DO UPDATE SET
-            quantity = quantity + @quantity -- Or just set to @quantity? Decide policy. Currently adds.
-            -- price_at_time_of_adding = @price_at_time_of_adding -- Optionally update price if re-added?
+            quantity = quantity + @quantity, -- Or just set to @quantity? Decide policy. Currently adds.
+            price_at_time_of_adding = @price_at_time_of_adding -- Update price if re-added or on conflict
     `);
     return stmt.run({
         deal_id: dealId,
         product_id: productId,
         quantity: quantity,
-        price_at_time_of_adding: priceAtTime,
+        price_at_time_of_adding: price, // Changed priceAtTime to price
         dateAdded: now
     });
 }
@@ -413,9 +410,45 @@ export function removeProductFromDeal(dealId: number, productId: number): Databa
     return stmt.run(dealId, productId);
 }
 
+// Updated function to handle both quantity and price updates
+export function updateDealProduct(dealProductId: number, quantity: number, price: number): Database.RunResult {
+    if (quantity <= 0) {
+        // If quantity is zero or less, remove the product link entirely
+        // This requires deal_id and product_id, not just dealProductId.
+        // For now, let's assume quantity > 0 from frontend validation, or handle removal separately.
+        // To properly remove, we'd need to fetch the deal_id and product_id using dealProductId first,
+        // or change the IPC call to send deal_id and product_id for removal.
+        // For simplicity in this update, we'll just update if quantity > 0.
+        // A more robust solution would be to call a remove function if quantity <= 0.
+        // For now, we'll rely on frontend to send quantity > 0 for updates.
+        // If quantity is 0, the frontend should call removeProductFromDealById (new function below)
+        throw new Error("Quantity must be greater than 0 to update. Use remove to delete.");
+    }
+    const stmt = getDb().prepare(`
+        UPDATE ${DEAL_PRODUCTS_TABLE}
+        SET quantity = @quantity, price_at_time_of_adding = @price
+        WHERE id = @deal_product_id
+    `);
+    return stmt.run({
+        quantity: quantity,
+        price: price,
+        deal_product_id: dealProductId
+    });
+}
+
+// New function to remove by deal_product_id (primary key of deal_products table)
+export function removeProductFromDealById(dealProductId: number): Database.RunResult {
+    const stmt = getDb().prepare(`
+        DELETE FROM ${DEAL_PRODUCTS_TABLE}
+        WHERE id = ?
+    `);
+    return stmt.run(dealProductId);
+}
+
+
+// Old function, can be deprecated or modified if direct deal_id/product_id manipulation is still needed elsewhere
 export function updateProductQuantityInDeal(dealId: number, productId: number, newQuantity: number): Database.RunResult {
     if (newQuantity <= 0) {
-        // If quantity is zero or less, remove the product link entirely
         return removeProductFromDeal(dealId, productId);
     } else {
         const stmt = getDb().prepare(`
@@ -660,9 +693,10 @@ export function updateDeal(dealId: number, dealData: any): { success: boolean; e
     // Update last_modified timestamp
     dealData.last_modified = new Date().toISOString();
     
-    // Build dynamic update query based on provided fields
+    // Filter out invalid columns and customer_name
+    const validColumns = ['name', 'value', 'stage', 'notes', 'expected_close_date', 'last_modified'];
     const fields = Object.keys(dealData)
-      .filter(key => key !== 'id' && dealData[key] !== undefined)
+      .filter(key => validColumns.includes(key) && dealData[key] !== undefined)
       .map(key => `${key} = @${key}`)
       .join(', ');
     
@@ -883,6 +917,68 @@ export function getTasksForCustomer(customerId: number): any[] {
     return stmt.all(customerId);
 }
 
+// --- JTL Specific Entity Operations ---
+
+// JTL Firmen
+export function upsertJtlFirma(firma: { kFirma: number; cName: string }): void {
+    const stmt = getDb().prepare(
+        `INSERT INTO ${JTL_FIRMEN_TABLE} (kFirma, cName)
+         VALUES (@kFirma, @cName)
+         ON CONFLICT(kFirma) DO UPDATE SET cName = excluded.cName`
+    );
+    stmt.run(firma);
+}
+
+export function getAllJtlFirmen(): { kFirma: number; cName: string }[] {
+    const stmt = getDb().prepare(`SELECT kFirma, cName FROM ${JTL_FIRMEN_TABLE} ORDER BY cName`);
+    return stmt.all() as { kFirma: number; cName: string }[];
+}
+
+// JTL Warenlager
+export function upsertJtlWarenlager(lager: { kWarenlager: number; cName: string }): void {
+    const stmt = getDb().prepare(
+        `INSERT INTO ${JTL_WARENLAGER_TABLE} (kWarenlager, cName)
+         VALUES (@kWarenlager, @cName)
+         ON CONFLICT(kWarenlager) DO UPDATE SET cName = excluded.cName`
+    );
+    stmt.run(lager);
+}
+
+export function getAllJtlWarenlager(): { kWarenlager: number; cName: string }[] {
+    const stmt = getDb().prepare(`SELECT kWarenlager, cName FROM ${JTL_WARENLAGER_TABLE} ORDER BY cName`);
+    return stmt.all() as { kWarenlager: number; cName: string }[];
+}
+
+// JTL Zahlungsarten
+export function upsertJtlZahlungsart(zahlungsart: { kZahlungsart: number; cName: string }): void {
+    const stmt = getDb().prepare(
+        `INSERT INTO ${JTL_ZAHLUNGSARTEN_TABLE} (kZahlungsart, cName)
+         VALUES (@kZahlungsart, @cName)
+         ON CONFLICT(kZahlungsart) DO UPDATE SET cName = excluded.cName`
+    );
+    stmt.run(zahlungsart);
+}
+
+export function getAllJtlZahlungsarten(): { kZahlungsart: number; cName: string }[] {
+    const stmt = getDb().prepare(`SELECT kZahlungsart, cName FROM ${JTL_ZAHLUNGSARTEN_TABLE} ORDER BY cName`);
+    return stmt.all() as { kZahlungsart: number; cName: string }[];
+}
+
+// JTL Versandarten
+export function upsertJtlVersandart(versandart: { kVersandart: number; cName: string }): void {
+    const stmt = getDb().prepare(
+        `INSERT INTO ${JTL_VERSANDARTEN_TABLE} (kVersandart, cName)
+         VALUES (@kVersandart, @cName)
+         ON CONFLICT(kVersandart) DO UPDATE SET cName = excluded.cName`
+    );
+    stmt.run(versandart);
+}
+
+export function getAllJtlVersandarten(): { kVersandart: number; cName: string }[] {
+    const stmt = getDb().prepare(`SELECT kVersandart, cName FROM ${JTL_VERSANDARTEN_TABLE} ORDER BY cName`);
+    return stmt.all() as { kVersandart: number; cName: string }[];
+}
+
 // --- Cleanup ---
 export function closeDatabase() {
     if (db) {
@@ -894,4 +990,4 @@ export function closeDatabase() {
     //   await knex.destroy();
     //   console.log('Knex connection destroyed.');
     // }
-} 
+}

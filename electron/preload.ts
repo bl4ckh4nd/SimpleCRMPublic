@@ -94,6 +94,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'mssql:save-settings',
         'mssql:get-settings',
         'mssql:test-connection',
+        // JTL Channels
+        'jtl:get-firmen',
+        'jtl:get-warenlager',
+        'jtl:get-zahlungsarten',
+        'jtl:get-versandarten',
+        'jtl:create-order', // Added as it's used in deal detail page
       ];
       if (allowedChannels.includes(channel)) {
           return ipcRenderer.invoke(channel, ...args);

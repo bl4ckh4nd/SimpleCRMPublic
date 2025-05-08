@@ -1,6 +1,23 @@
 import { BrowserWindow } from 'electron';
-import { fetchJtlCustomers, fetchJtlProducts } from './mssql-keytar-service';
-import { upsertCustomer, upsertProduct, setSyncInfo, getSyncInfo, getDb } from './sqlite-service';
+import {
+    fetchJtlCustomers,
+    fetchJtlProducts,
+    fetchJtlFirmen, // Added
+    fetchJtlWarenlager, // Added
+    fetchJtlZahlungsarten, // Added
+    fetchJtlVersandarten // Added
+} from './mssql-keytar-service';
+import {
+    upsertCustomer,
+    upsertProduct,
+    setSyncInfo,
+    getSyncInfo,
+    getDb,
+    upsertJtlFirma, // Added
+    upsertJtlWarenlager, // Added
+    upsertJtlZahlungsart, // Added
+    upsertJtlVersandart // Added
+} from './sqlite-service';
 import { MssqlCustomerData, MssqlProductData } from './types'; // Assuming types for JTL data
 
 let isSyncing = false;
@@ -115,6 +132,10 @@ export async function runSync(mainWindow: BrowserWindow | null) {
     sendSyncStatus(mainWindow, 'Running', 'Starting data synchronization...', 0);
     let customersSynced = 0;
     let productsSynced = 0;
+    let firmenSynced = 0; // Added
+    let warenlagerSynced = 0; // Added
+    let zahlungsartenSynced = 0; // Added
+    let versandartenSynced = 0; // Added
     const startTime = Date.now();
 
     try {
@@ -183,13 +204,13 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         });
 
         upsertManyCustomers(jtlCustomers);
-        sendSyncStatus(mainWindow, 'Running', `Processed ${customersSynced}/${jtlCustomers.length} customers.`, 50);
+        sendSyncStatus(mainWindow, 'Running', `Processed ${customersSynced}/${jtlCustomers.length} customers.`, 30); // Adjusted progress
 
 
         // --- Sync Products ---
-        sendSyncStatus(mainWindow, 'Running', 'Fetching products from JTL...', 55);
+        sendSyncStatus(mainWindow, 'Running', 'Fetching products from JTL...', 35); // Adjusted progress
         const jtlProducts = await fetchJtlProducts();
-        sendSyncStatus(mainWindow, 'Running', `Fetched ${jtlProducts.length} products. Processing...`, 60);
+        sendSyncStatus(mainWindow, 'Running', `Fetched ${jtlProducts.length} products. Processing...`, 40); // Adjusted progress
 
         // Removed the local prepared statement for products
         // const productUpsertStmt = db.prepare(...);
@@ -214,12 +235,63 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         });
 
         upsertManyProducts(jtlProducts);
-        sendSyncStatus(mainWindow, 'Running', `Processed ${productsSynced}/${jtlProducts.length} products.`, 95);
+        sendSyncStatus(mainWindow, 'Running', `Processed ${productsSynced}/${jtlProducts.length} products.`, 70); // Adjusted progress
 
+        // --- Sync JTL Firmen ---
+        sendSyncStatus(mainWindow, 'Running', 'Fetching JTL Firmen...', 75);
+        const jtlFirmen = await fetchJtlFirmen();
+        sendSyncStatus(mainWindow, 'Running', `Fetched ${jtlFirmen.length} Firmen. Processing...`, 80);
+        const upsertManyFirmen = db.transaction((firmen) => {
+            for (const firma of firmen) {
+                upsertJtlFirma(firma);
+                firmenSynced++;
+            }
+        });
+        upsertManyFirmen(jtlFirmen);
+        sendSyncStatus(mainWindow, 'Running', `Processed ${firmenSynced}/${jtlFirmen.length} Firmen.`, 83);
+
+        // --- Sync JTL Warenlager ---
+        sendSyncStatus(mainWindow, 'Running', 'Fetching JTL Warenlager...', 86);
+        const jtlWarenlager = await fetchJtlWarenlager();
+        sendSyncStatus(mainWindow, 'Running', `Fetched ${jtlWarenlager.length} Warenlager. Processing...`, 89);
+        const upsertManyWarenlager = db.transaction((warenlager) => {
+            for (const lager of warenlager) {
+                upsertJtlWarenlager(lager);
+                warenlagerSynced++;
+            }
+        });
+        upsertManyWarenlager(jtlWarenlager);
+        sendSyncStatus(mainWindow, 'Running', `Processed ${warenlagerSynced}/${jtlWarenlager.length} Warenlager.`, 92);
+
+        // --- Sync JTL Zahlungsarten ---
+        sendSyncStatus(mainWindow, 'Running', 'Fetching JTL Zahlungsarten...', 93);
+        const jtlZahlungsarten = await fetchJtlZahlungsarten();
+        sendSyncStatus(mainWindow, 'Running', `Fetched ${jtlZahlungsarten.length} Zahlungsarten. Processing...`, 94);
+        const upsertManyZahlungsarten = db.transaction((zahlungsarten) => {
+            for (const zahlungsart of zahlungsarten) {
+                upsertJtlZahlungsart(zahlungsart);
+                zahlungsartenSynced++;
+            }
+        });
+        upsertManyZahlungsarten(jtlZahlungsarten);
+        sendSyncStatus(mainWindow, 'Running', `Processed ${zahlungsartenSynced}/${jtlZahlungsarten.length} Zahlungsarten.`, 95);
+
+        // --- Sync JTL Versandarten ---
+        sendSyncStatus(mainWindow, 'Running', 'Fetching JTL Versandarten...', 96);
+        const jtlVersandarten = await fetchJtlVersandarten();
+        sendSyncStatus(mainWindow, 'Running', `Fetched ${jtlVersandarten.length} Versandarten. Processing...`, 97);
+        const upsertManyVersandarten = db.transaction((versandarten) => {
+            for (const versandart of versandarten) {
+                upsertJtlVersandart(versandart);
+                versandartenSynced++;
+            }
+        });
+        upsertManyVersandarten(jtlVersandarten);
+        sendSyncStatus(mainWindow, 'Running', `Processed ${versandartenSynced}/${jtlVersandarten.length} Versandarten.`, 98);
 
         // --- Finalize ---
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-        const successMessage = `Sync completed successfully in ${duration}s. Synced ${customersSynced} customers, ${productsSynced} products.`;
+        const successMessage = `Sync completed successfully in ${duration}s. Synced ${customersSynced} customers, ${productsSynced} products, ${firmenSynced} Firmen, ${warenlagerSynced} Warenlager, ${zahlungsartenSynced} Zahlungsarten, ${versandartenSynced} Versandarten.`;
         sendSyncStatus(mainWindow, 'Success', successMessage, 100);
         console.log(successMessage);
         return { success: true, message: successMessage };
@@ -264,4 +336,4 @@ export function initializeSyncService() {
     } catch (dbError) {
         console.error("Failed to initialize sync info in DB:", dbError);
     }
-} 
+}

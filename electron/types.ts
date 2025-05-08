@@ -5,10 +5,17 @@ export const mssqlSettingsSchema = z.object({
   server: z.string().min(1, "Server is required"),
   database: z.string().min(1, "Database name is required"),
   user: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+  password: z.string().optional(), // Made optional
   port: z.coerce.number().int().min(1).max(65535),
-  encrypt: z.boolean(),
-  trustServerCertificate: z.boolean(),
+  encrypt: z.boolean().default(true), // Added default
+  trustServerCertificate: z.boolean().default(false), // Added default
+  // JTL specific optional fields
+  kBenutzer: z.coerce.number().int().positive().optional(),
+  kShop: z.coerce.number().int().positive().optional(),
+  kPlattform: z.coerce.number().int().positive().optional(),
+  kSprache: z.coerce.number().int().positive().optional(),
+  cWaehrung: z.string().length(3).optional(),
+  fWaehrungFaktor: z.coerce.number().positive().optional(),
 });
 
 export type MssqlSettings = z.infer<typeof mssqlSettingsSchema>;
@@ -96,4 +103,8 @@ export interface DealProduct {
     quantity: number;
     price_at_time_of_adding: number; // Price when added (REAL -> number)
     dateAdded: string;          // Timestamp when added (ISO 8601 string)
+}
+
+export interface SyncStatus {
+  // Define the structure for synchronization status if needed
 }

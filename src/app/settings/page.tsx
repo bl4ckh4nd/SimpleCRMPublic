@@ -17,10 +17,17 @@ const settingsSchema = z.object({
   server: z.string().min(1, "Server is required"),
   database: z.string().min(1, "Database name is required"),
   user: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+  password: z.string().optional(), // Made optional, will not require min(1) if empty
   port: z.coerce.number().int().min(1).max(65535),
   encrypt: z.boolean(),
   trustServerCertificate: z.boolean(),
+  // JTL specific settings
+  kBenutzer: z.coerce.number({ invalid_type_error: "kBenutzer must be a number" }).int("kBenutzer must be an integer").optional(),
+  kShop: z.coerce.number({ invalid_type_error: "kShop must be a number" }).int("kShop must be an integer").optional(),
+  kPlattform: z.coerce.number({ invalid_type_error: "kPlattform must be a number" }).int("kPlattform must be an integer").optional(),
+  kSprache: z.coerce.number({ invalid_type_error: "kSprache must be a number" }).int("kSprache must be an integer").optional(),
+  cWaehrung: z.string().optional(),
+  fWaehrungFaktor: z.coerce.number({ invalid_type_error: "fWaehrungFaktor must be a number" }).optional(),
 })
 
 type SettingsForm = z.infer<typeof settingsSchema>
@@ -41,10 +48,17 @@ export default function SettingsPage() {
       server: "",
       database: "",
       user: "",
-      password: "",
+      password: "", // Default to empty, placeholder will indicate optional
       port: 1433,
       encrypt: true,
       trustServerCertificate: false,
+      // JTL specific defaults
+      kBenutzer: undefined, // Use undefined for optional numbers to avoid sending 0 if not set
+      kShop: undefined,
+      kPlattform: undefined,
+      kSprache: undefined,
+      cWaehrung: "EUR",
+      fWaehrungFaktor: 1.0,
     },
   })
 
@@ -53,16 +67,20 @@ export default function SettingsPage() {
     const fetchSettings = async () => {
       if (window.electronAPI && (window.electronAPI as any).invoke) {
         try {
-          const settings = await (window.electronAPI as any).invoke('mssql:get-settings')
-          if (settings) {
-            form.reset(settings)
-            // Test connection with saved settings
+          const settingsFromIPC = await (window.electronAPI as any).invoke('mssql:get-settings');
+          if (settingsFromIPC) {
+            // For form reset, ensure password field is an empty string if password is undefined
+            const formValues = { ...settingsFromIPC, password: settingsFromIPC.password || "" };
+            form.reset(formValues);
+
+            // Test connection with settings as obtained from IPC.
+            // If settingsFromIPC.password is undefined, testConnectionWithKeytar will try to use the stored password.
             try {
-              const testResult = await (window.electronAPI as any).invoke('mssql:test-connection', settings)
-              setConnectionStatus(testResult.success ? 'success' : 'error')
+              const testResult = await (window.electronAPI as any).invoke('mssql:test-connection', settingsFromIPC);
+              setConnectionStatus(testResult.success ? 'success' : 'error');
             } catch (error) {
-              console.error("Error testing connection:", error)
-              setConnectionStatus('error')
+              console.error("Error testing connection on load:", error);
+              setConnectionStatus('error');
             }
           }
         } catch (error) {
@@ -95,23 +113,47 @@ export default function SettingsPage() {
     fetchSyncStatus()
   }, [])
 
-  const testAndSaveConnection = async (data: SettingsForm) => {
+  const testAndSaveConnection = async (dataForTest: SettingsForm, dataForSave: Partial<SettingsForm>) => {
+    console.log('[SettingsPage] testAndSaveConnection initiated')
+    console.log('[SettingsPage] dataForTest (before API check):', JSON.stringify(dataForTest, null, 2))
+    console.log('[SettingsPage] dataForSave (before API check):', JSON.stringify(dataForSave, null, 2))
     setIsTesting(true)
+
+    console.log('[SettingsPage] Checking if window.electronAPI and invoke are available...');
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
+      console.error('[SettingsPage] Electron API or invoke method is NOT available.');
       toast({ variant: "destructive", title: "Error", description: "Electron API is not available." })
       setIsTesting(false)
       return
     }
-    try {
-      const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', data)
-      setConnectionStatus(testResult.success ? 'success' : 'error')
+    console.log('[SettingsPage] Electron API and invoke method ARE available. Proceeding to test connection.');
 
+    try {
+      // Use dataForTest for the connection test
+      console.log('[SettingsPage] Attempting to invoke mssql:test-connection with dataForTest:', dataForTest);
+      const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', dataForTest)
+      console.log('[SettingsPage] mssql:test-connection IPC call returned:', testResult);
+      setConnectionStatus(testResult.success ? 'success' : 'error')
+ 
       if (testResult.success) {
-        const saveResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:save-settings', data)
+        console.log('[SettingsPage] Connection test successful. Proceeding to save settings with dataForSave:', dataForSave);
+        // Use dataForSave for saving settings
+        const saveResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:save-settings', dataForSave)
+        console.log('[SettingsPage] mssql:save-settings IPC call returned:', saveResult);
+
         if (saveResult.success) {
           toast({ title: "Success", description: "Connection successful and settings saved." })
+          console.log('[SettingsPage] Settings saved successfully. Fetching updated settings...');
+          // Optionally, re-fetch settings to update form with potentially cleaned/stored values
+          // and confirm sync status or navigate
+          const newSettings = await (window.electronAPI as any).invoke('mssql:get-settings');
+          console.log('[SettingsPage] Fetched new settings after save:', newSettings);
+          if (newSettings) {
+            form.reset({ ...newSettings, password: newSettings.password || "" });
+          }
           navigate({ to: '/customers' })
         } else {
+          console.error('[SettingsPage] Save settings failed. IPC Result:', saveResult);
           toast({ variant: "destructive", title: "Save Failed", description: saveResult.error || "Could not save settings." })
         }
       } else {
@@ -126,20 +168,42 @@ export default function SettingsPage() {
     }
   }
 
-  const onSubmit = async (data: SettingsForm) => {
-    await testAndSaveConnection(data)
+  const onSubmit = async (formData: SettingsForm) => {
+    // formData contains the current values from the form fields
+    const dataToSave: Partial<SettingsForm> = { ...formData };
+    const dataToTest: SettingsForm = { ...formData }; // Start with all form data for testing
+
+    if (formData.password === "") {
+      // For saving: if password field is empty, it means "don't change existing password".
+      // So, we delete the password property from the object to be sent for saving.
+      delete dataToSave.password;
+
+      // For testing: if password field is empty, it means "use stored password".
+      // The backend 'mssql:test-connection' (testConnectionWithKeytar) will handle
+      // 'password: undefined' by trying to fetch from keytar.
+      dataToTest.password = undefined; // Explicitly set to undefined for test
+    }
+    // If formData.password is a non-empty string, it's used for both testing (in dataToTest)
+    // and saving (in dataToSave).
+
+    await testAndSaveConnection(dataToTest, dataToSave);
   }
 
   const handleTestConnection = async () => {
     setIsConnecting(true)
     const formData = form.getValues()
+    const dataToTest = { ...formData };
+    if (dataToTest.password === "") {
+        delete dataToTest.password; // Don't send empty password for testing if not changed
+    }
+
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
       toast({ variant: "destructive", title: "Error", description: "Electron API is not available." })
       setIsConnecting(false)
       return
     }
     try {
-      const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', formData)
+      const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', dataToTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
       if (testResult.success) {
         toast({ title: "Success", description: "Connection successful." })
@@ -170,8 +234,12 @@ export default function SettingsPage() {
       
       if (result.success) {
         let feedback = result.message || "Sync successful.";
-        if (result.details) {
-            feedback += ` Found: ${result.details.found ?? 'N/A'}. Synced: ${result.details.synced ?? 'N/A'}.`;
+        // Further check if details exist and have the expected properties
+        if (result.details && typeof result.details.found === 'number' && typeof result.details.synced === 'number') {
+            feedback += ` Found: ${result.details.found}. Synced: ${result.details.synced}.`;
+        } else if (result.details) {
+            // Fallback if details structure is not as expected but exists
+            feedback += ` (Details: ${JSON.stringify(result.details)})`;
         }
         toast({ title: "Sync Complete", description: feedback })
         setSyncStatusMessage(feedback)
@@ -224,9 +292,9 @@ export default function SettingsPage() {
       <div className="container mx-auto max-w-2xl py-4">
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle>Einstellungen zur Verbindung mit MSSQL-Server</CardTitle>
+            <CardTitle>Einstellungen zur Verbindung mit MSSQL-Server & JTL</CardTitle>
             <CardDescription>
-              Konfigurieren Sie Ihre Verbindung zum MSSQL-Server.
+              Konfigurieren Sie Ihre Verbindung zum MSSQL-Server und JTL-spezifische Standardwerte.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -297,8 +365,11 @@ export default function SettingsPage() {
                     <FormItem>
                       <FormLabel>Passwort</FormLabel>
                       <FormControl>
-                        <Input type="password" {...field} />
+                        <Input type="password" {...field} placeholder="Leer lassen, um nicht zu ändern" />
                       </FormControl>
+                      <FormDescription>
+                        Wenn Sie das Passwort nicht ändern möchten, lassen Sie dieses Feld leer.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -336,6 +407,101 @@ export default function SettingsPage() {
                             onCheckedChange={field.onChange}
                           />
                         </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <CardTitle className="text-lg pt-4 border-t mt-4">JTL Standardwerte für Aufträge</CardTitle>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="kBenutzer"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>kBenutzer</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="JTL Benutzer ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                        </FormControl>
+                        <FormDescription>Interne JTL Benutzer-ID.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kShop"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>kShop</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="JTL Shop ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                        </FormControl>
+                        <FormDescription>Interne JTL Shop-ID.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="kPlattform"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>kPlattform</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="JTL Plattform ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                        </FormControl>
+                        <FormDescription>Interne JTL Plattform-ID.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kSprache"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>kSprache</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="JTL Sprache ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                        </FormControl>
+                        <FormDescription>Interne JTL Sprach-ID.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="cWaehrung"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Währung</FormLabel>
+                        <FormControl>
+                          <Input placeholder="EUR" {...field} />
+                        </FormControl>
+                        <FormDescription>Standardwährung (z.B. EUR).</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="fWaehrungFaktor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Währungsfaktor</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="1.0" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || undefined)} />
+                        </FormControl>
+                        <FormDescription>Faktor für die Standardwährung.</FormDescription>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />

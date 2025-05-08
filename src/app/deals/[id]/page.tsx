@@ -1,15 +1,18 @@
-import { useState, useEffect, useCallback } from "react" // Added useCallback
-import { useParams } from "@tanstack/react-router"
-// Removed MainNav import as it's not used directly here
-import { DealHeader, DealMetadata, DealNotes } from "@/components/deal/deal-components"
-import { DealDetailSkeleton } from "@/components/deal/deal-skeleton"
-import { EditDealDialog } from "@/components/deal/edit-deal-dialog"
-import { Deal } from "@/types/deal"
-import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Edit, Trash2, Package, ListChecks, Info, Loader2 } from "lucide-react" // Added Loader2
-import { Button } from "@/components/ui/button"
-import { Link, useNavigate } from "@tanstack/react-router"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Added Table imports
+import { useState, useEffect, useCallback } from "react";
+import { useDealProducts } from "@/hooks/useDealProducts";
+import { DealProductLink } from "@/types"; // Corrected import for DealProductLink
+import { useParams } from "@tanstack/react-router";
+import { Input } from "@/components/ui/input";
+import { DealHeader, DealMetadata, DealNotes } from "@/components/deal/deal-components";
+import { DealDetailSkeleton } from "@/components/deal/deal-skeleton";
+import { EditDealDialog } from "@/components/deal/edit-deal-dialog";
+import { Deal } from "@/types/deal";
+import { Customer, Product } from "@/types"; // Correctly import Customer and Product
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, Edit, Trash2, Package, ListChecks, Info, Loader2, FilePlus2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,179 +22,308 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Product } from "@/types"; // Import Product type
-
-// Interface for the product data linked to a deal, including quantity and price at time
-interface DealProductLink extends Product {
-  deal_product_id: number; // ID of the link entry itself
-  quantity: number;
-  price_at_time_of_adding: number;
-  dateAdded: string; // Keep dateAdded if needed
-}
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added for CustomerDetails
 
 interface PageParams {
-  id: string
+  id: string;
+}
+
+interface JtlFirma { kFirma: number; cName: string; }
+interface JtlWarenlager { kWarenlager: number; cName: string; }
+interface JtlZahlungsart { kZahlungsart: number; cName: string; }
+interface JtlVersandart { kVersandart: number; cName: string; }
+
+// Define the expected response structure from 'jtl:create-order' IPC call
+interface JtlOrderCreationResponse {
+  success: boolean;
+  error?: string;
+  jtlOrderNumber?: string;
 }
 
 export default function DealDetailPage() {
-  const { dealId } = useParams({ from: '/deals/$dealId' })
-  const navigate = useNavigate()
-  const [deal, setDeal] = useState<Deal | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  // Removed initialDealsList state as data is fetched via IPC now
-  // const [initialDealsList, setInitialDealsList] = useState<Deal[]>(initialDeals)
-  const [dealProducts, setDealProducts] = useState<DealProductLink[]>([]);
-  const [isProductsLoading, setIsProductsLoading] = useState<boolean>(false);
-  const [productsError, setProductsError] = useState<string | null>(null);
+  const { dealId: routeDealId } = useParams({ from: '/deals/$dealId' }); // Renamed to avoid conflict with deal object
+  const dealId = Number(routeDealId); // Ensure dealId is a number for API calls
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+  // Product related states and functions are now managed by useDealProducts hook
+  const [customerForOrder, setCustomerForOrder] = useState<Customer | null>(null);
+  const [jtlFirmen, setJtlFirmen] = useState<JtlFirma[]>([]);
+  const [jtlWarenlager, setJtlWarenlager] = useState<JtlWarenlager[]>([]);
+  const [jtlZahlungsarten, setJtlZahlungsarten] = useState<JtlZahlungsart[]>([]);
+  const [jtlVersandarten, setJtlVersandarten] = useState<JtlVersandart[]>([]);
+  const [isLoadingJtlData, setIsLoadingJtlData] = useState(false);
+  const [isCreateJtlOrderDialogOpen, setIsCreateJtlOrderDialogOpen] = useState(false);
+  const [selectedFirma, setSelectedFirma] = useState<string>("");
+  const [selectedWarenlager, setSelectedWarenlager] = useState<string>("");
+  const [selectedZahlungsart, setSelectedZahlungsart] = useState<string>("");
+  const [selectedVersandart, setSelectedVersandart] = useState<string>("");
+  const [isSubmittingJtlOrder, setIsSubmittingJtlOrder] = useState(false);
 
-  // Fetch deal details
   useEffect(() => {
-    // Simulate API request with a short delay
-    const fetchDeal = async () => {
+    const fetchDealAndCustomer = async () => {
       setIsLoading(true);
-      setDeal(null); // Reset deal state before fetching
+      setDeal(null);
+      setCustomerForOrder(null);
       try {
-        // Add check for electronAPI existence
         if (window.electronAPI?.invoke) {
-          const dealData = await window.electronAPI.invoke<Deal | null>('deals:get-by-id', Number(dealId));
-          setDeal(dealData); // Set dealData (which could be null)
+          const dealData = await window.electronAPI.invoke<Deal | null>('deals:get-by-id', dealId);
+          setDeal(dealData);
+          if (dealData?.customer_id) {
+            const customerData = await window.electronAPI.invoke<Customer | null>('db:get-customer', dealData.customer_id);
+            setCustomerForOrder(customerData);
+          }
         } else {
           console.error("window.electronAPI or invoke method not found.");
-          setDeal(null); // Ensure deal is null if API is missing
+          setDeal(null);
+          setCustomerForOrder(null);
         }
-      } catch (error: any) { // Explicitly type error
-        console.error("Error fetching deal:", error);
-        setDeal(null); // Set to null on error
+      } catch (error: any) {
+        console.error("Error fetching deal or customer:", error);
+        setDeal(null);
+        setCustomerForOrder(null);
       } finally {
         setIsLoading(false);
       }
     };
-
-    if (dealId) {
-      fetchDeal();
-    } else {
-      // No dealId provided, stop loading and ensure deal is null
-      setIsLoading(false);
-      setDeal(null);
+    if (routeDealId) { // Use routeDealId for dependency
+      fetchDealAndCustomer();
     }
-  }, [dealId]); // Dependency array is correct
+  }, [routeDealId, dealId]);
 
-  // Fetch linked products when deal is loaded
-  const fetchDealProducts = useCallback(async () => {
-    if (!deal?.id) return;
-    setIsProductsLoading(true);
-    setProductsError(null);
-    try {
-      // Add check for electronAPI existence
-      if (window.electronAPI?.invoke) {
-        const products = await window.electronAPI.invoke<DealProductLink[]>('deals:get-products', deal.id);
-        setDealProducts(products);
-      } else {
-         console.error("window.electronAPI or invoke method not found.");
-         setProductsError("Fehler: API nicht verfügbar.");
-      }
-    } catch (err: any) { // Explicitly type error
-      console.error(`Error fetching products for deal ${deal.id}:`, err);
-      setProductsError(err.message || "Fehler beim Laden der Produkte.");
-    } finally {
-      setIsProductsLoading(false);
-    }
-  }, [deal]); // Depend on deal object
+  // Initialize the useDealProducts hook
+  const {
+    dealProducts,
+    isProductsLoading,
+    productsError,
+    // fetchDealProducts, // Not directly called from here anymore, hook handles its own fetching
+    handleAddProductToDeal,
+    handleUpdateDealProduct,
+    handleRemoveDealProduct
+  } = useDealProducts(deal?.id);
 
   useEffect(() => {
-    if (deal) {
-      fetchDealProducts();
-    } else {
-      setDealProducts([]); // Clear products if no deal
-    }
-  }, [deal, fetchDealProducts]); // Run when deal changes
+    const fetchJtlEntities = async () => {
+      if (!window.electronAPI?.invoke) return;
+      setIsLoadingJtlData(true);
+      try {
+        const [firmen, warenlager, zahlungsarten, versandarten] = await Promise.all([
+          window.electronAPI.invoke<JtlFirma[]>('jtl:get-firmen'),
+          window.electronAPI.invoke<JtlWarenlager[]>('jtl:get-warenlager'),
+          window.electronAPI.invoke<JtlZahlungsart[]>('jtl:get-zahlungsarten'),
+          window.electronAPI.invoke<JtlVersandart[]>('jtl:get-versandarten'),
+        ]);
+        setJtlFirmen(firmen || []);
+        setJtlWarenlager(warenlager || []);
+        setJtlZahlungsarten(zahlungsarten || []);
+        setJtlVersandarten(versandarten || []);
+      } catch (error) {
+        console.error("Error fetching JTL entities:", error);
+        toast({ variant: "destructive", title: "Fehler", description: "JTL-Auswahllisten konnten nicht geladen werden." });
+      } finally {
+        setIsLoadingJtlData(false);
+      }
+    };
+    fetchJtlEntities();
+    }, []);
 
-  // Handle saving edited deal (including product links via EditDealDialog)
+  // The useEffect that previously called fetchDealProducts is now handled within the useDealProducts hook.
+
   const handleEditDeal = async (updatedDealData: Deal): Promise<boolean> => {
-    setIsLoading(true); // Show loading indicator while saving
+    setIsLoading(true);
     try {
-      // Add check for electronAPI existence
       if (!window.electronAPI?.invoke) {
         throw new Error("API not available for saving.");
       }
-
       const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
         'deals:update',
-        { id: Number(dealId), dealData: updatedDealData }
+        { id: dealId, dealData: updatedDealData }
       );
-
       if (result.success) {
-        // Re-fetch the deal data to show updated info
-        const refreshedDeal = await window.electronAPI.invoke<Deal | null>('deals:get-by-id', Number(dealId));
-        if (refreshedDeal) {
-          setDeal(refreshedDeal);
-          // Re-fetch products as well, as they might have changed in the dialog
-          fetchDealProducts();
+        // Define type for service response; Deal is imported from "@/types/deal"
+        // This type represents the object structure returned by 'deals:get-by-id'
+        type DealResponseFromService = Omit<Deal, 'customer'> & { customer_name: string };
+        
+        const response = await window.electronAPI.invoke<DealResponseFromService | null>('deals:get-by-id', dealId);
+        if (response) {
+          const { customer_name, ...baseDealData } = response;
+          // Construct the deal object for state:
+          // - It conforms to the Deal type.
+          // - Deal.customer is populated from the fetched customer_name.
+          // - customer_name property itself is not part of this state object.
+          const dealForState: Deal = {
+            ...baseDealData,
+            customer: customer_name,
+          };
+          setDeal(dealForState);
+          // fetchDealProducts(); // This will be triggered by the hook due to deal.id change if necessary
         }
         setIsLoading(false);
-        return true; // Indicate success
+        return true;
       } else {
         console.error("Error updating deal:", result.error);
         setIsLoading(false);
-        return false; // Indicate failure
+        return false;
       }
-    } catch (error: any) { // Explicitly type error
+    } catch (error: any) {
       console.error("Error updating deal:", error);
-      // Potentially show error message to user via toast or state
       setIsLoading(false);
-      return false; // Indicate failure
+      return false;
     }
   };
   
-  // Handle deleting the deal
   const handleDeleteDeal = async () => {
     if (!deal) return;
     setIsLoading(true);
     try {
-      // First, attempt to delete associated products (optional, depends on desired cascade behavior)
-      // If using ON DELETE CASCADE in DB schema, this might not be needed
-      // const productLinks = await window.electronAPI.invoke<DealProductLink[]>('deals:get-products', deal.id);
-      // for (const link of productLinks) {
-      //   await window.electronAPI.invoke('deals:remove-product', { dealId: deal.id, productId: link.product_id });
-      // }
-
-      // Then, delete the deal itself (assuming DB handles cascade or products are removed)
-      // NOTE: Need a 'deals:delete' handler in main.js and sqlite-service.ts
       // For now, we'll just navigate away as before, assuming deletion happens elsewhere or is not yet implemented
-      // const deleteResult = await window.electronAPI.invoke('deals:delete', deal.id);
-      // if (deleteResult.success) {
-      //   navigate({ to: '/deals' });
-      // } else {
-      //   console.error("Failed to delete deal:", deleteResult.error);
-      //   // Show error to user
-      // }
-      
-      // TEMPORARY: Navigate away as the delete IPC handler isn't implemented yet
       console.warn("Deal deletion IPC handler not implemented. Navigating away.");
       navigate({ to: '/deals' });
-
-    } catch (error: any) { // Explicitly type error
+    } catch (error: any) {
       console.error("Error deleting deal:", error);
-      // Show error to user
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Helper to format currency
   const formatCurrency = (amount: number | string | undefined): string => {
     const numAmount = Number(amount);
     if (isNaN(numAmount)) return '-';
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(numAmount);
   };
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      <main className="flex-1">
+  const handleOpenCreateJtlOrderDialog = () => {
+    if (!deal || !customerForOrder) {
+      toast({ variant: "destructive", title: "Fehler", description: "Deal- oder Kundendaten nicht geladen." });
+      return;
+    }
+    // Add this check for jtl_kKunde
+    if (!customerForOrder.jtl_kKunde) {
+      toast({ variant: "destructive", title: "Fehler", description: "Dem Kunden ist keine JTL Kundennummer (jtl_kKunde) zugeordnet. Auftragserstellung nicht möglich." });
+      return;
+    }
+    if (dealProducts.length === 0) {
+      toast({ variant: "destructive", title: "Fehler", description: "Keine Produkte im Deal für den Auftrag." });
+      return;
+    }
+    if (jtlFirmen.length > 0 && !selectedFirma) setSelectedFirma(String(jtlFirmen[0].kFirma));
+    if (jtlWarenlager.length > 0 && !selectedWarenlager) setSelectedWarenlager(String(jtlWarenlager[0].kWarenlager));
+    if (jtlZahlungsarten.length > 0 && !selectedZahlungsart) setSelectedZahlungsart(String(jtlZahlungsarten[0].kZahlungsart));
+    if (jtlVersandarten.length > 0 && !selectedVersandart) setSelectedVersandart(String(jtlVersandarten[0].kVersandart));
+    setIsCreateJtlOrderDialogOpen(true);
+  };
+
+  const handleCreateJtlOrder = async () => {
+    if (!deal || !customerForOrder || !selectedFirma || !selectedWarenlager || !selectedZahlungsart || !selectedVersandart) {
+      toast({ variant: "destructive", title: "Fehler", description: "Bitte alle JTL-Optionen auswählen und sicherstellen, dass Deal- und Kundendaten geladen sind." });
+      return;
+    }
+    setIsSubmittingJtlOrder(true);
+
+    let cStrasse = customerForOrder.street || "";
+    let cHausnummer = "";
+    const streetParts = customerForOrder.street?.match(/(.+?)\s*(\d+[a-zA-Z]*(-[\d\w]+)?\s*[a-zA-Z]?$)/);
+    if (streetParts && streetParts.length > 2) {
+        cStrasse = streetParts[1].trim();
+        cHausnummer = streetParts[2].trim();
+    }
+
+    let cLandISO = customerForOrder.country || "";
+    if (cLandISO.toLowerCase() === "deutschland") cLandISO = "DE";
+    // Add more country mappings as needed
+
+    const orderProducts = dealProducts
+      .map(p => ({
+        kArtikel: p.jtl_kArtikel || 0,
+        cName: p.name,
+        cArtNr: p.sku || "",
+        nAnzahl: p.quantity,
+        fPreis: p.price_at_time_of_adding,
+      }))
+      .filter(p => p.kArtikel > 0);
+
+    if (orderProducts.length !== dealProducts.length) {
+        console.warn("Einige Produkte konnten nicht für den JTL-Auftrag übernommen werden, da die jtl_kArtikel fehlt oder ungültig ist.");
+        toast({ variant: "default", title: "Hinweis", description: "Einige Produkte ohne gültige JTL Artikel ID wurden nicht übernommen." });
+    }
+    if (orderProducts.length === 0) {
+        toast({ variant: "destructive", title: "Fehler", description: "Keine gültigen Produkte für den JTL Auftrag gefunden (fehlende oder ungültige jtl_kArtikel)." });
+        setIsSubmittingJtlOrder(false);
+        return;
+    }
+
+    const orderInput = {
+      simpleCrmCustomerId: customerForOrder.jtl_kKunde || 0,
+      cAnrede: customerForOrder.salutation || "",
+      cFirma: customerForOrder.company_name || (customerForOrder.is_company ? customerForOrder.name : ""),
+      cName: customerForOrder.is_company ? (customerForOrder.contact_person_name || customerForOrder.name) : customerForOrder.name,
+      cStrasse: cStrasse,
+      cHausnummer: cHausnummer,
+      cPLZ: customerForOrder.zip || "",
+      cOrt: customerForOrder.city || "",
+      cLandISO: cLandISO,
+      cTel: customerForOrder.phone || "",
+      cMobil: customerForOrder.mobile || "",
+      cEmail: customerForOrder.email || "",
+      cZusatz: customerForOrder.notes || "",
+
+      kFirma: parseInt(selectedFirma),
+      kWarenlager: parseInt(selectedWarenlager),
+      kZahlungsart: parseInt(selectedZahlungsart),
+      kVersandart: parseInt(selectedVersandart),
+      products: orderProducts,
+    };
+
+    try {
+      if (!window.electronAPI?.invoke) throw new Error("Electron API not available");
+      // Explicitly type the result of the invoke call
+      const result = await window.electronAPI.invoke<JtlOrderCreationResponse>('jtl:create-order', orderInput);
+      
+      if (result.success) {
+        toast({ title: "Erfolg", description: `JTL Auftrag ${result.jtlOrderNumber ? result.jtlOrderNumber : ''} erfolgreich erstellt.` });
+        setIsCreateJtlOrderDialogOpen(false);
+      } else {
+        throw new Error(result.error || "Unbekannter Fehler beim Erstellen des JTL Auftrags.");
+      }
+    } catch (error: any) {
+      console.error("Error creating JTL order:", error);
+      toast({ variant: "destructive", title: "Fehler", description: error.message });
+    } finally {
+      setIsSubmittingJtlOrder(false);
+    }
+    };
+    
+    // Product handling functions (handleAddProductToDeal, handleUpdateDealProduct, handleRemoveDealProduct)
+    // are now part of the useDealProducts hook and are destructured above.
+    
+    return (
+      <div className="flex min-h-screen flex-col">
+        <main className="flex-1">
         <div className="container mx-auto max-w-7xl py-6">
           <div className="mb-6">
             <Button variant="ghost" asChild className="mb-6 gap-1">
@@ -206,12 +338,12 @@ export default function DealDetailPage() {
             ) : !deal ? (
               <div className="flex h-[400px] w-full flex-col items-center justify-center rounded-md border border-dashed p-8 text-center animate-in fade-in-50">
                 <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
-                  <h3 className="mt-4 text-lg font-semibold">Deal not found</h3>
+                  <h3 className="mt-4 text-lg font-semibold">Deal nicht gefunden</h3>
                   <p className="mb-4 mt-2 text-sm text-muted-foreground">
-                    The deal you're looking for doesn't exist or you don't have access to it.
+                    Der gesuchte Deal existiert nicht oder Sie haben keinen Zugriff darauf.
                   </p>
                   <Button asChild>
-                    <Link to="/deals">Go back to deals</Link>
+                    <Link to="/deals">Zurück zu Deals</Link>
                   </Button>
                 </div>
               </div>
@@ -220,18 +352,92 @@ export default function DealDetailPage() {
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <DealHeader deal={deal} />
                   <div className="flex gap-2 self-start">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="gap-1"
                       onClick={() => setIsEditDialogOpen(true)}
                     >
                       <Edit className="h-4 w-4" />
                       Bearbeiten
                     </Button>
-                    <Button 
+                    <Dialog open={isCreateJtlOrderDialogOpen} onOpenChange={setIsCreateJtlOrderDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1" onClick={handleOpenCreateJtlOrderDialog} disabled={isLoadingJtlData || !dealProducts || dealProducts.length === 0 || !customerForOrder || !customerForOrder.jtl_kKunde}>
+                          <FilePlus2 className="h-4 w-4" />
+                          JTL Auftrag erstellen
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>JTL Auftrag erstellen</DialogTitle>
+                          <DialogDescription>
+                            Wählen Sie die erforderlichen JTL-Optionen für diesen Auftrag aus.
+                          </DialogDescription>
+                        </DialogHeader>
+                        {isLoadingJtlData ? (
+                          <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                        ) : (
+                          <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="jtlFirma" className="text-right">Firma</Label>
+                              <Select value={selectedFirma} onValueChange={setSelectedFirma} name="jtlFirma">
+                                <SelectTrigger className="col-span-3">
+                                  <SelectValue placeholder="Firma auswählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {jtlFirmen.map(f => <SelectItem key={f.kFirma} value={String(f.kFirma)}>{f.cName}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="jtlWarenlager" className="text-right">Warenlager</Label>
+                              <Select value={selectedWarenlager} onValueChange={setSelectedWarenlager} name="jtlWarenlager">
+                                <SelectTrigger className="col-span-3">
+                                  <SelectValue placeholder="Warenlager auswählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {jtlWarenlager.map(w => <SelectItem key={w.kWarenlager} value={String(w.kWarenlager)}>{w.cName}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="jtlZahlungsart" className="text-right">Zahlungsart</Label>
+                              <Select value={selectedZahlungsart} onValueChange={setSelectedZahlungsart} name="jtlZahlungsart">
+                                <SelectTrigger className="col-span-3">
+                                  <SelectValue placeholder="Zahlungsart auswählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {jtlZahlungsarten.map(z => <SelectItem key={z.kZahlungsart} value={String(z.kZahlungsart)}>{z.cName}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="jtlVersandart" className="text-right">Versandart</Label>
+                              <Select value={selectedVersandart} onValueChange={setSelectedVersandart} name="jtlVersandart">
+                                <SelectTrigger className="col-span-3">
+                                  <SelectValue placeholder="Versandart auswählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {jtlVersandarten.map(v => <SelectItem key={v.kVersandart} value={String(v.kVersandart)}>{v.cName}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button type="button" variant="outline">Abbrechen</Button>
+                          </DialogClose>
+                          <Button type="button" onClick={handleCreateJtlOrder} disabled={isSubmittingJtlOrder || isLoadingJtlData || !selectedFirma || !selectedWarenlager || !selectedZahlungsart || !selectedVersandart}>
+                            {isSubmittingJtlOrder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Auftrag erstellen
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    <Button
                       variant="destructive"
-                      size="sm" 
+                      size="sm"
                       className="gap-1"
                       onClick={() => setIsDeleteDialogOpen(true)}
                     >
@@ -242,24 +448,104 @@ export default function DealDetailPage() {
                 </div>
                 <Separator />
 
-                {/* Tabs for Details, Products, Tasks */}
-                <Tabs defaultValue="details" className="w-full">
+                <Tabs defaultValue="overview" className="w-full">
                   <TabsList className="grid w-full grid-cols-3 md:w-[400px]">
-                    <TabsTrigger value="details">
-                      <Info className="mr-1 h-4 w-4" /> Details
+                    <TabsTrigger value="overview">
+                      <Info className="mr-1 h-4 w-4" /> Übersicht
                     </TabsTrigger>
                     <TabsTrigger value="products">
-                      <Package className="mr-1 h-4 w-4" /> Products
+                      <Package className="mr-1 h-4 w-4" /> Produkte
                     </TabsTrigger>
                     <TabsTrigger value="tasks">
-                       <ListChecks className="mr-1 h-4 w-4" /> Tasks
+                       <ListChecks className="mr-1 h-4 w-4" /> Aufgaben
                     </TabsTrigger>
                   </TabsList>
-                  <TabsContent value="details" className="mt-4 space-y-6">
+                  <TabsContent value="overview" className="mt-4 space-y-6">
+                    {/* Customer Details Section */}
+                    {customerForOrder && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Kundendetails</CardTitle>
+                          <CardDescription>Informationen zum zugehörigen Kunden.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <p><strong>Name:</strong> {customerForOrder.name}</p>
+                          {customerForOrder.company_name && <p><strong>Firma:</strong> {customerForOrder.company_name}</p>}
+                          <p><strong>E-Mail:</strong> {customerForOrder.email || "-"}</p>
+                          <p><strong>Telefon:</strong> {customerForOrder.phone || "-"}</p>
+                          <p><strong>Mobil:</strong> {customerForOrder.mobile || "-"}</p>
+                          <p><strong>Adresse:</strong> {customerForOrder.street || "-"}, {customerForOrder.zip || "-"} {customerForOrder.city || "-"}, {customerForOrder.country || "-"}</p>
+                          {customerForOrder.jtl_kKunde && <p><strong>JTL Kundennr.:</strong> {customerForOrder.jtl_kKunde}</p>}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Deal Products Section - reusing existing product table logic */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                          <CardTitle>Produkte im Deal</CardTitle>
+                          <CardDescription>Aktuell diesem Deal zugeordnete Produkte.</CardDescription>
+                        </div>
+                        <Button onClick={() => setIsAddProductDialogOpen(true)} size="sm" className="gap-1">
+                          <Package className="h-4 w-4" /> Produkt hinzufügen
+                        </Button>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="rounded-lg border">
+                          {isProductsLoading ? (
+                            <div className="flex items-center justify-center p-8">
+                              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                              <span>Produkte werden geladen...</span>
+                            </div>
+                          ) : productsError ? (
+                            <p className="p-4 text-center text-destructive">{productsError}</p>
+                          ) : dealProducts.length > 0 ? (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Produkt</TableHead>
+                                  <TableHead>SKU</TableHead>
+                                  <TableHead className="text-right">Menge</TableHead>
+                                  <TableHead className="text-right">Preis</TableHead>
+                                  <TableHead className="text-right">Gesamt</TableHead>
+                                  <TableHead className="text-right">Aktion</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {dealProducts.map((p) => (
+                                  <DealProductRow
+                                    key={p.deal_product_id}
+                                    product={p}
+                                    onUpdateProduct={handleUpdateDealProduct}
+                                    onRemoveProduct={handleRemoveDealProduct}
+                                    formatCurrency={formatCurrency}
+                                  />
+                                ))}
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <p className="p-4 text-center text-sm text-muted-foreground">
+                              Keine Produkte zu diesem Deal hinzugefügt.
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
                     <DealMetadata deal={deal} />
                     <DealNotes deal={deal} />
                   </TabsContent>
                   <TabsContent value="products" className="mt-4">
+                     {/* This tab's content can be removed if products are fully integrated into "Übersicht" */}
+                     {/* For now, keeping it as a separate view as well, but it's redundant if above is complete */}
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">Alle Produkte im Deal (Detailansicht)</h3>
+                       {/* Button to add product might be redundant if also in Übersicht */}
+                       <Button onClick={() => setIsAddProductDialogOpen(true)} size="sm" className="gap-1">
+                        <Package className="h-4 w-4" /> Produkt hinzufügen
+                      </Button>
+                    </div>
                     <div className="rounded-lg border">
                       {isProductsLoading ? (
                         <div className="flex items-center justify-center p-8">
@@ -275,19 +561,20 @@ export default function DealDetailPage() {
                               <TableHead>Produkt</TableHead>
                               <TableHead>SKU</TableHead>
                               <TableHead className="text-right">Menge</TableHead>
-                              <TableHead className="text-right">Preis (bei Hinzufügen)</TableHead>
+                              <TableHead className="text-right">Preis</TableHead>
                               <TableHead className="text-right">Gesamt</TableHead>
+                              <TableHead className="text-right">Aktion</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {dealProducts.map((p) => (
-                              <TableRow key={p.deal_product_id}>
-                                <TableCell className="font-medium">{p.name}</TableCell>
-                                <TableCell>{p.sku || '-'}</TableCell>
-                                <TableCell className="text-right">{p.quantity}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(p.price_at_time_of_adding)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(p.quantity * p.price_at_time_of_adding)}</TableCell>
-                              </TableRow>
+                              <DealProductRow
+                                key={p.deal_product_id}
+                                product={p}
+                                onUpdateProduct={handleUpdateDealProduct}
+                                onRemoveProduct={handleRemoveDealProduct}
+                                formatCurrency={formatCurrency}
+                              />
                             ))}
                           </TableBody>
                         </Table>
@@ -299,41 +586,45 @@ export default function DealDetailPage() {
                     </div>
                   </TabsContent>
                   <TabsContent value="tasks" className="mt-4">
-                     {/* Placeholder for Tasks */}
                      <div className="rounded-lg border p-4">
-                      <h4 className="mb-2 text-lg font-semibold">Tasks</h4>
+                      <h4 className="mb-2 text-lg font-semibold">Aufgaben</h4>
                       <p className="text-sm text-muted-foreground">
                         Aufgaben im Zusammenhang mit diesem Deal werden hier angezeigt. (Funktionalität kommt bald)
                       </p>
-                      {/* Example structure - replace with actual component */}
-                      {/* <TaskList dealId={deal.id} /> */}
                      </div>
                   </TabsContent>
                 </Tabs>
-                
-                {/* Edit Deal Dialog */}
+
                 {deal && (
-                  <EditDealDialog 
-                    deal={deal} 
-                    isOpen={isEditDialogOpen} 
+                  <EditDealDialog
+                    deal={deal}
+                    isOpen={isEditDialogOpen}
                     onClose={() => setIsEditDialogOpen(false)}
                     onSave={handleEditDeal}
                   />
-                )}
-                
-                {/* Delete Deal Confirmation */}
-                <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
+                  )}
+
+                  {deal && (
+                    <AddProductDialog
+                      isOpen={isAddProductDialogOpen}
+                      onClose={() => setIsAddProductDialogOpen(false)}
+                      onAddProduct={handleAddProductToDeal}
+                      dealId={deal.id}
+                    />
+                  )}
+
+                  <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
                       <AlertDialogTitle>Deal löschen</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Sind Sie sicher, dass Sie den Deal "{deal.name}" löschen möchten? 
+                        Sind Sie sicher, dass Sie den Deal "{deal.name}" löschen möchten?
                         Diese Aktion kann nicht rückgängig gemacht werden.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                      <AlertDialogAction 
+                      <AlertDialogAction
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         onClick={handleDeleteDeal}
                       >
@@ -349,7 +640,216 @@ export default function DealDetailPage() {
       </main>
     </div>
   )
-}
-
-// Removed initialDeals constant as data is fetched via IPC
+  }
+  
+  // DealProductRow component
+  interface DealProductRowProps {
+    product: DealProductLink;
+    onUpdateProduct: (dealProductId: number, newQuantity: number, newPrice: number) => void;
+    onRemoveProduct: (dealProductId: number) => void;
+    formatCurrency: (amount: number | string | undefined) => string;
+  }
+  
+  function DealProductRow({ product, onUpdateProduct, onRemoveProduct, formatCurrency }: DealProductRowProps) {
+    const [currentQuantity, setCurrentQuantity] = useState(product.quantity);
+    const [currentPrice, setCurrentPrice] = useState(product.price_at_time_of_adding);
+  
+    // Update local state if the product prop changes (e.g., after a fetchDealProducts call)
+    useEffect(() => {
+      setCurrentQuantity(product.quantity);
+      setCurrentPrice(product.price_at_time_of_adding);
+    }, [product.quantity, product.price_at_time_of_adding]);
+  
+    const onQuantityBlur = () => {
+      // Check if the value actually changed before calling update
+      if (currentQuantity !== product.quantity || currentPrice !== product.price_at_time_of_adding) {
+        onUpdateProduct(product.deal_product_id, currentQuantity, currentPrice);
+      }
+    };
+  
+    const onPriceBlur = () => {
+      // Check if the value actually changed before calling update
+      if (currentPrice !== product.price_at_time_of_adding || currentQuantity !== product.quantity) {
+        onUpdateProduct(product.deal_product_id, currentQuantity, currentPrice);
+      }
+    };
+  
+    return (
+      <TableRow>
+        <TableCell className="font-medium">{product.name}</TableCell>
+        <TableCell>{product.sku || '-'}</TableCell>
+        <TableCell className="text-right w-28">
+          <Input
+            type="number"
+            value={currentQuantity}
+            onChange={(e) => setCurrentQuantity(Number(e.target.value))}
+            onBlur={onQuantityBlur}
+            className="h-8 text-right"
+            min="1"
+          />
+        </TableCell>
+        <TableCell className="text-right w-32">
+          <Input
+            type="number"
+            value={currentPrice}
+            onChange={(e) => setCurrentPrice(Number(e.target.value))}
+            onBlur={onPriceBlur}
+            className="h-8 text-right"
+            min="0"
+            step="0.01"
+          />
+        </TableCell>
+        <TableCell className="text-right">{formatCurrency(currentQuantity * currentPrice)}</TableCell>
+        <TableCell className="text-right w-20">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemoveProduct(product.deal_product_id)}
+            title="Produkt entfernen"
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    );
+  }
+  
+  // AddProductDialog component (can be moved to a new file later)
+  interface AddProductDialogProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onAddProduct: (productId: number, quantity: number, price: number) => Promise<boolean>;
+    dealId: number; // Though not directly used in this version of dialog, good for context/future
+  }
+  
+  function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
+    const { toast } = useToast();
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+    const [selectedProductId, setSelectedProductId] = useState<string>("");
+    const [quantity, setQuantity] = useState<number>(1);
+    const [price, setPrice] = useState<number>(0);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+  
+    // Utility function from parent scope
+    const formatCurrency = (amount: number | string | undefined): string => {
+      const numAmount = Number(amount);
+      if (isNaN(numAmount)) return '-';
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(numAmount);
+    };
+  
+    useEffect(() => {
+      if (isOpen) {
+        setSelectedProductId("");
+        setQuantity(1);
+        setPrice(0);
+  
+        const fetchAllProducts = async () => {
+          setIsLoadingProducts(true);
+          try {
+            if (window.electronAPI?.invoke) {
+              const productsData = await window.electronAPI.invoke<Product[]>('products:get-all');
+              setAllProducts(productsData || []);
+            } else {
+              console.error("window.electronAPI or invoke method not found for products:get-all.");
+              toast({ variant: "destructive", title: "Fehler", description: "Produktliste konnte nicht geladen werden." });
+            }
+          } catch (error) {
+            console.error("Error fetching all products:", error);
+            toast({ variant: "destructive", title: "Fehler", description: "Produktliste konnte nicht geladen werden." });
+          } finally {
+            setIsLoadingProducts(false);
+          }
+        };
+        fetchAllProducts();
+      }
+    }, [isOpen, toast]);
+  
+    const handleProductChange = (productIdString: string) => {
+      setSelectedProductId(productIdString);
+      const selectedProduct = allProducts.find(p => String(p.id) === productIdString);
+      if (selectedProduct) {
+        setPrice(selectedProduct.price || 0);
+      } else {
+        setPrice(0);
+      }
+    };
+  
+    const handleSubmit = async () => {
+      if (!selectedProductId || quantity <= 0 || price < 0) {
+        toast({ variant: "destructive", title: "Validierung fehlgeschlagen", description: "Bitte wählen Sie ein Produkt und geben Sie eine gültige Menge und einen gültigen Preis ein." });
+        return;
+      }
+      setIsSubmitting(true);
+      const success = await onAddProduct(Number(selectedProductId), quantity, price);
+      if (success) {
+        // Toast for success is handled by onAddProduct's caller or onAddProduct itself
+        onClose();
+      }
+      // If not success, error toast is handled by onAddProduct
+      setIsSubmitting(false);
+    };
+  
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Produkt zum Deal hinzufügen</DialogTitle>
+            <DialogDescription>
+              Wählen Sie ein Produkt aus und geben Sie Menge und Preis an.
+            </DialogDescription>
+          </DialogHeader>
+          {isLoadingProducts ? (
+            <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+          ) : (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="product" className="text-right">Produkt</Label>
+                <Select value={selectedProductId} onValueChange={handleProductChange} name="product">
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Produkt auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allProducts.length === 0 && <SelectItem value="no-products" disabled>Keine Produkte verfügbar</SelectItem>}
+                    {allProducts.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name} ({formatCurrency(p.price)})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">Menge</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  className="col-span-3"
+                  min="1"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="price" className="text-right">Preis</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(Number(e.target.value))}
+                  className="col-span-3"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" onClick={onClose}>Abbrechen</Button>
+            </DialogClose>
+            <Button type="button" onClick={handleSubmit} disabled={isSubmitting || isLoadingProducts || !selectedProductId}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Hinzufügen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 

@@ -19,8 +19,10 @@ const {
   deleteProduct,
   getProductsForDeal,
   addProductToDeal,
-  removeProductFromDeal,
-  updateProductQuantityInDeal,
+  removeProductFromDeal, // Keep if used elsewhere, or can be removed if new one covers all
+  updateProductQuantityInDeal, // Keep if used elsewhere, or can be removed
+  updateDealProduct, // Added for the new functionality
+  removeProductFromDealById, // Added for the new functionality
   getSyncInfo, // Ensure this is imported
   setSyncInfo, // Ensure this is imported
   getDealsForCustomer,
@@ -40,10 +42,15 @@ const {
   createTask,
   updateTask,
   updateTaskCompletion,
-  deleteTask
+  deleteTask,
+  getAllJtlFirmen, // Added
+  getAllJtlWarenlager, // Added
+  getAllJtlZahlungsarten, // Added
+  getAllJtlVersandarten // Added
 } = require('../dist-electron/sqlite-service');
 const { initializeSyncService, runSync, getLastSyncStatus } = require('../dist-electron/sync-service');
 const { initializeMssqlService, saveMssqlSettingsWithKeytar, getMssqlSettingsWithKeytar, testConnectionWithKeytar, closeMssqlPool } = require('../dist-electron/mssql-keytar-service');
+const { createJtlOrder } = require('../dist-electron/jtl-order-service'); // Added
 
 // Keep a global reference of the mainWindow object
 let mainWindow;
@@ -54,6 +61,65 @@ let loadURLFunction;
 // Determine mode AT THE TOP
 const isDevelopment = process.env.NODE_ENV === 'development';
 console.log(`[Electron Main] Initial check: process.env.NODE_ENV = ${process.env.NODE_ENV}, isDevelopment = ${isDevelopment}`);
+
+// --- Setup loadURLFunction based on mode ---
+// This setup, especially for electron-serve, needs to happen before 'app.ready'.
+if (isDevelopment) {
+  console.log('[Electron Main] Development mode: Setting up Vite dev server loader.');
+  loadURLFunction = async (windowInstance) => {
+    const viteDevServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
+    console.log(`[Electron Main] Development mode: Attempting to load URL: ${viteDevServerUrl}`);
+    try {
+      await windowInstance.loadURL(viteDevServerUrl);
+      console.log('[Electron Main] Vite dev server URL loaded successfully.');
+    } catch (error) {
+      console.error(`[Electron Main] Failed to load Vite dev server URL (${viteDevServerUrl}):`, error);
+      dialog.showErrorBox("Dev Server Load Error", `Failed to connect to Vite dev server at ${viteDevServerUrl}. Ensure it's running. Error: ${error.message}`);
+      if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
+        app.quit();
+      } else if (app && typeof app.quit === 'function') {
+        app.quit();
+      }
+    }
+  };
+} else {
+  // Production or packaged mode
+  try {
+    const serveModule = require('electron-serve');
+    const serve = serveModule.default || serveModule; // Access .default, fallback to module itself
+    const servePath = path.join(__dirname, '../dist');
+    console.log(`[Electron Main] Production mode: Initializing electron-serve for directory: ${servePath}`);
+    
+    // Calling serve() here registers the 'app://' protocol.
+    // This is the critical part that needs to happen before app is ready.
+    const prodLoadURL = serve({ directory: servePath });
+
+    loadURLFunction = async (windowInstance) => {
+      try {
+        await prodLoadURL(windowInstance);
+        console.log(`[Electron Main] electron-serve loaded content for window from ${servePath}`);
+      } catch (e) {
+        console.error(`[Electron Main] electron-serve failed to load URL:`, e);
+        const errorDetails = e.url ? `URL: ${e.url}` : `Path: ${servePath}`;
+        dialog.showErrorBox("Application Load Error", `Failed to load application content via electron-serve. ${errorDetails}. Error: ${e.message}`);
+        if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
+          app.quit();
+        } else if (app && typeof app.quit === 'function') {
+          app.quit();
+        }
+      }
+    };
+    console.log('[Electron Main] electron-serve initialized and loadURLFunction set for production.');
+  } catch (e) {
+    console.error('[Electron Main] CRITICAL ERROR: Failed to initialize electron-serve:', e);
+    if (app && typeof app.isReady === 'function' && app.isReady()) {
+        dialog.showErrorBox("Electron-Serve Init Error", `Failed to initialize electron-serve: ${e.message}. The application cannot start.`);
+    }
+    // Ensure the app exits. process.exit is used because app.quit() might not be effective
+    // if this critical initialization fails very early.
+    process.exit(1);
+  }
+}
 
 // --- IPC Handlers Setup ---
 // (setupIpcHandlers function definition should be here or imported)
@@ -339,32 +405,43 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('deals:add-product', async (_, { dealId, productId, quantity, priceAtTime }) => {
+  ipcMain.handle('deals:add-product', async (_, { dealId, productId, quantity, price }) => { // Changed priceAtTime to price
     try {
-      const result = addProductToDeal(dealId, productId, quantity, priceAtTime);
-      return { success: true, lastInsertRowid: result.lastInsertRowid };
+      const result = addProductToDeal(dealId, productId, quantity, price); // Changed priceAtTime to price
+      // Assuming addProductToDeal returns the full deal_product link or enough info
+      // For now, returning lastInsertRowid is fine if the frontend refetches or can construct the object.
+      // Ideally, fetch the newly added/updated DealProductLink and return it.
+      // const newDealProduct = getDealProductById(result.lastInsertRowid); // Hypothetical function
+      // return { success: true, dealProduct: newDealProduct };
+      return { success: true, lastInsertRowid: result.lastInsertRowid }; // Keep as is for now
     } catch (error) {
       console.error(`IPC Error adding product ${productId} to deal ${dealId}:`, error);
       return { success: false, error: error.message };
     }
   });
-
-  ipcMain.handle('deals:remove-product', async (_, { dealId, productId }) => {
+  
+  // Updated to use dealProductId and call removeProductFromDealById
+  ipcMain.handle('deals:remove-product', async (_, { dealProductId }) => {
     try {
-      const result = removeProductFromDeal(dealId, productId);
+      const result = removeProductFromDealById(dealProductId);
       return { success: true, changes: result.changes };
     } catch (error) {
-      console.error(`IPC Error removing product ${productId} from deal ${dealId}:`, error);
+      console.error(`IPC Error removing deal_product_id ${dealProductId}:`, error);
       return { success: false, error: error.message };
     }
   });
-
-  ipcMain.handle('deals:update-product-quantity', async (_, { dealId, productId, newQuantity }) => {
+  
+  // Renamed from 'deals:update-product-quantity' to 'deals:update-product'
+  // Updated to use dealProductId, quantity, price and call updateDealProduct
+  ipcMain.handle('deals:update-product', async (_, { dealProductId, quantity, price }) => {
     try {
-      const result = updateProductQuantityInDeal(dealId, productId, newQuantity);
-      return { success: true, changes: result.changes };
+      const result = updateDealProduct(dealProductId, quantity, price);
+      // Similar to add, ideally fetch and return the updated DealProductLink
+      // const updatedDealProduct = getDealProductById(dealProductId); // Hypothetical
+      // return { success: true, dealProduct: updatedDealProduct, changes: result.changes };
+      return { success: true, changes: result.changes }; // Keep as is for now
     } catch (error) {
-      console.error(`IPC Error updating quantity for product ${productId} in deal ${dealId}:`, error);
+      console.error(`IPC Error updating deal_product_id ${dealProductId}:`, error);
       return { success: false, error: error.message };
     }
   });
@@ -427,15 +504,56 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
+ 
+  // --- JTL Entity Handlers (from SQLite) ---
+  ipcMain.handle('jtl:get-firmen', async () => {
+    try {
+      return getAllJtlFirmen();
+    } catch (error) {
+      console.error('IPC Error getting JTL Firmen:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('jtl:get-warenlager', async () => {
+    try {
+      return getAllJtlWarenlager();
+    } catch (error) {
+      console.error('IPC Error getting JTL Warenlager:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('jtl:get-zahlungsarten', async () => {
+    try {
+      return getAllJtlZahlungsarten();
+    } catch (error) {
+      console.error('IPC Error getting JTL Zahlungsarten:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('jtl:get-versandarten', async () => {
+    try {
+      return getAllJtlVersandarten();
+    } catch (error) {
+      console.error('IPC Error getting JTL Versandarten:', error);
+      throw error;
+    }
+  });
 
   // --- MSSQL Handlers (using Keytar service) ---
   ipcMain.handle('mssql:save-settings', async (_, settings) => {
+    console.log('[IPC Main] mssql:save-settings invoked with settings argument:', JSON.stringify(settings)); // Log the received settings
     try {
+      console.log('[IPC Main] Attempting to call saveMssqlSettingsWithKeytar...');
       await saveMssqlSettingsWithKeytar(settings);
+      console.log('[IPC Main] mssql:save-settings: saveMssqlSettingsWithKeytar call completed successfully.');
       return { success: true };
     } catch (error) {
-      console.error('IPC Error saving MSSQL settings:', error);
-      throw error;
+      // This catch block is for errors specifically from saveMssqlSettingsWithKeytar or the await itself
+      console.error('[IPC Main] mssql:save-settings: Error during or after calling saveMssqlSettingsWithKeytar:', error.message, error.stack);
+      return { success: false, error: error.message || 'Unknown error during saveMssqlSettingsWithKeytar call' };
     }
   });
 
@@ -450,10 +568,12 @@ function setupIpcHandlers() {
 
   ipcMain.handle('mssql:test-connection', async (_, settings) => {
     try {
-      return await testConnectionWithKeytar(settings);
+      const success = await testConnectionWithKeytar(settings);
+      return { success: success }; // Ensure an object is returned
     } catch (error) {
-      console.error('IPC Error testing MSSQL connection:', error);
-      throw error;
+      console.error('IPC Error testing MSSQL connection:', error.message, error.stack);
+      // Return a structured error object that the frontend can use
+      return { success: false, error: error.message || 'Test connection failed in main process' };
     }
   });
 
@@ -502,27 +622,19 @@ function setupIpcHandlers() {
     }
   });
 
-  // --- Product Handlers ---
-  // Note: This section was identified as duplicated and the second instance will be removed.
-  // The first instance of Product Handlers (around line 188) is kept.
-
-  // --- Deal Handlers ---
-  // Note: This section was identified as duplicated and the second instance will be removed.
-  // The first instance of Deal Handlers (around line 234) is kept.
-
-  // --- Deal-Product Link Handlers ---
-  // Note: This section was identified as duplicated and the second instance will be removed.
-  // The first instance of Deal-Product Link Handlers (around line 276) is kept.
-
-  // --- Task Handlers ---
-  // Note: This section was identified as duplicated and the second instance will be removed.
-  // The first instance of Task Handlers (around line 318) is kept.
-
-  // --- Calendar Event Handlers ---
-  // Note: This section was identified as duplicated and the second instance will be removed.
-  // The first instance of Calendar Event Handlers (around line 153) is kept.
-
-  // The duplicated handlers from approximately line 435 to line 589 have been removed.
+  // --- JTL Specific Handlers ---
+  ipcMain.handle('jtl:create-order', async (_, orderInput) => {
+    try {
+      console.log('[Electron Main] Received jtl:create-order with input:', orderInput);
+      const result = await createJtlOrder(orderInput);
+      console.log('[Electron Main] jtl:create-order result:', result);
+      return result;
+    } catch (error) {
+      console.error('[Electron Main] IPC Error creating JTL order:', error);
+      // Ensure the error structure is consistent for the frontend
+      return { success: false, error: error.message || 'Unknown error during JTL order creation' };
+    }
+  });
 
 } // End of setupIpcHandlers
 
@@ -530,36 +642,8 @@ function setupIpcHandlers() {
 // --- Main Application Initialization ---
 async function initializeApp() {
   console.log('[Electron Main] initializeApp started.');
-  if (isDevelopment) {
-    console.log('[Electron Main] Development mode: Setting up Vite dev server loader.');
-    loadURLFunction = async (windowInstance) => {
-      const devUrl = 'http://localhost:5173';
-      console.log(`[Electron Main] Attempting to load Vite dev server at: ${devUrl}`);
-      await windowInstance.loadURL(devUrl);
-      console.log('[Electron Main] Vite dev server loaded successfully.');
-      windowInstance.webContents.openDevTools();
-    };
-  } else {
-    // Production or packaged mode
-    console.log('[Electron Main] Production mode: Initializing electron-serve.');
-    const servePath = path.join(__dirname, '../dist'); // Relative to dist-electron/main.js
-    console.log(`[Electron Main] electron-serve target directory: ${servePath}`);
-    try {
-      if (fs.existsSync(servePath)) {
-        const { default: serve } = await import('electron-serve'); // Dynamically import
-        loadURLFunction = serve({ directory: servePath }); // Initialize electron-serve
-        console.log('[Electron Main] electron-serve initialized successfully.');
-      } else {
-        console.error(`[Electron Main] CRITICAL ERROR: electron-serve directory ${servePath} does not exist. Frontend will not load.`);
-        loadURLFunction = null; // Mark as failed
-        throw new Error(`electron-serve directory not found: ${servePath}`);
-      }
-    } catch (e) {
-      console.error('[Electron Main] CRITICAL ERROR: Failed to dynamically import or initialize electron-serve:', e);
-      loadURLFunction = null; // Mark as failed
-      throw e; // Re-throw to be caught by initializeApp().catch()
-    }
-  }
+  // The electron-serve/Vite loader setup is now done above.
+  // This function now only initializes other critical services.
 
   // Initialize other critical services
   try {
@@ -607,8 +691,12 @@ async function createMainWindow() {
 
   if (!loadURLFunction) {
     console.error('[Electron Main] ERROR in createMainWindow: loadURLFunction is not defined. Cannot load frontend.');
-    dialog.showErrorBox("Application Load Error", "Frontend loader not configured. This usually means electron-serve failed to initialize in production.");
-    app.quit();
+    dialog.showErrorBox("Application Load Error", "Frontend loader not configured. This usually means a critical error occurred during initial setup.");
+    if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
+      app.quit();
+    } else if (app && typeof app.quit === 'function') {
+      app.quit();
+    }
     return;
   }
 
@@ -632,25 +720,30 @@ initializeApp()
   .then(() => {
     app.whenReady().then(() => {
       console.log('[Electron Main] App is ready (after initializeApp).');
-      setupIpcHandlers(); // Call setupIpcHandlers here
-      createMainWindow();
+      setupIpcHandlers();      createMainWindow();
     }).catch(err => {
       console.error('[Electron Main] app.whenReady() chain failed:', err);
       dialog.showErrorBox("App Ready Error", `Failed during app.whenReady(): ${err.message}`);
-      app.quit();
+      if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
+        app.quit();
+      } else if (app && typeof app.quit === 'function') {
+        app.quit();
+      }
     });
   })
   .catch(err => {
     console.error('[Electron Main] initializeApp() failed:', err);
     // Attempt to show dialog, but it might not work if app is not ready
-    if (app.isReady()) {
+    if (app && typeof app.isReady === 'function' && app.isReady()) {
         dialog.showErrorBox("Critical Initialization Error", `Failed to initialize application: ${err.message}. The application will now exit.`);
     } else {
         // Fallback for errors before app is fully ready
         console.error("Application will exit due to critical initialization failure before app was ready.");
     }
     // Ensure app quits if initialization fails critically
-    if (!app.isQuitting()) {
+    if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) {
+        app.quit();
+    } else if (app && typeof app.quit === 'function') { // Fallback if isQuitting is not available
         app.quit();
     }
   });

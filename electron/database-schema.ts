@@ -7,6 +7,11 @@ export const CALENDAR_EVENTS_TABLE = 'calendar_events'; // Added
 export const DEALS_TABLE = 'deals'; // Added deals table constant
 export const TASKS_TABLE = 'tasks'; // Added tasks table constant
 
+export const JTL_FIRMEN_TABLE = 'jtl_firmen';
+export const JTL_WARENLAGER_TABLE = 'jtl_warenlager';
+export const JTL_ZAHLUNGSARTEN_TABLE = 'jtl_zahlungsarten';
+export const JTL_VERSANDARTEN_TABLE = 'jtl_versandarten';
+
 export const createCustomersTable = `
   CREATE TABLE IF NOT EXISTS ${CUSTOMERS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,6 +127,34 @@ export const createTasksTable = `
   );
 `;
 
+export const createJtlFirmenTable = `
+  CREATE TABLE IF NOT EXISTS ${JTL_FIRMEN_TABLE} (
+    kFirma INTEGER PRIMARY KEY,
+    cName TEXT
+  );
+`;
+
+export const createJtlWarenlagerTable = `
+  CREATE TABLE IF NOT EXISTS ${JTL_WARENLAGER_TABLE} (
+    kWarenlager INTEGER PRIMARY KEY,
+    cName TEXT
+  );
+`;
+
+export const createJtlZahlungsartenTable = `
+  CREATE TABLE IF NOT EXISTS ${JTL_ZAHLUNGSARTEN_TABLE} (
+    kZahlungsart INTEGER PRIMARY KEY,
+    cName TEXT
+  );
+`;
+
+export const createJtlVersandartenTable = `
+  CREATE TABLE IF NOT EXISTS ${JTL_VERSANDARTEN_TABLE} (
+    kVersandart INTEGER PRIMARY KEY,
+    cName TEXT
+  );
+`;
+
 export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_customers_jtl_kKunde ON ${CUSTOMERS_TABLE}(jtl_kKunde);`,
     `CREATE INDEX IF NOT EXISTS idx_customers_name ON ${CUSTOMERS_TABLE}(name);`,
@@ -140,5 +173,9 @@ export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_deals_stage ON ${DEALS_TABLE}(stage);`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_customer_id ON ${TASKS_TABLE}(customer_id);`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON ${TASKS_TABLE}(due_date);`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_completed ON ${TASKS_TABLE}(completed);`
-]; 
+    `CREATE INDEX IF NOT EXISTS idx_tasks_completed ON ${TASKS_TABLE}(completed);`,
+    `CREATE INDEX IF NOT EXISTS idx_jtl_firmen_name ON ${JTL_FIRMEN_TABLE}(cName);`,
+    `CREATE INDEX IF NOT EXISTS idx_jtl_warenlager_name ON ${JTL_WARENLAGER_TABLE}(cName);`,
+    `CREATE INDEX IF NOT EXISTS idx_jtl_zahlungsarten_name ON ${JTL_ZAHLUNGSARTEN_TABLE}(cName);`,
+    `CREATE INDEX IF NOT EXISTS idx_jtl_versandarten_name ON ${JTL_VERSANDARTEN_TABLE}(cName);`
+];

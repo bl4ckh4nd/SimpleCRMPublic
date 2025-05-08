@@ -31,3 +31,8 @@ next-env.d.ts
 /dist-build/
 /dist/
 /dist-electron/
+conversation_summary_jtl_feature_v2.md
+conversation_summary_jtl_feature_v3.md
+plan_order_creation.md
+Tables.md
+conversation_summary_jtl_feature.md

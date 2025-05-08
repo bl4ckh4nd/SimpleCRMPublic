@@ -17,6 +17,36 @@ export interface Product {
     lastModifiedLocally: string | null; // Timestamp of last local modification
 }
 
+// Interface for products linked to a deal, extending the base Product type
+export interface DealProductLink extends Product {
+  deal_product_id: number; // Specific ID for the link entry in the deal_products table
+  quantity: number;
+  price_at_time_of_adding: number; // Price of the product when it was added to the deal
+  dateAdded: string; // ISO 8601 string for when the product was added to the deal
+}
+
+// Define the Customer type for the frontend
+export interface Customer {
+  id: number; // Local primary key
+  jtl_kKunde?: number | null; // JTL customer key
+  name: string;
+  company_name?: string | null;
+  contact_person_name?: string | null;
+  is_company?: boolean;
+  salutation?: string | null;
+  street?: string | null;
+  zip?: string | null;
+  city?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  // Add other fields as necessary from your database schema
+  created_at?: string;
+  updated_at?: string;
+}
+
 // You can add other shared frontend types here if needed
 
 // Calendar Types

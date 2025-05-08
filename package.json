@@ -9,9 +9,9 @@
     "build:electron": "tsc -p tsconfig.electron.json && copy electron\\main.js dist-electron",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "electron:dev": "npm run build:electron && concurrently \"cross-env NODE_ENV=development vite --port 5173 --host --clearScreen false\" \"wait-on -l -v tcp:5173 && electron electron/main.js\"",
+    "electron:dev": "npm run build:electron && concurrently \"cross-env NODE_ENV=development vite --port 5173 --host --clearScreen false\" \"wait-on -l -v tcp:5173 && electron dist-electron/main.js\"",
     "electron:build": "npm run build && npm run build:electron && cross-env DEBUG=electron-builder* NODE_ENV=production electron-builder",
-    "electron:start": "cross-env NODE_ENV=production electron electron/main.js",
+    "electron:start": "cross-env NODE_ENV=production electron dist-electron/main.js",
     "postinstall": "electron-rebuild"
   },
   "dependencies": {
