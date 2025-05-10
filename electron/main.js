@@ -4,6 +4,32 @@ const path = require('path');
 const windowStateKeeper = require('electron-window-state');
 const fs = require('fs'); // For checking directory existence
 
+// Helper function to parse port
+function parsePort(portInput) {
+  if (portInput === null || portInput === undefined) {
+    return undefined; // No port provided
+  }
+
+  let portNumber;
+  if (typeof portInput === 'number') {
+    portNumber = portInput;
+  } else if (typeof portInput === 'string') {
+    if (portInput.trim() === '') {
+      return undefined; // Empty string
+    }
+    portNumber = Number(portInput);
+  } else {
+    console.warn(`[Electron Main] Invalid port type received: ${typeof portInput}. Value: '${portInput}'. Will be treated as undefined.`);
+    return undefined;
+  }
+
+  if (Number.isInteger(portNumber) && portNumber > 0 && portNumber <= 65535) {
+    return portNumber;
+  }
+  console.warn(`[Electron Main] Invalid port value received: '${portInput}'. Resulted in '${portNumber}'. Will be treated as undefined.`);
+  return undefined; // Invalid port number
+}
+
 const {
   initializeDatabase,
   closeDatabase,
@@ -49,7 +75,14 @@ const {
   getAllJtlVersandarten // Added
 } = require('../dist-electron/sqlite-service');
 const { initializeSyncService, runSync, getLastSyncStatus } = require('../dist-electron/sync-service');
-const { initializeMssqlService, saveMssqlSettingsWithKeytar, getMssqlSettingsWithKeytar, testConnectionWithKeytar, closeMssqlPool } = require('../dist-electron/mssql-keytar-service');
+const { 
+  initializeMssqlService, 
+  saveMssqlSettingsWithKeytar, 
+  getMssqlSettingsWithKeytar, 
+  testConnectionWithKeytar, 
+  closeMssqlPool,
+  clearMssqlPasswordFromKeytar // Import the new function
+} = require('../dist-electron/mssql-keytar-service');
 const { createJtlOrder } = require('../dist-electron/jtl-order-service'); // Added
 
 // Keep a global reference of the mainWindow object
@@ -502,36 +535,62 @@ function setupIpcHandlers() {
 
   // --- MSSQL Handlers (using Keytar service) ---
   ipcMain.handle('mssql:save-settings', async (_, settings) => {
-    console.log('[IPC Main] mssql:save-settings invoked with settings argument:', JSON.stringify(settings)); // Log the received settings
+    // settings from renderer should include: server, port (string), database, user, password, encrypt, trustServerCertificate, forcePort
+    console.log('[IPC Main] mssql:save-settings invoked with raw settings argument:', JSON.stringify(settings));
     try {
-      console.log('[IPC Main] Attempting to call saveMssqlSettingsWithKeytar...');
-      await saveMssqlSettingsWithKeytar(settings);
-      console.log('[IPC Main] mssql:save-settings: saveMssqlSettingsWithKeytar call completed successfully.');
+      const processedSettings = {
+        ...settings,
+        port: parsePort(settings.port), // port becomes number | undefined
+        // forcePort is expected to be a boolean from the client
+      };
+      console.log('[IPC Main] mssql:save-settings: Processed settings for saving:', JSON.stringify(processedSettings));
+      await saveMssqlSettingsWithKeytar(processedSettings);
       return { success: true };
     } catch (error) {
       // This catch block is for errors specifically from saveMssqlSettingsWithKeytar or the await itself
       console.error('[IPC Main] mssql:save-settings: Error during or after calling saveMssqlSettingsWithKeytar:', error.message, error.stack);
-      return { success: false, error: error.message || 'Unknown error during saveMssqlSettingsWithKeytar call' };
+      return { success: false, error: (error).message || 'Unknown error during saveMssqlSettingsWithKeytar call' };
     }
   });
 
   ipcMain.handle('mssql:get-settings', async () => {
     try {
-      return await getMssqlSettingsWithKeytar();
+      const settings = await getMssqlSettingsWithKeytar(); // This will include forcePort if saved
+      console.log('[IPC Main] mssql:get-settings: Retrieved settings:', JSON.stringify(settings));
+      return settings; 
     } catch (error) {
       console.error('IPC Error getting MSSQL settings:', error);
-      throw error;
+      return { success: false, error: (error).message || 'Failed to retrieve settings', data: null };
     }
   });
 
   ipcMain.handle('mssql:test-connection', async (_, settings) => {
+    // settings from renderer should include: server, port (string), database, user, password, encrypt, trustServerCertificate, forcePort
+    console.log('[IPC Main] mssql:test-connection invoked with raw settings:', JSON.stringify(settings));
     try {
-      const success = await testConnectionWithKeytar(settings);
-      return { success: success }; // Ensure an object is returned
+      const processedSettings = {
+        ...settings,
+        port: parsePort(settings.port), // port becomes number | undefined
+        // forcePort is expected to be a boolean from the client
+      };
+      console.log('[IPC Main] mssql:test-connection: Processed settings for test:', JSON.stringify(processedSettings));
+      const success = await testConnectionWithKeytar(processedSettings);
+      return { success: success };
     } catch (error) {
-      console.error('IPC Error testing MSSQL connection:', error.message, error.stack);
-      // Return a structured error object that the frontend can use
-      return { success: false, error: error.message || 'Test connection failed in main process' };
+      console.error('[IPC Main] mssql:test-connection: Error testing connection:', error.message, error.stack);
+      return { success: false, error: (error).message || 'Test connection failed in main process' };
+    }
+  });
+
+  ipcMain.handle('mssql:clear-password', async () => {
+    console.log('[IPC Main] mssql:clear-password invoked.');
+    try {
+      const result = await clearMssqlPasswordFromKeytar();
+      console.log('[IPC Main] mssql:clear-password result:', result);
+      return result; // Forward the result object { success: boolean, message: string }
+    } catch (error) {
+      console.error('[IPC Main] Error clearing MSSQL password from Keytar:', error.message, error.stack);
+      return { success: false, message: error.message || 'Failed to clear password from Keytar in main process' };
     }
   });
 

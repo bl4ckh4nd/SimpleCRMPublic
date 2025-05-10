@@ -94,6 +94,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'mssql:save-settings',
         'mssql:get-settings',
         'mssql:test-connection',
+        'mssql:clear-password', // Added new channel
         // JTL Channels
         'jtl:get-firmen',
         'jtl:get-warenlager',

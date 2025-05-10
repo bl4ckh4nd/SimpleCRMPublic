@@ -14,20 +14,21 @@ import { useToast } from "@/components/ui/use-toast"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
 const settingsSchema = z.object({
-  server: z.string().min(1, "Server is required"),
-  database: z.string().min(1, "Database name is required"),
-  user: z.string().min(1, "Username is required"),
+  server: z.string().min(1, "Server ist erforderlich"),
+  database: z.string().min(1, "Datenbankname ist erforderlich"),
+  user: z.string().min(1, "Benutzername ist erforderlich"),
   password: z.string().optional(), // Made optional, will not require min(1) if empty
   port: z.coerce.number().int().min(1).max(65535),
   encrypt: z.boolean(),
   trustServerCertificate: z.boolean(),
+  forcePort: z.boolean().optional(), // <-- New flag
   // JTL specific settings
-  kBenutzer: z.coerce.number({ invalid_type_error: "kBenutzer must be a number" }).int("kBenutzer must be an integer").optional(),
-  kShop: z.coerce.number({ invalid_type_error: "kShop must be a number" }).int("kShop must be an integer").optional(),
-  kPlattform: z.coerce.number({ invalid_type_error: "kPlattform must be a number" }).int("kPlattform must be an integer").optional(),
-  kSprache: z.coerce.number({ invalid_type_error: "kSprache must be a number" }).int("kSprache must be an integer").optional(),
+  kBenutzer: z.coerce.number({ invalid_type_error: "kBenutzer muss eine Zahl sein" }).int("kBenutzer muss eine ganze Zahl sein").optional(),
+  kShop: z.coerce.number({ invalid_type_error: "kShop muss eine Zahl sein" }).int("kShop muss eine ganze Zahl sein").optional(),
+  kPlattform: z.coerce.number({ invalid_type_error: "kPlattform muss eine Zahl sein" }).int("kPlattform muss eine ganze Zahl sein").optional(),
+  kSprache: z.coerce.number({ invalid_type_error: "kSprache muss eine Zahl sein" }).int("kSprache muss eine ganze Zahl sein").optional(),
   cWaehrung: z.string().optional(),
-  fWaehrungFaktor: z.coerce.number({ invalid_type_error: "fWaehrungFaktor must be a number" }).optional(),
+  fWaehrungFaktor: z.coerce.number({ invalid_type_error: "fWaehrungFaktor muss eine Zahl sein" }).optional(),
 })
 
 type SettingsForm = z.infer<typeof settingsSchema>
@@ -36,6 +37,7 @@ export default function SettingsPage() {
   const [isTesting, setIsTesting] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isClearingPassword, setIsClearingPassword] = useState(false); // New state for clearing password
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'error'>('unknown')
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
@@ -52,6 +54,7 @@ export default function SettingsPage() {
       port: 1433,
       encrypt: true,
       trustServerCertificate: false,
+      forcePort: false, // <-- Default value for new flag
       // JTL specific defaults
       kBenutzer: undefined, // Use undefined for optional numbers to avoid sending 0 if not set
       kShop: undefined,
@@ -70,7 +73,12 @@ export default function SettingsPage() {
           const settingsFromIPC = await (window.electronAPI as any).invoke('mssql:get-settings');
           if (settingsFromIPC) {
             // For form reset, ensure password field is an empty string if password is undefined
-            const formValues = { ...settingsFromIPC, password: settingsFromIPC.password || "" };
+            // and provide a default for forcePort if it's not in stored settings (for backward compatibility)
+            const formValues = { 
+              ...settingsFromIPC, 
+              password: settingsFromIPC.password || "",
+              forcePort: settingsFromIPC.forcePort || false 
+            };
             form.reset(formValues);
 
             // Test connection with settings as obtained from IPC.
@@ -85,11 +93,11 @@ export default function SettingsPage() {
           }
         } catch (error) {
           console.error("Error fetching settings:", error)
-          toast({ variant: "destructive", title: "Error", description: "Could not load MSSQL settings." })
+          toast({ variant: "destructive", title: "Fehler", description: "Konnte die MSSQL-Einstellungen nicht laden." })
         }
       } else {
         console.warn("Electron API or invoke method not available.")
-        toast({ variant: "default", title: "Setup", description: "Electron API not available. Cannot load settings." })
+        toast({ variant: "default", title: "Einrichtung", description: "Electron API nicht verfügbar. Kann Einstellungen nicht laden." })
       }
     }
     fetchSettings()
@@ -122,7 +130,7 @@ export default function SettingsPage() {
     console.log('[SettingsPage] Checking if window.electronAPI and invoke are available...');
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
       console.error('[SettingsPage] Electron API or invoke method is NOT available.');
-      toast({ variant: "destructive", title: "Error", description: "Electron API is not available." })
+      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
       setIsTesting(false)
       return
     }
@@ -142,7 +150,7 @@ export default function SettingsPage() {
         console.log('[SettingsPage] mssql:save-settings IPC call returned:', saveResult);
 
         if (saveResult.success) {
-          toast({ title: "Success", description: "Connection successful and settings saved." })
+          toast({ title: "Erfolg", description: "Verbindung erfolgreich und Einstellungen gespeichert." })
           console.log('[SettingsPage] Settings saved successfully. Fetching updated settings...');
           // Optionally, re-fetch settings to update form with potentially cleaned/stored values
           // and confirm sync status or navigate
@@ -154,14 +162,14 @@ export default function SettingsPage() {
           navigate({ to: '/customers' })
         } else {
           console.error('[SettingsPage] Save settings failed. IPC Result:', saveResult);
-          toast({ variant: "destructive", title: "Save Failed", description: saveResult.error || "Could not save settings." })
+          toast({ variant: "destructive", title: "Speichern fehlgeschlagen", description: saveResult.error || "Konnte die Einstellungen nicht speichern." })
         }
       } else {
-        toast({ variant: "destructive", title: "Connection Failed", description: testResult.error || "Could not connect to MSSQL server." })
+        toast({ variant: "destructive", title: "Verbindung fehlgeschlagen", description: testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen." })
       }
     } catch (error: any) {
       console.error("Error testing/saving connection:", error)
-      toast({ variant: "destructive", title: "Error", description: error.message || "An unexpected error occurred." })
+      toast({ variant: "destructive", title: "Fehler", description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
       setConnectionStatus('error')
     } finally {
       setIsTesting(false)
@@ -189,6 +197,39 @@ export default function SettingsPage() {
     await testAndSaveConnection(dataToTest, dataToSave);
   }
 
+  const handleClearPassword = async () => {
+    setIsClearingPassword(true);
+    if (!window.electronAPI || !(window.electronAPI as any).invoke) {
+      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." });
+      setIsClearingPassword(false);
+      return;
+    }
+    try {
+      const result: { success: boolean; message: string } = await (window.electronAPI as any).invoke('mssql:clear-password');
+      if (result.success) {
+        let germanMessage = "Das Passwort wurde erfolgreich gelöscht."; // Default success message
+        // You can customize the message further based on specific success scenarios if needed:
+        if (result.message === 'No password found in secure storage for the current settings.') {
+            germanMessage = "Es wurde kein zu löschendes Passwort für die aktuellen Einstellungen gefunden (möglicherweise bereits entfernt).";
+        } else if (result.message === 'No connection settings are fully configured, so no password to clear.') {
+            germanMessage = "Keine vollständigen Verbindungseinstellungen konfiguriert, daher gibt es kein Passwort zum Löschen.";
+        } else if (result.message === 'Password successfully cleared from secure storage.') {
+            germanMessage = "Das Passwort wurde erfolgreich aus dem sicheren Speicher entfernt.";
+        }
+        toast({ title: "Erfolg", description: germanMessage });
+        form.setValue('password', ''); // Clear password field in the form
+      } else {
+        console.error('Fehler beim Löschen des Passworts (Backend-Nachricht):', result.message);
+        toast({ variant: "destructive", title: "Fehlgeschlagen", description: "Das Passwort konnte nicht gelöscht werden. Bitte überprüfen Sie die Konsolenprotokolle für weitere Details." });
+      }
+    } catch (error: any) {
+      console.error("Fehler beim Löschen des Passworts (IPC):", error);
+      toast({ variant: "destructive", title: "Fehler", description: "Ein unerwarteter Fehler ist aufgetreten beim Löschen des Passworts. Überprüfen Sie die Konsolenprotokolle." });
+    } finally {
+      setIsClearingPassword(false);
+    }
+  };
+
   const handleTestConnection = async () => {
     setIsConnecting(true)
     const formData = form.getValues()
@@ -198,7 +239,7 @@ export default function SettingsPage() {
     }
 
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      toast({ variant: "destructive", title: "Error", description: "Electron API is not available." })
+      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
       setIsConnecting(false)
       return
     }
@@ -206,13 +247,13 @@ export default function SettingsPage() {
       const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', dataToTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
       if (testResult.success) {
-        toast({ title: "Success", description: "Connection successful." })
+        toast({ title: "Erfolg", description: "Verbindung erfolgreich." })
       } else {
-        toast({ variant: "destructive", title: "Connection Failed", description: testResult.error || "Could not connect to MSSQL server." })
+        toast({ variant: "destructive", title: "Verbindung fehlgeschlagen", description: testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen." })
       }
     } catch (error: any) {
       console.error("Error testing connection:", error)
-      toast({ variant: "destructive", title: "Error", description: error.message || "An unexpected error occurred." })
+      toast({ variant: "destructive", title: "Fehler", description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
       setConnectionStatus('error')
     } finally {
       setIsConnecting(false)
@@ -221,10 +262,10 @@ export default function SettingsPage() {
 
   const handleSync = async () => {
     setIsSyncing(true)
-    setSyncStatusMessage("Starting synchronization...")
+    setSyncStatusMessage("Starte Synchronisation...")
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      toast({ variant: "destructive", title: "Error", description: "Electron API is not available." })
-      setSyncStatusMessage("Error: Electron API not available.")
+      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
+      setSyncStatusMessage("Fehler: Electron API nicht verfügbar.")
       setIsSyncing(false)
       return
     }
@@ -233,15 +274,15 @@ export default function SettingsPage() {
         await (window.electronAPI as any).invoke('sync:run')
       
       if (result.success) {
-        let feedback = result.message || "Sync successful.";
+        let feedback = result.message || "Sync erfolgreich.";
         // Further check if details exist and have the expected properties
         if (result.details && typeof result.details.found === 'number' && typeof result.details.synced === 'number') {
-            feedback += ` Found: ${result.details.found}. Synced: ${result.details.synced}.`;
+            feedback += ` Gefunden: ${result.details.found}. Synchronisiert: ${result.details.synced}.`;
         } else if (result.details) {
             // Fallback if details structure is not as expected but exists
             feedback += ` (Details: ${JSON.stringify(result.details)})`;
         }
-        toast({ title: "Sync Complete", description: feedback })
+        toast({ title: "Synchronisation abgeschlossen", description: feedback })
         setSyncStatusMessage(feedback)
         
         // Fetch updated sync status to get the new timestamp
@@ -254,15 +295,15 @@ export default function SettingsPage() {
           console.error("Error fetching updated sync status:", error)
         }
       } else {
-        const errorMsg = result.message || "Sync failed."
-        toast({ variant: "destructive", title: "Sync Failed", description: errorMsg })
-        setSyncStatusMessage(`Error: ${errorMsg}`)
+        const errorMsg = result.message || "Sync fehlgeschlagen."
+        toast({ variant: "destructive", title: "Sync fehlgeschlagen", description: errorMsg })
+        setSyncStatusMessage(`Fehler: ${errorMsg}`)
       }
     } catch (error: any) {
       console.error("Error running sync:", error)
-      const errorMsg = error.message || "An unexpected error occurred during sync."
-      toast({ variant: "destructive", title: "Sync Error", description: errorMsg })
-      setSyncStatusMessage(`Error: ${errorMsg}`)
+      const errorMsg = error.message || "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation."
+      toast({ variant: "destructive", title: "Sync Fehler", description: errorMsg })
+      setSyncStatusMessage(`Fehler: ${errorMsg}`)
     } finally {
       setIsSyncing(false)
     }
@@ -412,6 +453,29 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                {/* New Force Port Switch */}
+                <FormField
+                  control={form.control}
+                  name="forcePort"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0">
+                        <FormLabel className="text-sm">Port erzwingen</FormLabel>
+                        <FormDescription className="text-xs">
+                          Direkte Verbindung zum Port, umgeht SQL Browser für benannte Instanzen.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                {/* End New Force Port Switch */}
+
                 <CardTitle className="text-lg pt-4 border-t mt-4">JTL Standardwerte für Aufträge</CardTitle>
                 
                 <div className="grid grid-cols-2 gap-3">
@@ -507,16 +571,15 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="flex items-center space-x-4 pt-2">
-                  <Button type="submit" disabled={isTesting || isConnecting || isSyncing}>
-                    {isTesting ? "Speichern..." : "Einstellungen speichern"}
-                  </Button>
+                {/* Action Buttons Group: Test, Clear Password, Sync */}
+                <div className="flex items-center space-x-4 pt-4 mt-6 border-t">
+                  {/* Test Connection Button */}
                   <div className="flex items-center space-x-2">
                     <Button 
                       type="button"
                       variant="outline"
                       onClick={handleTestConnection}
-                      disabled={isTesting || isConnecting || isSyncing}
+                      disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
                       className="flex items-center space-x-2"
                     >
                       {isConnecting ? "Teste..." : "Verbindung testen"}
@@ -525,11 +588,23 @@ export default function SettingsPage() {
                       {getConnectionStatusIcon()}
                     </div>
                   </div>
+
+                  {/* Clear Password Button */}
+                  <Button 
+                    type="button" 
+                    onClick={handleClearPassword} 
+                    disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
+                    variant="destructive"
+                  >
+                    {isClearingPassword ? "Lösche..." : "Passwort löschen"}
+                  </Button>
+                  
+                  {/* Sync Button */}
                   <Button 
                     type="button"
                     variant="secondary"
                     onClick={handleSync}
-                    disabled={isTesting || isConnecting || isSyncing}
+                    disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
                   >
                     {isSyncing ? "Synchronisiere..." : "Synchronisation starten"}
                   </Button>
@@ -549,6 +624,15 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )}
+
+                <div className="flex justify-end space-x-2 mt-8 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => navigate({ to: '/customers' })}>
+                    Abbrechen
+                  </Button>
+                  <Button type="submit" disabled={isTesting || isConnecting || isSyncing || isClearingPassword}>
+                    {isTesting ? "Speichern..." : "Einstellungen speichern"}
+                  </Button>
+                </div>
               </form>
             </Form>
           </CardContent>

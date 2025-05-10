@@ -9,6 +9,7 @@ export const mssqlSettingsSchema = z.object({
   port: z.coerce.number().int().min(1).max(65535),
   encrypt: z.boolean().default(true), // Added default
   trustServerCertificate: z.boolean().default(false), // Added default
+  forcePort: z.boolean().optional(), // <-- New flag
   // JTL specific optional fields
   kBenutzer: z.coerce.number().int().positive().optional(),
   kShop: z.coerce.number().int().positive().optional(),

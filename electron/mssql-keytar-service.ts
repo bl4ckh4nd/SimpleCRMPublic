@@ -4,8 +4,8 @@ import keytar from 'keytar';
 import { MssqlSettings } from './types'; // Assuming types.ts exists
 import { performance } from 'perf_hooks'; // For timing
 
-const STORE_KEY_SETTINGS = 'mssqlSettings_v2'; // Use a new key to avoid conflicts with old storage
-const KEYTAR_SERVICE = 'SimpleCRMElectron-MSSQL'; // Unique identifier for keychain service
+const STORE_KEY_SETTINGS = 'mssqlSettings_v2';
+const KEYTAR_SERVICE = 'SimpleCRMElectron-MSSQL';
 
 // Define the schema type explicitly
 type MssqlKeytarStoreSchema = {
@@ -23,7 +23,28 @@ let pool: sql.ConnectionPool | null = null;
 
 // Function to generate a unique account name for keytar
 function getKeytarAccount(settings: Pick<MssqlSettings, 'server' | 'database' | 'user' | 'port'>): string {
-    return `${settings.server}:${settings.port || 1433}-${settings.database}-${settings.user}`;
+    // If server contains instance name, use it for uniqueness, otherwise just server.
+    // Port is part of the key to allow different passwords for same user@server on different ports (though less common).
+    const serverIdentifier = settings.server || 'unknown_server';
+    return `${serverIdentifier}:${settings.port || 1433}-${settings.database || 'unknown_db'}-${settings.user || 'unknown_user'}`;
+}
+
+// Helper to get effective connection parameters based on forcePort
+function getEffectiveConnectionParams(settings: MssqlSettings): Pick<MssqlSettings, 'server' | 'port'> {
+    let effectiveServer = settings.server;
+    let effectivePort = settings.port;
+
+    if (settings.forcePort && settings.server && settings.server.includes('\\') && typeof settings.port === 'number') {
+        console.log(`[MSSQL Keytar] 'forcePort' is true for named instance. Modifying server to connect directly.`);
+        effectiveServer = settings.server.split('\\')[0]; // Use only the hostname
+        // effectivePort remains settings.port (the one to be forced)
+        console.log(`[MSSQL Keytar] Effective params for direct connection: Server='${effectiveServer}', Port=${effectivePort}`);
+    } else if (settings.server && settings.server.includes('\\')) {
+        console.log(`[MSSQL Keytar] Named instance detected. Port ${settings.port} will be ignored by mssql driver; SQL Browser will be used.`);
+        // In this case, mssql library handles it, port in config might be ignored.
+        // We pass the original server and port, mssql decides.
+    }
+    return { server: effectiveServer, port: effectivePort };
 }
 
 export async function saveMssqlSettingsWithKeytar(settings: MssqlSettings): Promise<void> {
@@ -32,6 +53,7 @@ export async function saveMssqlSettingsWithKeytar(settings: MssqlSettings): Prom
 
     // settings is of type MssqlSettings. We want to store Omit<MssqlSettings, 'password'>.
     const { password, ...settingsToStore } = settings;
+    // Use original server for keytar account, as "forcePort" is a connection-time override, not a change in identity for password storage.
     const account = getKeytarAccount(settings); // Uses server, database, user, port from settings
 
     try {
@@ -52,8 +74,8 @@ export async function saveMssqlSettingsWithKeytar(settings: MssqlSettings): Prom
         // then do nothing with the keychain password.
 
         // settingsToStore is Omit<MssqlSettings, 'password'>
-        store.set(STORE_KEY_SETTINGS, settingsToStore);
-        console.log('[MSSQL Keytar] MSSQL settings (excluding password property) saved to store. Data:', JSON.stringify(settingsToStore));
+        store.set(STORE_KEY_SETTINGS, settingsToStore); // settingsToStore includes forcePort
+        console.log('[MSSQL Keytar] MSSQL settings (excluding password, including forcePort) saved to store. Data:', JSON.stringify(settingsToStore));
         // Verify what was just stored
         const verifyStored = store.get(STORE_KEY_SETTINGS);
         console.log('[MSSQL Keytar] Verified data from store immediately after set:', JSON.stringify(verifyStored));
@@ -70,6 +92,7 @@ export async function getMssqlSettingsWithKeytar(): Promise<MssqlSettings | null
     console.log('[MSSQL Keytar] getMssqlSettingsWithKeytar: Retrieved from store:', JSON.stringify(storedSettingsWithoutPassword));
 
     if (storedSettingsWithoutPassword && storedSettingsWithoutPassword.server && storedSettingsWithoutPassword.database && storedSettingsWithoutPassword.user) {
+        // Use original server for keytar account retrieval
         const account = getKeytarAccount(storedSettingsWithoutPassword as Pick<MssqlSettings, 'server' | 'database' | 'user' | 'port'>);
         console.log('[MSSQL Keytar] getMssqlSettingsWithKeytar: Generated keytar account for retrieval:', account);
         try {
@@ -92,6 +115,40 @@ export async function getMssqlSettingsWithKeytar(): Promise<MssqlSettings | null
     return null;
 }
 
+export async function clearMssqlPasswordFromKeytar(): Promise<{ success: boolean; message: string }> {
+    const storedSettingsWithoutPassword = store.get(STORE_KEY_SETTINGS);
+    console.log('[MSSQL Keytar] clearMssqlPasswordFromKeytar: Attempting to clear password. Current stored (non-sensitive) settings:', JSON.stringify(storedSettingsWithoutPassword));
+
+    if (storedSettingsWithoutPassword && storedSettingsWithoutPassword.server && storedSettingsWithoutPassword.database && storedSettingsWithoutPassword.user) {
+        // We need server, database, user, and port to form the correct account key
+        const account = getKeytarAccount(storedSettingsWithoutPassword as Pick<MssqlSettings, 'server' | 'database' | 'user' | 'port'>);
+        console.log('[MSSQL Keytar] clearMssqlPasswordFromKeytar: Generated keytar account for password deletion:', account);
+        try {
+            const wasPasswordDeleted = await keytar.deletePassword(KEYTAR_SERVICE, account);
+            if (wasPasswordDeleted) {
+                console.log('[MSSQL Keytar] Password successfully deleted from keychain for account:', account);
+                // After clearing the password, it's a good idea to close any existing connection pool
+                // as it might be using outdated (now cleared) credentials.
+                // The next connection attempt will fail or prompt for a password if getMssqlSettingsWithKeytar is used and password is required.
+                await closeMssqlPool();
+                return { success: true, message: 'Password successfully cleared from secure storage.' };
+            } else {
+                console.log('[MSSQL Keytar] No password found in keychain for account:', account, '(it might have been already cleared or never set).');
+                return { success: true, message: 'No password found in secure storage for the current settings.' };
+            }
+        } catch (error) {
+            const errorMessage = `Failed to delete password from keychain: ${(error as Error).message}`;
+            console.error('[MSSQL Keytar] clearMssqlPasswordFromKeytar:', errorMessage, error);
+            return { success: false, message: errorMessage };
+        }
+    } else {
+        const message = '[MSSQL Keytar] No complete MSSQL connection settings (server, user, database) found in store. Cannot determine which password account to clear from Keytar.';
+        console.log(message);
+        // This is arguably a success because there's no configured account to clear a password for.
+        return { success: true, message: 'No connection settings are fully configured, so no password to clear.' };
+    }
+}
+
 export async function testConnectionWithKeytar(settings: MssqlSettings): Promise<boolean> {
     let effectivePassword = settings.password;
 
@@ -100,17 +157,17 @@ export async function testConnectionWithKeytar(settings: MssqlSettings): Promise
     if (settings.password === undefined) {
         // Attempt to retrieve the password from Keytar
         if (settings.server && settings.database && settings.user) {
+            // Use original server for keytar account for password retrieval
             const account = getKeytarAccount(settings as Pick<MssqlSettings, 'server' | 'database' | 'user' | 'port'>);
             try {
                 const storedPassword = await keytar.getPassword(KEYTAR_SERVICE, account);
                 effectivePassword = storedPassword !== null ? storedPassword : undefined;
                 console.log('[MSSQL Keytar] For test connection, using password from keychain.');
             } catch (keytarError) {
-                console.warn('[MSSQL Keytar] Could not retrieve password from keychain for test connection (may not exist yet). Proceeding with undefined password.');
+                console.warn('[MSSQL Keytar] Could not retrieve password from keychain for test connection. Proceeding with undefined password.');
                 effectivePassword = undefined;
             }
         } else {
-            console.warn('[MSSQL Keytar] Insufficient details in settings to fetch password from keychain for test. Proceeding with undefined password.');
             effectivePassword = undefined;
         }
     } else {
@@ -118,27 +175,30 @@ export async function testConnectionWithKeytar(settings: MssqlSettings): Promise
         console.log('[MSSQL Keytar] For test connection, using password provided in settings input.');
     }
 
+    const { server: connectServer, port: connectPort } = getEffectiveConnectionParams(settings);
+
     let testPool: sql.ConnectionPool | null = null;
     try {
+        console.log(`[MSSQL Keytar] Test Connection: Attempting to connect to Server: ${connectServer}, Port: ${connectPort === undefined ? '(default)' : connectPort}`);
         testPool = new sql.ConnectionPool({
             user: settings.user,
             password: effectivePassword, // Use the determined effective password
             database: settings.database,
-            server: settings.server,
-            port: settings.port,
+            server: connectServer, // Use effective server
+            port: connectPort,     // Use effective port
             pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }, // Minimal pool for testing
             options: {
                 encrypt: settings.encrypt ?? true,
                 trustServerCertificate: settings.trustServerCertificate ?? false
             },
-            connectionTimeout: 5000, // Shorter timeout for testing
-            requestTimeout: 5000
+            connectionTimeout: 10000, // Increased slightly for potentially slower direct connections
+            requestTimeout: 10000
         });
         await testPool.connect();
-        console.log('Connection test successful with effective password.');
+        console.log('[MSSQL Keytar] Connection test successful.');
         return true;
     } catch (error) {
-        console.error('Connection test failed with effective password:', (error as Error).message);
+        console.error('[MSSQL Keytar] Connection test failed:', (error as Error).message);
         return false;
     } finally {
         if (testPool) {
@@ -152,22 +212,23 @@ async function getConnectionPool(): Promise<sql.ConnectionPool> {
     if (pool?.connected) {
         return pool;
     }
-     // Always try to close existing pool before creating new one
     await closeMssqlPool();
 
-    const settings = await getMssqlSettingsWithKeytar(); // Fetch settings including password from Keytar
-    if (!settings) {
-        throw new Error('MSSQL settings not configured or password missing.');
+    const settings = await getMssqlSettingsWithKeytar();
+    if (!settings || !settings.server || !settings.user || !settings.database) { // Added more checks
+        throw new Error('MSSQL settings not fully configured or password missing.');
     }
 
+    const { server: connectServer, port: connectPort } = getEffectiveConnectionParams(settings);
+
     try {
-         console.log(`Attempting to connect to ${settings.server}:${settings.port}/${settings.database} as ${settings.user}`);
+         console.log(`[MSSQL Keytar] Pool: Attempting to connect to Server: ${connectServer}, Port: ${connectPort === undefined ? '(default)' : connectPort}, DB: ${settings.database}, User: ${settings.user}`);
          pool = new sql.ConnectionPool({
             user: settings.user,
             password: settings.password, // Password retrieved from Keytar
             database: settings.database,
-            server: settings.server,
-            port: settings.port,
+            server: connectServer, // Use effective server
+            port: connectPort,     // Use effective port
             pool: {
                 max: 10, // Adjust pool size as needed
                 min: 0,
@@ -182,16 +243,16 @@ async function getConnectionPool(): Promise<sql.ConnectionPool> {
         });
 
         await pool.connect();
-        console.log('MSSQL Connection Pool established.');
+        console.log('[MSSQL Keytar] MSSQL Connection Pool established.');
 
         pool.on('error', async (err) => {
-            console.error('MSSQL Pool Error:', err);
+            console.error('[MSSQL Keytar] MSSQL Pool Error:', err);
             await closeMssqlPool(); // Attempt to close the errored pool
         });
 
         return pool;
     } catch (error) {
-        console.error('Failed to create connection pool:', error);
+        console.error('[MSSQL Keytar] Failed to create connection pool:', error);
         pool = null; // Ensure pool is null on failure
         throw new Error(`Failed to connect to MSSQL: ${(error as Error).message}`); // Rethrow with clearer message
     }
@@ -320,10 +381,9 @@ export async function closeMssqlPool(): Promise<void> {
     if (pool) {
         try {
             await pool.close();
-            console.log('MSSQL Connection Pool closed.');
+            console.log('[MSSQL Keytar] MSSQL Connection Pool closed.');
         } catch (error) {
-            console.error('Error closing MSSQL pool:', error);
-            // Don't rethrow here usually, just log it.
+            console.error('[MSSQL Keytar] Error closing MSSQL pool:', error);
         } finally {
             pool = null;
         }
@@ -332,52 +392,51 @@ export async function closeMssqlPool(): Promise<void> {
 
 // Should be called once during app startup
 export function initializeMssqlService() {
-    // Optional: Pre-connect if settings exist? Generally better to connect on demand.
-    console.log("MSSQL Service (Keytar) Initialized.");
+    console.log("[MSSQL Keytar] MSSQL Service (Keytar) Initialized.");
 }
 
+// Exported function to execute transactional queries
 export async function executeTransactionalQuery(
-    queryString: string,
-    params: { name: string, type: any, value: any }[]
+    sqlQuery: string,
+    params: { name: string; type: any; value: any }[]
 ): Promise<{ success: boolean; kAuftrag?: number; cAuftragsNr?: string; error?: string }> {
-    let currentPool: sql.ConnectionPool | null = null; // Use a local variable for the pool in this function
     let transaction: sql.Transaction | null = null;
     try {
-        currentPool = await getConnectionPool(); // Assumes getConnectionPool returns the existing global pool or a new one
-        transaction = new sql.Transaction(currentPool);
+        const pool = await getConnectionPool(); // Ensure pool is ready
+        transaction = new sql.Transaction(pool);
         await transaction.begin();
 
         const request = new sql.Request(transaction);
-        params.forEach(p => request.input(p.name, p.type, p.value));
+        params.forEach(param => {
+            request.input(param.name, param.type, param.value);
+        });
 
-        const result = await request.query(queryString);
+        const result = await request.query(sqlQuery);
 
         await transaction.commit();
 
-        const output = result.recordset && result.recordset.length > 0 ? result.recordset[0] : {};
+        // Assuming the query returns kAuftrag and cAuftragsNr for order creation
+        // Adjust based on actual return values for other types of transactions
+        if (result.recordset && result.recordset.length > 0) {
+            return {
+                success: true,
+                kAuftrag: result.recordset[0].kAuftrag,
+                cAuftragsNr: result.recordset[0].cAuftragsNr
+            };
+        }
+        return { success: true }; // For transactions that don't return specific IDs
 
-        return {
-            success: true,
-            kAuftrag: output.kAuftrag,
-            cAuftragsNr: output.cAuftragsNr
-        };
-    } catch (err: any) {
-        if (transaction) { // Check if transaction object was created
+    } catch (error: any) {
+        if (transaction) {
             try {
-                // Attempt to rollback if the transaction hasn't been committed or already rolled back.
-                // The rollback method itself often handles cases where it's called multiple times or on an inactive transaction,
-                // but specific error handling for rollback failure might be needed depending on mssql library version.
                 await transaction.rollback();
-                console.log("Transaction rolled back due to error.");
-            } catch (rbErr: any) {
-                // Log rollback error, but the primary error is more important to return.
-                console.error("Error rolling back transaction:", rbErr.message);
+            } catch (rollbackError) {
+                console.error('[MSSQL Keytar] Error during transaction rollback:', rollbackError);
             }
         }
-        console.error('Transactional query failed:', err.message);
-        return { success: false, error: err.message };
+        console.error('[MSSQL Keytar] Error in executeTransactionalQuery:', error);
+        // Try to provide a more specific error message if available
+        const errorMessage = error.originalError?.message || error.message || 'Unknown transaction error';
+        return { success: false, error: errorMessage };
     }
-    // The connection pool (`currentPool` which likely points to the global `pool`)
-    // is managed by its own lifecycle (e.g., closeMssqlPool on app quit or settings change).
-    // No explicit pool closing here unless this function specifically creates and manages its own pool instance.
 }
