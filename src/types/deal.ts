@@ -4,6 +4,7 @@ export interface Deal {
   customer: string; // Keep the customer name string
   customer_id: number; // Add the customer ID
   value: string;
+  value_calculation_method?: 'static' | 'dynamic'; // Method to calculate the deal value
   createdDate: string;
   expectedCloseDate: string;
   stage: string;
@@ -50,12 +51,12 @@ export function formatCurrency(value: string): string {
 
 export function formatDate(dateString: string): string {
   if (!dateString) return '';
-  
+
   // Check if it's already in dd.mm.yyyy format
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateString)) {
     return dateString;
   }
-  
+
   try {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('de-DE').format(date);

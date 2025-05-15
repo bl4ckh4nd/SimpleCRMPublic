@@ -138,6 +138,9 @@ export function initializeDatabase() {
             `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_customer_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id);`,
             `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_field_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(field_id);`
         ]);
+
+        // Run migrations for schema updates
+        runMigrations();
     }
 
     // Optional Knex initialization
@@ -156,6 +159,33 @@ function setupPragmas() {
     db.pragma('journal_mode = WAL'); // Write-Ahead Logging for better concurrency
     db.pragma('synchronous = NORMAL'); // Good balance of safety and speed
     // Foreign keys are enabled in initializeDatabase now
+}
+
+/**
+ * Run database migrations to update schema for existing databases
+ */
+function runMigrations() {
+    if (!db) return;
+
+    try {
+        // Migration: Add value_calculation_method column to deals table if it doesn't exist
+        const checkColumnStmt = db.prepare(`PRAGMA table_info(${DEALS_TABLE})`);
+        const columns = checkColumnStmt.all();
+
+        // Check if value_calculation_method column exists
+        const hasValueCalculationMethod = columns.some((col: any) => col.name === 'value_calculation_method');
+
+        if (!hasValueCalculationMethod) {
+            console.log('Adding value_calculation_method column to deals table...');
+            db.exec(`ALTER TABLE ${DEALS_TABLE} ADD COLUMN value_calculation_method TEXT DEFAULT 'static'`);
+            console.log('Migration completed: Added value_calculation_method column to deals table');
+        }
+
+        // Add more migrations here as needed
+
+    } catch (error) {
+        console.error('Error running migrations:', error);
+    }
 }
 
 
@@ -969,6 +999,66 @@ export function getProductsForDeal(dealId: number): (DealProduct & Product)[] {
     return stmt.all(dealId) as (DealProduct & Product)[];
 }
 
+/**
+ * Calculate the total value of a deal based on its associated products
+ * @param dealId The ID of the deal
+ * @returns The total value of the deal
+ */
+export function calculateDealValue(dealId: number): number {
+  try {
+    const stmt = getDb().prepare(`
+      SELECT SUM(dp.quantity * dp.price_at_time_of_adding) as total_value
+      FROM ${DEAL_PRODUCTS_TABLE} dp
+      WHERE dp.deal_id = ?
+    `);
+    const result = stmt.get(dealId) as { total_value?: number };
+    return result?.total_value || 0;
+  } catch (error) {
+    console.error(`Error calculating deal value for deal ${dealId}:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Update a deal's value based on its calculation method
+ * @param dealId The ID of the deal
+ * @returns Success status and error message if applicable
+ */
+export function updateDealValueBasedOnCalculationMethod(dealId: number): { success: boolean; error?: string } {
+  try {
+    // Get the deal's calculation method
+    const dealStmt = getDb().prepare(`
+      SELECT value_calculation_method
+      FROM ${DEALS_TABLE}
+      WHERE id = ?
+    `);
+    const deal = dealStmt.get(dealId) as { value_calculation_method?: string };
+
+    if (!deal) {
+      return { success: false, error: 'Deal not found' };
+    }
+
+    // If the calculation method is dynamic, update the value
+    if (deal.value_calculation_method === 'dynamic') {
+      const totalValue = calculateDealValue(dealId);
+
+      const updateStmt = getDb().prepare(`
+        UPDATE ${DEALS_TABLE}
+        SET value = ?, last_modified = ?
+        WHERE id = ?
+      `);
+
+      const now = new Date().toISOString();
+      updateStmt.run(totalValue, now, dealId);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error(`Error updating deal value for deal ${dealId}:`, error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 // --- Calendar Event Operations ---
 
 // Define a type for the data coming from the frontend/going to the DB
@@ -1154,9 +1244,9 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
     // Create deal with mandatory fields
     const stmt = getDb().prepare(`
       INSERT INTO ${DEALS_TABLE} (
-        customer_id, name, value, stage, notes, expected_close_date, created_date, last_modified
+        customer_id, name, value, value_calculation_method, stage, notes, expected_close_date, created_date, last_modified
       ) VALUES (
-        @customer_id, @name, @value, @stage, @notes, @expected_close_date, @created_date, @last_modified
+        @customer_id, @name, @value, @value_calculation_method, @stage, @notes, @expected_close_date, @created_date, @last_modified
       )
     `);
 
@@ -1164,6 +1254,7 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
       customer_id: dealData.customer_id,
       name: dealData.name,
       value: dealData.value || 0,
+      value_calculation_method: dealData.value_calculation_method || 'static',
       stage: dealData.stage || 'Interessent',
       notes: dealData.notes || '',
       expected_close_date: dealData.expected_close_date || null,
@@ -1184,7 +1275,7 @@ export function updateDeal(dealId: number, dealData: any): { success: boolean; e
     dealData.last_modified = new Date().toISOString();
 
     // Filter out invalid columns and customer_name
-    const validColumns = ['name', 'value', 'stage', 'notes', 'expected_close_date', 'last_modified'];
+    const validColumns = ['name', 'value', 'value_calculation_method', 'stage', 'notes', 'expected_close_date', 'last_modified'];
     const fields = Object.keys(dealData)
       .filter(key => validColumns.includes(key) && dealData[key] !== undefined)
       .map(key => `${key} = @${key}`)

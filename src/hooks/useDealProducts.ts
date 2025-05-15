@@ -3,7 +3,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Product, DealProductLink } from '@/types';
 import { handleApiError } from '@/lib/api-error-handler';
 
-export function useDealProducts(dealId: number | undefined) {
+export function useDealProducts(dealId: number | undefined, onProductsChange?: (products: DealProductLink[]) => void) {
   const { toast } = useToast(); // Keep for success toasts
   const [dealProducts, setDealProducts] = useState<DealProductLink[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState<boolean>(false);
@@ -21,7 +21,12 @@ export function useDealProducts(dealId: number | undefined) {
     try {
       if (window.electronAPI?.invoke) {
         const products = await window.electronAPI.invoke<DealProductLink[]>('deals:get-products', dealId);
-        setDealProducts(products || []);
+        const productsArray = products || [];
+        setDealProducts(productsArray);
+        // Call the callback if provided
+        if (onProductsChange) {
+          onProductsChange(productsArray);
+        }
       } else {
         console.error("window.electronAPI or invoke method not found for deals:get-products.");
         console.error("window.electronAPI or invoke method not found for deals:get-products.");

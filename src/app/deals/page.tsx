@@ -30,12 +30,12 @@ import { format } from "date-fns"
 import { de } from "date-fns/locale"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/components/ui/use-toast"
-import { 
-  Pagination, 
-  PaginationContent, 
-  PaginationItem, 
-  PaginationNext, 
-  PaginationPrevious 
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious
 } from "@/components/ui/pagination"
 
 // Define the Deal type for better type safety
@@ -56,6 +56,7 @@ interface DealFromApi {
   customer_id: number;
   customer_name: string; // Joined from customers table
   value: number;
+  value_calculation_method: 'static' | 'dynamic';
   created_date: string;
   expected_close_date: string | null;
   stage: string;
@@ -69,10 +70,13 @@ function formatDealForUI(apiDeal: DealFromApi): Deal {
     id: apiDeal.id,
     name: apiDeal.name,
     customer: apiDeal.customer_name,
+    customer_id: apiDeal.customer_id,
     value: apiDeal.value.toString(),
+    value_calculation_method: apiDeal.value_calculation_method,
     createdDate: apiDeal.created_date,
     expectedCloseDate: apiDeal.expected_close_date || "",
-    stage: apiDeal.stage
+    stage: apiDeal.stage,
+    notes: apiDeal.notes || ""
   };
 }
 
@@ -93,6 +97,7 @@ export default function DealsPage() {
     customer: "",
     customer_id: "", // Will need to be populated from customer selection
     value: "",
+    value_calculation_method: "static" as 'static' | 'dynamic', // Default to static
     stage: "Interessent",
     expectedCloseDate: "", // Store the actual date string
     dateValue: undefined as Date | undefined // For the date picker UI component
@@ -128,30 +133,30 @@ export default function DealsPage() {
     setIsLoading(true)
     try {
       const filter: { stage?: string; query?: string } = {}
-      
+
       // Apply stage filter if active
       if (activeFilter) {
         filter.stage = activeFilter
       }
-      
+
       // Apply search query
       if (searchQuery.trim() !== '') {
         filter.query = searchQuery
       }
-      
+
       const apiDeals = await window.electronAPI.invoke('deals:get-all', {
         limit,
         offset: (page - 1) * limit,
         filter
       })
-      
+
       // Convert API deals to UI format
-      const formattedDeals = Array.isArray(apiDeals) 
+      const formattedDeals = Array.isArray(apiDeals)
         ? apiDeals.map(formatDealForUI)
         : []
-      
+
       setDeals(formattedDeals)
-      
+
       // Calculate total pages based on results (this is an approximation)
       // In a real implementation, the backend would return a count
       setTotalPages(Math.max(1, Math.ceil(formattedDeals.length / limit)))
@@ -190,7 +195,7 @@ export default function DealsPage() {
   }, {} as Record<string, Deal[]>)
 
   const handleAddDeal = async () => {
-    if (!newDeal.name || !newDeal.customer_id || !newDeal.value) {
+    if (!newDeal.name || !newDeal.customer_id || (newDeal.value_calculation_method === 'static' && !newDeal.value)) {
       toast({
         title: "Eingabefehler",
         description: "Bitte füllen Sie alle Pflichtfelder aus",
@@ -204,32 +209,34 @@ export default function DealsPage() {
         name: newDeal.name,
         customer_id: parseInt(newDeal.customer_id),
         value: parseFloat(newDeal.value),
+        value_calculation_method: newDeal.value_calculation_method,
         stage: newDeal.stage,
         expected_close_date: newDeal.expectedCloseDate || null
       }
 
       const result = await window.electronAPI.invoke('deals:create', dealData) as { success: boolean; id?: number; error?: string }
-      
+
       if (result.success && result.id) {
         toast({
           title: "Erfolg",
           description: "Deal erfolgreich hinzugefügt"
         })
-        
+
         // Refresh the deals list
         await loadDeals()
-        
+
         // Reset form and close dialog
         setNewDeal({
           name: "",
           customer: "",
           customer_id: "",
           value: "",
+          value_calculation_method: "static",
           stage: "Interessent",
           expectedCloseDate: "",
           dateValue: undefined
         })
-        
+
         setIsAddDealOpen(false)
       } else {
         throw new Error(result.error || 'Unbekannter Fehler')
@@ -255,39 +262,39 @@ export default function DealsPage() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     if (over && active.id !== over.id) {
       const dealId = Number(active.id);
       const newStage = over.id as string;
-      
+
       // Optimistically update the UI
-      setDeals(currentDeals => 
-        currentDeals.map(deal => 
+      setDeals(currentDeals =>
+        currentDeals.map(deal =>
           deal.id === dealId ? { ...deal, stage: newStage } : deal
         )
       );
-      
+
       // Persist the change to the database
       try {
         const result = await window.electronAPI.invoke('deals:update-stage', {
           dealId,
           newStage
         }) as { success: boolean; error?: string }
-        
+
         if (!result.success) {
           throw new Error(result.error || 'Failed to update deal stage')
         }
-        
+
         toast({
           title: "Deal aktualisiert",
           description: `Deal wurde auf "${newStage}" aktualisiert`
         })
       } catch (error) {
         console.error('Failed to update deal stage:', error)
-        
+
         // Rollback the UI change if the API call fails
         await loadDeals()
-        
+
         toast({
           title: "Fehler",
           description: "Deal-Status konnte nicht aktualisiert werden",
@@ -295,7 +302,7 @@ export default function DealsPage() {
         })
       }
     }
-    
+
     // Reset the active deal when dragging ends
     setActiveDeal(null);
   };
@@ -361,14 +368,14 @@ export default function DealsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuCheckboxItem 
+                <DropdownMenuCheckboxItem
                   checked={activeFilter === null}
                   onCheckedChange={() => handleFilterSelect(null)}
                 >
                   Alle Deals
                 </DropdownMenuCheckboxItem>
                 {dealStages.map(stage => (
-                  <DropdownMenuCheckboxItem 
+                  <DropdownMenuCheckboxItem
                     key={stage}
                     checked={activeFilter === stage}
                     onCheckedChange={() => handleFilterSelect(stage)}
@@ -405,12 +412,12 @@ export default function DealsPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="customer">Kunde</Label>
-                    <Select 
-                      value={newDeal.customer_id} 
+                    <Select
+                      value={newDeal.customer_id}
                       onValueChange={(value) => {
                         const selectedCustomer = customers.find(c => c.id.toString() === value)
-                        setNewDeal({ 
-                          ...newDeal, 
+                        setNewDeal({
+                          ...newDeal,
                           customer_id: value,
                           customer: selectedCustomer?.name || ""
                         })
@@ -439,12 +446,31 @@ export default function DealsPage() {
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="value">Wert (€)</Label>
+                    <Label htmlFor="value_calculation_method">Wertberechnung</Label>
+                    <Select
+                      value={newDeal.value_calculation_method}
+                      onValueChange={(value) => setNewDeal({
+                        ...newDeal,
+                        value_calculation_method: value as 'static' | 'dynamic'
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Berechnungsmethode auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="static">Statisch (manuell)</SelectItem>
+                        <SelectItem value="dynamic">Dynamisch (aus Produkten)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="value">Wert (€){newDeal.value_calculation_method === 'dynamic' ? ' (wird automatisch berechnet)' : ''}</Label>
                     <Input
                       id="value"
                       value={newDeal.value}
                       onChange={(e) => setNewDeal({ ...newDeal, value: e.target.value })}
                       placeholder="5000"
+                      disabled={newDeal.value_calculation_method === 'dynamic'}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -511,8 +537,8 @@ export default function DealsPage() {
           <CardHeader className="pb-2">
             <CardTitle>Deal-Pipeline</CardTitle>
             <CardDescription>
-              {isLoading 
-                ? "Deals werden geladen..." 
+              {isLoading
+                ? "Deals werden geladen..."
                 : `Sie haben ${deals.length} Deals in Ihrer Pipeline${activeFilter ? ` (gefiltert nach: ${activeFilter})` : ''}`}
             </CardDescription>
           </CardHeader>
@@ -529,6 +555,7 @@ export default function DealsPage() {
                       <TableHead>Deal-Name</TableHead>
                       <TableHead>Kunde</TableHead>
                       <TableHead className="hidden md:table-cell">Wert</TableHead>
+                      <TableHead className="hidden md:table-cell">Berechnung</TableHead>
                       <TableHead className="hidden md:table-cell">Erstellungsdatum</TableHead>
                       <TableHead className="hidden md:table-cell">Voraussichtlicher Abschluss</TableHead>
                       <TableHead>Phase</TableHead>
@@ -551,6 +578,9 @@ export default function DealsPage() {
                           </TableCell>
                           <TableCell>{deal.customer}</TableCell>
                           <TableCell className="hidden md:table-cell">{deal.value} €</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {deal.value_calculation_method === 'dynamic' ? 'Dynamisch' : 'Statisch'}
+                          </TableCell>
                           <TableCell className="hidden md:table-cell">{deal.createdDate}</TableCell>
                           <TableCell className="hidden md:table-cell">{deal.expectedCloseDate}</TableCell>
                           <TableCell>
@@ -577,7 +607,7 @@ export default function DealsPage() {
                     <Pagination>
                       <PaginationContent>
                         <PaginationItem>
-                          <div 
+                          <div
                             onClick={() => page > 1 && setPage(prev => Math.max(1, prev - 1))}
                             className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                           >
@@ -589,7 +619,7 @@ export default function DealsPage() {
                             Seite {page} von {totalPages || 1}
                           </span>
                         </PaginationItem>                        <PaginationItem>
-                          <div 
+                          <div
                             onClick={() => page < (totalPages || 1) && setPage(prev => Math.min(totalPages || 1, prev + 1))}
                             className={page === (totalPages || 1) ? "pointer-events-none opacity-50" : "cursor-pointer"}
                           >
@@ -613,8 +643,8 @@ export default function DealsPage() {
                     <KanbanColumn
                       key={stage}
                       id={stage}
-                      title={stage} 
-                      deals={groupedDeals[stage] || []} 
+                      title={stage}
+                      deals={groupedDeals[stage] || []}
                     />
                   ))}
                 </div>

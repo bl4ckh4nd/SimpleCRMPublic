@@ -19,7 +19,12 @@ export function DealHeader({ deal }: DealHeaderProps) {
         <Badge variant={getDealStageColor(deal.stage)}>
           {deal.stage}
         </Badge>
-        <span className="text-2xl font-semibold">{formatCurrency(deal.value)}</span>
+        <div className="flex flex-col items-end">
+          <span className="text-2xl font-semibold">{formatCurrency(deal.value)}</span>
+          {deal.value_calculation_method === 'dynamic' && (
+            <span className="text-xs text-muted-foreground">(Dynamisch berechnet)</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -54,7 +59,16 @@ export function DealMetadata({ deal }: DealHeaderProps) {
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium leading-none text-muted-foreground">Wert</p>
-            <p className="text-base">{formatCurrency(deal.value)}</p>
+            <div>
+              <p className="text-base">{formatCurrency(deal.value)}</p>
+              {deal.value_calculation_method && (
+                <p className="text-xs text-muted-foreground">
+                  {deal.value_calculation_method === 'dynamic'
+                    ? 'Dynamisch berechnet aus Produkten'
+                    : 'Statisch (manuell festgelegt)'}
+                </p>
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium leading-none text-muted-foreground">Phase</p>
@@ -72,7 +86,7 @@ export function DealMetadata({ deal }: DealHeaderProps) {
 
 export function DealNotes({ deal }: DealHeaderProps) {
   if (!deal.notes) return null;
-  
+
   return (
     <Card>
       <CardHeader>

@@ -105,6 +105,7 @@ export const createDealsTable = `
     customer_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     value REAL DEFAULT 0,
+    value_calculation_method TEXT DEFAULT 'static', -- 'static' or 'dynamic'
     stage TEXT NOT NULL,
     notes TEXT,
     created_date TEXT DEFAULT CURRENT_TIMESTAMP,

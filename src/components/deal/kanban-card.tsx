@@ -9,6 +9,7 @@ type Deal = {
   name: string;
   customer: string;
   value: string;
+  value_calculation_method?: 'static' | 'dynamic';
   createdDate: string;
   expectedCloseDate: string;
   stage: string;
@@ -54,7 +55,12 @@ export function KanbanCard({ deal }: KanbanCardProps) {
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <div className="flex items-center justify-between">
-            <span>{deal.value} €</span>
+            <div className="flex flex-col">
+              <span>{deal.value} €</span>
+              {deal.value_calculation_method === 'dynamic' && (
+                <span className="text-xs text-muted-foreground">(Dynamisch)</span>
+              )}
+            </div>
             <Badge
               variant={
                 deal.stage === "Gewonnen"

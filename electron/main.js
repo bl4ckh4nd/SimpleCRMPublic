@@ -55,6 +55,8 @@ const {
   updateProductQuantityInDeal, // Keep if used elsewhere, or can be removed
   updateDealProduct, // Added for the new functionality
   removeProductFromDealById, // Added for the new functionality
+  calculateDealValue, // Added for dynamic deal value calculation
+  updateDealValueBasedOnCalculationMethod, // Added for dynamic deal value calculation
   getSyncInfo, // Ensure this is imported
   setSyncInfo, // Ensure this is imported
   getDealsForCustomer,
@@ -419,6 +421,10 @@ function setupIpcHandlers() {
   ipcMain.handle('deals:add-product', async (_, { dealId, productId, quantity, price }) => { // Changed priceAtTime to price
     try {
       const result = addProductToDeal(dealId, productId, quantity, price); // Changed priceAtTime to price
+
+      // Update the deal value if it's using dynamic calculation
+      updateDealValueBasedOnCalculationMethod(dealId);
+
       // Assuming addProductToDeal returns the full deal_product link or enough info
       // For now, returning lastInsertRowid is fine if the frontend refetches or can construct the object.
       // Ideally, fetch the newly added/updated DealProductLink and return it.
@@ -434,7 +440,20 @@ function setupIpcHandlers() {
   // Updated to use dealProductId and call removeProductFromDealById
   ipcMain.handle('deals:remove-product', async (_, { dealProductId }) => {
     try {
+      // Get the deal_id before removing the product
+      const getDealIdStmt = getDb().prepare(`
+        SELECT deal_id FROM ${DEAL_PRODUCTS_TABLE} WHERE id = ?
+      `);
+      const dealIdResult = getDealIdStmt.get(dealProductId);
+      const dealId = dealIdResult?.deal_id;
+
       const result = removeProductFromDealById(dealProductId);
+
+      // Update the deal value if it's using dynamic calculation
+      if (dealId) {
+        updateDealValueBasedOnCalculationMethod(dealId);
+      }
+
       return { success: true, changes: result.changes };
     } catch (error) {
       log.error(`IPC Error removing deal_product_id ${dealProductId}:`, error);
@@ -447,6 +466,18 @@ function setupIpcHandlers() {
   ipcMain.handle('deals:update-product', async (_, { dealProductId, quantity, price }) => {
     try {
       const result = updateDealProduct(dealProductId, quantity, price);
+
+      // Get the deal_id for this product link to update the deal value if needed
+      const getDealIdStmt = getDb().prepare(`
+        SELECT deal_id FROM ${DEAL_PRODUCTS_TABLE} WHERE id = ?
+      `);
+      const dealIdResult = getDealIdStmt.get(dealProductId);
+
+      if (dealIdResult && dealIdResult.deal_id) {
+        // Update the deal value if it's using dynamic calculation
+        updateDealValueBasedOnCalculationMethod(dealIdResult.deal_id);
+      }
+
       // Similar to add, ideally fetch and return the updated DealProductLink
       // const updatedDealProduct = getDealProductById(dealProductId); // Hypothetical
       // return { success: true, dealProduct: updatedDealProduct, changes: result.changes };

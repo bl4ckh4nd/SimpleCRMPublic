@@ -116,6 +116,24 @@ export default function DealDetailPage() {
     }
   }, [routeDealId, dealId]);
 
+  // Function to update deal value when products change (for dynamic calculation)
+  const handleProductsChange = useCallback((products: DealProductLink[]) => {
+    if (deal?.value_calculation_method === 'dynamic' && products.length > 0) {
+      // Calculate total value from products
+      const totalValue = products.reduce((sum, product) => {
+        return sum + (product.quantity * product.price_at_time_of_adding);
+      }, 0);
+
+      // Update the deal in the UI with the new calculated value
+      if (deal) {
+        setDeal({
+          ...deal,
+          value: totalValue.toString()
+        });
+      }
+    }
+  }, [deal]);
+
   // Initialize the useDealProducts hook
   const {
     dealProducts,
@@ -125,7 +143,7 @@ export default function DealDetailPage() {
     handleAddProductToDeal,
     handleUpdateDealProduct,
     handleRemoveDealProduct
-  } = useDealProducts(deal?.id);
+  } = useDealProducts(deal?.id, handleProductsChange);
 
   useEffect(() => {
     const fetchJtlEntities = async () => {
@@ -168,7 +186,7 @@ export default function DealDetailPage() {
         // Define type for service response; Deal is imported from "@/types/deal"
         // This type represents the object structure returned by 'deals:get-by-id'
         type DealResponseFromService = Omit<Deal, 'customer'> & { customer_name: string };
-        
+
         const response = await window.electronAPI.invoke<DealResponseFromService | null>('deals:get-by-id', dealId);
         if (response) {
           const { customer_name, ...baseDealData } = response;
@@ -196,7 +214,7 @@ export default function DealDetailPage() {
       return false;
     }
   };
-  
+
   const handleDeleteDeal = async () => {
     if (!deal) return;
     setIsLoading(true);
@@ -303,7 +321,7 @@ export default function DealDetailPage() {
       if (!window.electronAPI?.invoke) throw new Error("Electron API not available");
       // Explicitly type the result of the invoke call
       const result = await window.electronAPI.invoke<JtlOrderCreationResponse>('jtl:create-order', orderInput);
-      
+
       if (result.success) {
         toast({ title: "Erfolg", description: `JTL Auftrag ${result.jtlOrderNumber ? result.jtlOrderNumber : ''} erfolgreich erstellt.` });
         setIsCreateJtlOrderDialogOpen(false);
@@ -317,10 +335,10 @@ export default function DealDetailPage() {
       setIsSubmittingJtlOrder(false);
     }
     };
-    
+
     // Product handling functions (handleAddProductToDeal, handleUpdateDealProduct, handleRemoveDealProduct)
     // are now part of the useDealProducts hook and are destructured above.
-    
+
     return (
       <div className="flex min-h-screen flex-col">
         <main className="flex-1">
@@ -532,7 +550,7 @@ export default function DealDetailPage() {
                         </div>
                       </CardContent>
                     </Card>
-                    
+
                     <DealMetadata deal={deal} />
                     <DealNotes deal={deal} />
                   </TabsContent>
@@ -641,7 +659,7 @@ export default function DealDetailPage() {
     </div>
   )
   }
-  
+
   // DealProductRow component
   interface DealProductRowProps {
     product: DealProductLink;
@@ -649,31 +667,31 @@ export default function DealDetailPage() {
     onRemoveProduct: (dealProductId: number) => void;
     formatCurrency: (amount: number | string | undefined) => string;
   }
-  
+
   function DealProductRow({ product, onUpdateProduct, onRemoveProduct, formatCurrency }: DealProductRowProps) {
     const [currentQuantity, setCurrentQuantity] = useState(product.quantity);
     const [currentPrice, setCurrentPrice] = useState(product.price_at_time_of_adding);
-  
+
     // Update local state if the product prop changes (e.g., after a fetchDealProducts call)
     useEffect(() => {
       setCurrentQuantity(product.quantity);
       setCurrentPrice(product.price_at_time_of_adding);
     }, [product.quantity, product.price_at_time_of_adding]);
-  
+
     const onQuantityBlur = () => {
       // Check if the value actually changed before calling update
       if (currentQuantity !== product.quantity || currentPrice !== product.price_at_time_of_adding) {
         onUpdateProduct(product.deal_product_id, currentQuantity, currentPrice);
       }
     };
-  
+
     const onPriceBlur = () => {
       // Check if the value actually changed before calling update
       if (currentPrice !== product.price_at_time_of_adding || currentQuantity !== product.quantity) {
         onUpdateProduct(product.deal_product_id, currentQuantity, currentPrice);
       }
     };
-  
+
     return (
       <TableRow>
         <TableCell className="font-medium">{product.name}</TableCell>
@@ -713,7 +731,7 @@ export default function DealDetailPage() {
       </TableRow>
     );
   }
-  
+
   // AddProductDialog component (can be moved to a new file later)
   interface AddProductDialogProps {
     isOpen: boolean;
@@ -721,7 +739,7 @@ export default function DealDetailPage() {
     onAddProduct: (productId: number, quantity: number, price: number) => Promise<boolean>;
     dealId: number; // Though not directly used in this version of dialog, good for context/future
   }
-  
+
   function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
     const { toast } = useToast();
     const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -730,20 +748,20 @@ export default function DealDetailPage() {
     const [quantity, setQuantity] = useState<number>(1);
     const [price, setPrice] = useState<number>(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
     // Utility function from parent scope
     const formatCurrency = (amount: number | string | undefined): string => {
       const numAmount = Number(amount);
       if (isNaN(numAmount)) return '-';
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(numAmount);
     };
-  
+
     useEffect(() => {
       if (isOpen) {
         setSelectedProductId("");
         setQuantity(1);
         setPrice(0);
-  
+
         const fetchAllProducts = async () => {
           setIsLoadingProducts(true);
           try {
@@ -764,7 +782,7 @@ export default function DealDetailPage() {
         fetchAllProducts();
       }
     }, [isOpen, toast]);
-  
+
     const handleProductChange = (productIdString: string) => {
       setSelectedProductId(productIdString);
       const selectedProduct = allProducts.find(p => String(p.id) === productIdString);
@@ -774,7 +792,7 @@ export default function DealDetailPage() {
         setPrice(0);
       }
     };
-  
+
     const handleSubmit = async () => {
       if (!selectedProductId || quantity <= 0 || price < 0) {
         toast({ variant: "destructive", title: "Validierung fehlgeschlagen", description: "Bitte wählen Sie ein Produkt und geben Sie eine gültige Menge und einen gültigen Preis ein." });
@@ -789,7 +807,7 @@ export default function DealDetailPage() {
       // If not success, error toast is handled by onAddProduct
       setIsSubmitting(false);
     };
-  
+
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="sm:max-w-[425px]">

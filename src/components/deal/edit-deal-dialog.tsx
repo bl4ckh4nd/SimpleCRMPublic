@@ -43,7 +43,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [dealProducts, setDealProducts] = useState<DealProductLink[]>([]);
   const [initialDealProducts, setInitialDealProducts] = useState<DealProductLink[]>([]);
-  
+
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [priceAtTime, setPriceAtTime] = useState<number>(0);
@@ -142,6 +142,18 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
+
+    // If the calculation method is dynamic, recalculate the total value
+    if (editedDeal.value_calculation_method === 'dynamic') {
+      // Calculate the total value from products
+      const totalValue = dealProducts.reduce((sum, product) => {
+        return sum + (product.quantity * product.price_at_time_of_adding);
+      }, 0);
+
+      // Update the editedDeal with the calculated value
+      editedDeal.value = totalValue.toString();
+    }
+
     try {
       const dealSaveSuccess = await onSave(editedDeal);
 
@@ -160,11 +172,11 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
       productsToAdd.forEach(p => {
         console.log(`Adding product ${p.id} to deal ${deal.id}`);
-        promises.push(window.electronAPI.invoke('deals:add-product', { 
-            dealId: deal.id, 
-            productId: p.id, 
-            quantity: p.quantity, 
-            priceAtTime: p.price_at_time_of_adding 
+        promises.push(window.electronAPI.invoke('deals:add-product', {
+            dealId: deal.id,
+            productId: p.id,
+            quantity: p.quantity,
+            priceAtTime: p.price_at_time_of_adding
         }));
       });
 
@@ -175,10 +187,10 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
        productsToUpdate.forEach(p => {
           console.log(`Updating quantity for product ${p.id} in deal ${deal.id} to ${p.quantity}`);
-          promises.push(window.electronAPI.invoke('deals:update-product-quantity', { 
-              dealId: deal.id, 
-              productId: p.id, 
-              newQuantity: p.quantity 
+          promises.push(window.electronAPI.invoke('deals:update-product-quantity', {
+              dealId: deal.id,
+              productId: p.id,
+              newQuantity: p.quantity
           }));
       });
 
@@ -225,9 +237,35 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
                 <Input id="edit-customer" value={editedDeal.customer} onChange={(e) => setEditedDeal({ ...editedDeal, customer: e.target.value })} disabled={isSaving}/>
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="edit-value">Wert (€)</Label>
-                <Input id="edit-value" type="number" step="0.01" value={editedDeal.value} onChange={(e) => setEditedDeal({ ...editedDeal, value: e.target.value })} disabled={isSaving}/>
+                <Label htmlFor="edit-value-calculation-method">Wertberechnung</Label>
+                <Select
+                  value={editedDeal.value_calculation_method || 'static'}
+                  onValueChange={(value) => setEditedDeal({
+                    ...editedDeal,
+                    value_calculation_method: value as 'static' | 'dynamic'
+                  })}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger id="edit-value-calculation-method">
+                    <SelectValue placeholder="Berechnungsmethode auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="static">Statisch (manuell)</SelectItem>
+                    <SelectItem value="dynamic">Dynamisch (aus Produkten)</SelectItem>
+                  </SelectContent>
+                </Select>
             </div>
+           </div>
+           <div className="grid gap-2">
+              <Label htmlFor="edit-value">Wert (€){editedDeal.value_calculation_method === 'dynamic' ? ' (wird automatisch berechnet)' : ''}</Label>
+              <Input
+                id="edit-value"
+                type="number"
+                step="0.01"
+                value={editedDeal.value}
+                onChange={(e) => setEditedDeal({ ...editedDeal, value: e.target.value })}
+                disabled={isSaving || editedDeal.value_calculation_method === 'dynamic'}
+              />
            </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-stage">Phase</Label>
@@ -257,7 +295,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
                      <Combobox
                          options={productOptions}
                          value={selectedProductId}
-                         onChange={setSelectedProductId} 
+                         onChange={setSelectedProductId}
                          placeholder="Produkt suchen..."
                          disabled={isSaving}
                      />
@@ -286,12 +324,12 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
                                 <TableHead>Produkt</TableHead>
                                 <TableHead className="text-right w-[80px]">Menge</TableHead>
                                 <TableHead className="text-right w-[100px]">Preis</TableHead>
-                                <TableHead className="w-[50px]"></TableHead> 
+                                <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {dealProducts.map((p: DealProductLink) => (
-                                <TableRow key={p.deal_product_id}> 
+                                <TableRow key={p.deal_product_id}>
                                     <TableCell className="font-medium">{p.name}</TableCell>
                                     <TableCell className="text-right">{p.quantity}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(p.price_at_time_of_adding)}</TableCell>
