@@ -14,6 +14,8 @@ import CalendarPage from './app/calendar/page' // Added CalendarPage import
 import LoginPage from './app/login/page'
 import ErrorPage from './app/error/page'
 import SettingsPage from './app/settings/page'
+import SettingsLayout from './app/settings/layout'
+import CustomFieldsPage from './app/settings/custom-fields/page'
 // Import Product page components
 import ProductsPage from './app/products/page';
 import ProductsLoading from './app/products/loading'; // Assuming loading component exists
@@ -28,10 +30,10 @@ const indexRoute = new Route({
   getParentRoute: () => rootRoute,
   path: '/',
   component: () => (
-
       <HomePage />
-
   ),
+  // This is the default route that will be shown when the app starts
+  // No need for redirection as we want to show the dashboard (HomePage)
 })
 
 const customersRoute = new Route({
@@ -110,11 +112,35 @@ const errorRoute = new Route({
 const settingsRoute = new Route({
   getParentRoute: () => rootRoute,
   path: '/settings',
-  component: () => (
+  component: SettingsLayout,
+})
 
-      <SettingsPage />
+const settingsIndexRoute = new Route({
+  getParentRoute: () => settingsRoute,
+  path: '/',
+  component: SettingsPage,
+  // Add debugging to this route
+  beforeLoad: () => {
+    console.log('[settingsIndexRoute] Before load triggered')
+    return {}
+  },
+  onError: (error) => {
+    console.error('[settingsIndexRoute] Error loading route:', error)
+  },
+})
 
-  ),
+const customFieldsRoute = new Route({
+  getParentRoute: () => settingsRoute,
+  path: '/custom-fields',
+  component: CustomFieldsPage,
+  // Add debugging to this route
+  beforeLoad: () => {
+    console.log('[customFieldsRoute] Before load triggered')
+    return {}
+  },
+  onError: (error) => {
+    console.error('[customFieldsRoute] Error loading route:', error)
+  },
 })
 
 // Added products route
@@ -124,6 +150,18 @@ const productsRoute = new Route({
     component: ProductsPage,
     pendingComponent: ProductsLoading, // Optional: Show loading component during fetch
 });
+
+// Create a catch-all route to handle any undefined routes
+const catchAllRoute = new Route({
+  getParentRoute: () => rootRoute,
+  path: '*',
+  beforeLoad: ({ navigate }) => {
+    // Redirect to the dashboard for any undefined routes
+    navigate({ to: '/' })
+    return { status: 302 }
+  },
+  component: () => null
+})
 
 // Create the route tree using your routes
 const routeTree = rootRoute.addChildren([
@@ -136,12 +174,20 @@ const routeTree = rootRoute.addChildren([
   calendarRoute, // Added calendarRoute to tree
   loginRoute,
   errorRoute,
-  settingsRoute,
+  settingsRoute.addChildren([
+    settingsIndexRoute,
+    customFieldsRoute,
+  ]),
   productsRoute, // Added products route to tree
+  catchAllRoute, // Add the catch-all route
 ])
 
 // Create the router using your route tree
-export const router = new Router({ routeTree })
+export const router = new Router({ 
+  routeTree,
+  defaultPreload: 'intent',
+  defaultPreloadStaleTime: 0, // Always preload routes
+})
 
 // Register your router for maximum type safety
 declare module '@tanstack/react-router' {

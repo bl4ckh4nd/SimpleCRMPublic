@@ -78,14 +78,28 @@ const {
   getAllJtlFirmen, // Added
   getAllJtlWarenlager, // Added
   getAllJtlZahlungsarten, // Added
-  getAllJtlVersandarten // Added
+  getAllJtlVersandarten, // Added
+  // Custom fields functions
+  getAllCustomFields,
+  getActiveCustomFields,
+  getCustomFieldById,
+  createCustomField,
+  updateCustomField,
+  deleteCustomField,
+  getCustomFieldValuesForCustomer,
+  setCustomFieldValue,
+  deleteCustomFieldValue,
+  // Dashboard functions
+  getDashboardStats,
+  getRecentCustomers,
+  getUpcomingTasks
 } = require('../dist-electron/sqlite-service');
 const { initializeSyncService, runSync, getLastSyncStatus } = require('../dist-electron/sync-service');
-const { 
-  initializeMssqlService, 
-  saveMssqlSettingsWithKeytar, 
-  getMssqlSettingsWithKeytar, 
-  testConnectionWithKeytar, 
+const {
+  initializeMssqlService,
+  saveMssqlSettingsWithKeytar,
+  getMssqlSettingsWithKeytar,
+  testConnectionWithKeytar,
   closeMssqlPool,
   clearMssqlPasswordFromKeytar // Import the new function
 } = require('../dist-electron/mssql-keytar-service');
@@ -255,13 +269,13 @@ function setupIpcHandlers() {
   ipcMain.handle('db:addCalendarEvent', async (_, eventData) => {
     try {
       log.info('Main process received addCalendarEvent with data:', JSON.stringify(eventData, null, 2));
-      
+
       // Debug the data types
       log.info('Data types check:');
       Object.entries(eventData).forEach(([key, value]) => {
         log.info(`${key}: ${typeof value} - ${value}`);
       });
-      
+
       const result = createCalendarEvent(eventData);
       log.info('Calendar event created with result:', result);
       return result;
@@ -416,7 +430,7 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
-  
+
   // Updated to use dealProductId and call removeProductFromDealById
   ipcMain.handle('deals:remove-product', async (_, { dealProductId }) => {
     try {
@@ -427,7 +441,7 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
-  
+
   // Renamed from 'deals:update-product-quantity' to 'deals:update-product'
   // Updated to use dealProductId, quantity, price and call updateDealProduct
   ipcMain.handle('deals:update-product', async (_, { dealProductId, quantity, price }) => {
@@ -501,7 +515,94 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
- 
+
+  // --- Custom Fields Handlers ---
+  ipcMain.handle('custom-fields:get-all', async () => {
+    try {
+      return getAllCustomFields();
+    } catch (error) {
+      log.error('IPC Error getting all custom fields:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('custom-fields:get-active', async () => {
+    try {
+      return getActiveCustomFields();
+    } catch (error) {
+      log.error('IPC Error getting active custom fields:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('custom-fields:get-by-id', async (_, fieldId) => {
+    try {
+      return getCustomFieldById(fieldId);
+    } catch (error) {
+      log.error(`IPC Error getting custom field by id ${fieldId}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('custom-fields:create', async (_, fieldData) => {
+    try {
+      const result = createCustomField(fieldData);
+      return { success: true, field: result };
+    } catch (error) {
+      log.error('IPC Error creating custom field:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('custom-fields:update', async (_, { id, fieldData }) => {
+    try {
+      const result = updateCustomField(id, fieldData);
+      return { success: true, field: result };
+    } catch (error) {
+      log.error(`IPC Error updating custom field ${id}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('custom-fields:delete', async (_, fieldId) => {
+    try {
+      const result = deleteCustomField(fieldId);
+      return { success: result };
+    } catch (error) {
+      log.error(`IPC Error deleting custom field ${fieldId}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('custom-fields:get-values-for-customer', async (_, customerId) => {
+    try {
+      return getCustomFieldValuesForCustomer(customerId);
+    } catch (error) {
+      log.error(`IPC Error getting custom field values for customer ${customerId}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('custom-fields:set-value', async (_, { customerId, fieldId, value }) => {
+    try {
+      const result = setCustomFieldValue(customerId, fieldId, value);
+      return { success: result };
+    } catch (error) {
+      log.error(`IPC Error setting custom field value for customer ${customerId}, field ${fieldId}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('custom-fields:delete-value', async (_, { customerId, fieldId }) => {
+    try {
+      const result = deleteCustomFieldValue(customerId, fieldId);
+      return { success: result };
+    } catch (error) {
+      log.error(`IPC Error deleting custom field value for customer ${customerId}, field ${fieldId}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // --- JTL Entity Handlers (from SQLite) ---
   ipcMain.handle('jtl:get-firmen', async () => {
     try {
@@ -563,7 +664,7 @@ function setupIpcHandlers() {
     try {
       const settings = await getMssqlSettingsWithKeytar(); // This will include forcePort if saved
       log.info('[IPC Main] mssql:get-settings: Retrieved settings:', JSON.stringify(settings));
-      return settings; 
+      return settings;
     } catch (error) {
       log.error('IPC Error getting MSSQL settings:', error);
       return { success: false, error: (error).message || 'Failed to retrieve settings', data: null };
@@ -659,6 +760,40 @@ function setupIpcHandlers() {
     }
   });
 
+  // --- Dashboard Handlers ---
+  ipcMain.handle('dashboard:get-stats', async () => {
+    try {
+      log.info('[Electron Main] Fetching dashboard statistics');
+      const stats = getDashboardStats();
+      return stats;
+    } catch (error) {
+      log.error('[Electron Main] IPC Error getting dashboard stats:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('dashboard:get-recent-customers', async (_, limit = 5) => {
+    try {
+      log.info(`[Electron Main] Fetching recent customers with limit: ${limit}`);
+      const customers = getRecentCustomers(limit);
+      return customers;
+    } catch (error) {
+      log.error('[Electron Main] IPC Error getting recent customers:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('dashboard:get-upcoming-tasks', async (_, limit = 5) => {
+    try {
+      log.info(`[Electron Main] Fetching upcoming tasks with limit: ${limit}`);
+      const tasks = getUpcomingTasks(limit);
+      return tasks;
+    } catch (error) {
+      log.error('[Electron Main] IPC Error getting upcoming tasks:', error);
+      throw error;
+    }
+  });
+
 } // End of setupIpcHandlers
 
 
@@ -687,8 +822,8 @@ async function createMainWindow() {
   log.info(`[Electron Main] createMainWindow called.`);
   // Example structure:
   const windowState = windowStateKeeper({
-    defaultWidth: 1200,
-    defaultHeight: 800,
+    defaultWidth: 1400,
+    defaultHeight: 1000,
   });
 
   mainWindow = new BrowserWindow({
@@ -741,26 +876,56 @@ initializeApp()
       log.info('[Electron Main] App is ready (after initializeApp).');
 
       if (!isDevelopment) {
-        const serve = require('electron-serve');
-        const loadURL = serve({ directory: path.join(__dirname, '../dist') }); // Adjust path as needed
+        log.info('[Electron Main] Production mode: Setting up file loading.');
+        try {
+          // Try to import electron-serve and handle different export patterns
+          const electronServeModule = require('electron-serve');
 
-        // Override protocol for production to serve local files
-        protocol.registerFileProtocol('app', (request, callback) => {
-          const filePath = path.normalize(`${__dirname}/../dist/${request.url.substr('app://-'.length)}`);
-          callback(filePath);
-        });
-        
-        log.info('[Electron Main] Production mode: Setting up electron-serve loader.');
-        loadURLFunction = async (windowInstance) => {
-          log.info('[Electron Main] Production mode: Attempting to load "app://-/index.html"');
-          try {
-            await loadURL(windowInstance); // This loads index.html from the specified directory
-            log.info('[Electron Main] Production URL loaded successfully via electron-serve.');
-          } catch (prodError) {
-            log.error('[Electron Main] Failed to load URL in production with electron-serve:', prodError);
-            dialog.showErrorBox("Production Load Error", `Could not load application files. Error: ${prodError.message}`);
+          // Check if it's a function (direct export) or has a default export
+          const electronServeFunc = typeof electronServeModule === 'function'
+            ? electronServeModule
+            : (electronServeModule.default || null);
+
+          if (typeof electronServeFunc === 'function') {
+            // Use electron-serve if available
+            const loadURL = electronServeFunc({ directory: path.join(__dirname, '../dist') });
+
+            // Register protocol for file serving
+            protocol.registerFileProtocol('app', (request, callback) => {
+              const filePath = path.normalize(`${__dirname}/../dist/${request.url.substr('app://-'.length)}`);
+              callback(filePath);
+            });
+
+            loadURLFunction = async (windowInstance) => {
+              log.info('[Electron Main] Production mode: Loading with electron-serve');
+              try {
+                await loadURL(windowInstance);
+                log.info('[Electron Main] Content loaded successfully with electron-serve');
+              } catch (error) {
+                log.error('[Electron Main] Failed to load with electron-serve:', error);
+                throw error; // Let the outer catch handle it
+              }
+            };
+          } else {
+            throw new Error('electron-serve did not provide a usable function');
           }
-        };
+        } catch (error) {
+          // Fallback to basic file loading if electron-serve fails
+          log.error('[Electron Main] electron-serve failed, falling back to loadFile:', error);
+
+          loadURLFunction = async (windowInstance) => {
+            const indexPath = path.join(__dirname, '../dist/index.html');
+            log.info(`[Electron Main] Production mode: Loading file directly: ${indexPath}`);
+
+            try {
+              await windowInstance.loadFile(indexPath);
+              log.info('[Electron Main] Content loaded successfully with loadFile');
+            } catch (prodError) {
+              log.error('[Electron Main] Failed to load file directly:', prodError);
+              dialog.showErrorBox("Load Error", `Could not load application files. Error: ${prodError.message}`);
+            }
+          };
+        }
       } // End of !isDevelopment block for loadURLFunction setup
 
       setupIpcHandlers(); // Setup IPC handlers

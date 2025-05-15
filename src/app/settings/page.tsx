@@ -34,6 +34,8 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>
 
 export default function SettingsPage() {
+  console.log('[SettingsPage] Component rendering');
+  
   const [isTesting, setIsTesting] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -43,6 +45,12 @@ export default function SettingsPage() {
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
   const navigate = useNavigate()
   const { toast } = useToast()
+  
+  // Log when component mounts/unmounts
+  useEffect(() => {
+    console.log('[SettingsPage] Component mounted')
+    return () => console.log('[SettingsPage] Component unmounted')
+  }, [])
 
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),

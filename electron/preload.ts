@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('electron', {
         'db:delete-customer',
         'db:get-deals-for-customer',
         'db:get-tasks-for-customer',
-        
+
         // Calendar Channels
         'db:getCalendarEvents',
         'db:addCalendarEvent',
@@ -49,13 +49,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'db:delete-customer',
         'db:get-deals-for-customer',
         'db:get-tasks-for-customer',
-        
+
         // Calendar Channels
         'db:getCalendarEvents',
         'db:addCalendarEvent',
         'db:updateCalendarEvent',
         'db:deleteCalendarEvent',
-        
+
         // Product Channels
         'products:get-all',
         'products:get-by-id',
@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'deals:create',
         'deals:update',
         'deals:update-stage',
-        
+
         // Deal-Product Link Channels
         'deals:get-products',
         'deals:add-product',
@@ -101,6 +101,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'jtl:get-zahlungsarten',
         'jtl:get-versandarten',
         'jtl:create-order', // Added as it's used in deal detail page
+
+        // Dashboard Channels
+        'dashboard:get-stats',
+        'dashboard:get-recent-customers',
+        'dashboard:get-upcoming-tasks',
+
+        // Custom Fields Channels
+        'custom-fields:get-all',
+        'custom-fields:get-active',
+        'custom-fields:get-by-id',
+        'custom-fields:create',
+        'custom-fields:update',
+        'custom-fields:delete',
+        'custom-fields:get-values-for-customer',
+        'custom-fields:set-value',
+        'custom-fields:delete-value'
       ];
       if (allowedChannels.includes(channel)) {
           return ipcRenderer.invoke(channel, ...args);

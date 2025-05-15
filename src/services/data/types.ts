@@ -1,5 +1,45 @@
 // simplecrmelectron/src/services/data/types.ts
 
+// Define custom field types
+export interface CustomField {
+    id: number;
+    name: string;
+    label: string;
+    type: 'text' | 'number' | 'date' | 'boolean' | 'select';
+    required: boolean;
+    options?: string; // JSON string for select options
+    default_value?: string;
+    placeholder?: string;
+    description?: string;
+    display_order: number;
+    active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CustomFieldValue {
+    id: number;
+    customer_id: number;
+    field_id: number;
+    value: string;
+    created_at: string;
+    updated_at: string;
+    // Joined fields from CustomField
+    name?: string;
+    label?: string;
+    type?: string;
+    required?: boolean;
+    options?: string;
+    default_value?: string;
+    placeholder?: string;
+    description?: string;
+}
+
+export interface CustomFieldOption {
+    value: string;
+    label: string;
+}
+
 // Define basic App types based on usage and plan
 export interface Customer {
     id: string; // Frontend might use string ID
@@ -21,8 +61,7 @@ export interface Customer {
     dateAdded?: string; // From jtl_dateCreated or local creation
     lastModifiedLocally?: string; // For tracking when last modified locally
     lastContact?: string; // Not directly synced?
-    // Add other fields as needed based on UI requirements
-    // referredCustomers?: Customer[];
+    customFields?: Record<string, any>; // Dynamic custom fields
 }
 
 export interface Product {
@@ -80,4 +119,4 @@ export interface DataService {
     // createProduct(data: Omit<Product, 'id'>): Promise<Product>;
     // updateProduct(id: string, data: Partial<Product>): Promise<Product>;
     // deleteProduct(id: string): Promise<void>;
-} 
+}

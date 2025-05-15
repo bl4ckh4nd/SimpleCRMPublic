@@ -1,4 +1,3 @@
-
 import Database from 'better-sqlite3';
 import path from 'path';
 import { app } from 'electron';
@@ -11,6 +10,8 @@ import {
     createCalendarEventsTable,
     createDealsTable,
     createTasksTable,
+    createCustomerCustomFieldsTable,
+    createCustomerCustomFieldValuesTable,
     indexes,
     CUSTOMERS_TABLE,
     PRODUCTS_TABLE,
@@ -19,14 +20,16 @@ import {
     CALENDAR_EVENTS_TABLE,
     DEALS_TABLE,
     TASKS_TABLE,
-    JTL_FIRMEN_TABLE, // Added
-    JTL_WARENLAGER_TABLE, // Added
-    JTL_ZAHLUNGSARTEN_TABLE, // Added
-    JTL_VERSANDARTEN_TABLE, // Added
-    createJtlFirmenTable, // Added
-    createJtlWarenlagerTable, // Added
-    createJtlZahlungsartenTable, // Added
-    createJtlVersandartenTable // Added
+    CUSTOMER_CUSTOM_FIELDS_TABLE,
+    CUSTOMER_CUSTOM_FIELD_VALUES_TABLE,
+    JTL_FIRMEN_TABLE,
+    JTL_WARENLAGER_TABLE,
+    JTL_ZAHLUNGSARTEN_TABLE,
+    JTL_VERSANDARTEN_TABLE,
+    createJtlFirmenTable,
+    createJtlWarenlagerTable,
+    createJtlZahlungsartenTable,
+    createJtlVersandartenTable
 } from './database-schema';
 import { Product, DealProduct } from './types';
 // Optional: import Knex from 'knex';
@@ -52,10 +55,12 @@ export function initializeDatabase() {
             db.exec(createTasksTable);
             db.exec(createDealProductsTable);
             db.exec(createCalendarEventsTable);
-            db.exec(createJtlFirmenTable); // Added
-            db.exec(createJtlWarenlagerTable); // Added
-            db.exec(createJtlZahlungsartenTable); // Added
-            db.exec(createJtlVersandartenTable); // Added
+            db.exec(createCustomerCustomFieldsTable);
+            db.exec(createCustomerCustomFieldValuesTable);
+            db.exec(createJtlFirmenTable);
+            db.exec(createJtlWarenlagerTable);
+            db.exec(createJtlZahlungsartenTable);
+            db.exec(createJtlVersandartenTable);
             indexes.forEach(index => db.exec(index));
             // Seed initial sync info if needed
             setSyncInfo('lastSyncStatus', 'Never');
@@ -72,7 +77,7 @@ export function initializeDatabase() {
         // Here you could add migration logic if schema changes
         // Example: Check if deal_products table exists and create if not
         const checkTableStmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");
-        
+
         // Helper function to check and create table with its indexes
         const ensureTableExists = (tableName: string, createTableSql: string, tableIndexes: string[]) => {
             if (!checkTableStmt.get(tableName)) {
@@ -121,6 +126,18 @@ export function initializeDatabase() {
         ensureTableExists(JTL_VERSANDARTEN_TABLE, createJtlVersandartenTable, [
             `CREATE INDEX IF NOT EXISTS idx_jtl_versandarten_name ON ${JTL_VERSANDARTEN_TABLE}(cName);`
         ]);
+
+        // Ensure custom fields tables exist
+        ensureTableExists(CUSTOMER_CUSTOM_FIELDS_TABLE, createCustomerCustomFieldsTable, [
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_name ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(name);`,
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_active ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(active);`,
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_display_order ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(display_order);`
+        ]);
+
+        ensureTableExists(CUSTOMER_CUSTOM_FIELD_VALUES_TABLE, createCustomerCustomFieldValuesTable, [
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_customer_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_field_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(field_id);`
+        ]);
     }
 
     // Optional Knex initialization
@@ -149,6 +166,256 @@ export function getDb() {
     return db;
 }
 
+// --- Custom Fields Functions ---
+
+// Get all custom field definitions
+export function getAllCustomFields() {
+    const stmt = getDb().prepare(`
+        SELECT * FROM ${CUSTOMER_CUSTOM_FIELDS_TABLE}
+        ORDER BY display_order ASC, name ASC
+    `);
+    return stmt.all();
+}
+
+// Get active custom field definitions
+export function getActiveCustomFields() {
+    const stmt = getDb().prepare(`
+        SELECT * FROM ${CUSTOMER_CUSTOM_FIELDS_TABLE}
+        WHERE active = 1
+        ORDER BY display_order ASC, name ASC
+    `);
+    return stmt.all();
+}
+
+// Get a single custom field by ID
+export function getCustomFieldById(id: number) {
+    const stmt = getDb().prepare(`
+        SELECT * FROM ${CUSTOMER_CUSTOM_FIELDS_TABLE}
+        WHERE id = ?
+    `);
+    return stmt.get(id);
+}
+
+// Create a new custom field
+export function createCustomField(fieldData: any) {
+    const now = new Date().toISOString();
+    const stmt = getDb().prepare(`
+        INSERT INTO ${CUSTOMER_CUSTOM_FIELDS_TABLE} (
+            name, label, type, required, options, default_value,
+            placeholder, description, display_order, active,
+            created_at, updated_at
+        ) VALUES (
+            @name, @label, @type, @required, @options, @default_value,
+            @placeholder, @description, @display_order, @active,
+            @now, @now
+        )
+    `);
+
+    // Convert boolean to integer for SQLite
+    const required = fieldData.required ? 1 : 0;
+    const active = fieldData.active !== undefined ? (fieldData.active ? 1 : 0) : 1;
+
+    // Convert options to JSON string if it's an object/array
+    const options = fieldData.options ?
+        (typeof fieldData.options === 'string' ? fieldData.options : JSON.stringify(fieldData.options)) :
+        null;
+
+    const result = stmt.run({
+        ...fieldData,
+        required,
+        active,
+        options,
+        now
+    });
+
+    if (result.lastInsertRowid) {
+        return getCustomFieldById(Number(result.lastInsertRowid));
+    }
+    return null;
+}
+
+// Update an existing custom field
+export function updateCustomField(id: number, fieldData: any) {
+    const now = new Date().toISOString();
+    const existingField = getCustomFieldById(id);
+
+    if (!existingField) {
+        throw new Error(`Custom field with ID ${id} not found`);
+    }    // Build update assignments dynamically based on provided data
+    const updateAssignments: string[] = [];
+    const params: any = { id, now };
+
+    // Handle each field that might be updated
+    if (fieldData.name !== undefined) {
+        updateAssignments.push('name = @name');
+        params.name = fieldData.name;
+    }
+
+    if (fieldData.label !== undefined) {
+        updateAssignments.push('label = @label');
+        params.label = fieldData.label;
+    }
+
+    if (fieldData.type !== undefined) {
+        updateAssignments.push('type = @type');
+        params.type = fieldData.type;
+    }
+
+    if (fieldData.required !== undefined) {
+        updateAssignments.push('required = @required');
+        params.required = fieldData.required ? 1 : 0;
+    }
+
+    if (fieldData.options !== undefined) {
+        updateAssignments.push('options = @options');
+        params.options = typeof fieldData.options === 'string' ?
+            fieldData.options : JSON.stringify(fieldData.options);
+    }
+
+    if (fieldData.default_value !== undefined) {
+        updateAssignments.push('default_value = @default_value');
+        params.default_value = fieldData.default_value;
+    }
+
+    if (fieldData.placeholder !== undefined) {
+        updateAssignments.push('placeholder = @placeholder');
+        params.placeholder = fieldData.placeholder;
+    }
+
+    if (fieldData.description !== undefined) {
+        updateAssignments.push('description = @description');
+        params.description = fieldData.description;
+    }
+
+    if (fieldData.display_order !== undefined) {
+        updateAssignments.push('display_order = @display_order');
+        params.display_order = fieldData.display_order;
+    }
+
+    if (fieldData.active !== undefined) {
+        updateAssignments.push('active = @active');
+        params.active = fieldData.active ? 1 : 0;
+    }
+
+    // Always update the updated_at timestamp
+    updateAssignments.push('updated_at = @now');
+
+    if (updateAssignments.length === 0) {
+        return existingField; // Nothing to update
+    }
+
+    const stmt = getDb().prepare(`
+        UPDATE ${CUSTOMER_CUSTOM_FIELDS_TABLE}
+        SET ${updateAssignments.join(', ')}
+        WHERE id = @id
+    `);
+
+    const result = stmt.run(params);
+
+    if (result.changes > 0) {
+        return getCustomFieldById(id);
+    }
+    return existingField;
+}
+
+// Delete a custom field
+export function deleteCustomField(id: number) {
+    // First delete all values associated with this field
+    const deleteValuesStmt = getDb().prepare(`
+        DELETE FROM ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}
+        WHERE field_id = ?
+    `);
+    deleteValuesStmt.run(id);
+
+    // Then delete the field itself
+    const deleteFieldStmt = getDb().prepare(`
+        DELETE FROM ${CUSTOMER_CUSTOM_FIELDS_TABLE}
+        WHERE id = ?
+    `);
+    const result = deleteFieldStmt.run(id);
+
+    return result.changes > 0;
+}
+
+// Get custom field values for a specific customer
+export function getCustomFieldValuesForCustomer(customerId: number) {
+    const stmt = getDb().prepare(`
+        SELECT cfv.id, cfv.customer_id, cfv.field_id, cfv.value,
+               cf.name, cf.label, cf.type, cf.required, cf.options,
+               cf.default_value, cf.placeholder, cf.description
+        FROM ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE} cfv
+        JOIN ${CUSTOMER_CUSTOM_FIELDS_TABLE} cf ON cfv.field_id = cf.id
+        WHERE cfv.customer_id = ? AND cf.active = 1
+        ORDER BY cf.display_order ASC, cf.name ASC
+    `);
+    return stmt.all(customerId);
+}
+
+// Set a custom field value for a customer
+export function setCustomFieldValue(customerId: number, fieldId: number, value: any) {
+    const now = new Date().toISOString();
+
+    // Check if the field exists
+    const field = getCustomFieldById(fieldId);
+    if (!field) {
+        throw new Error(`Custom field with ID ${fieldId} not found`);
+    }
+
+    // Check if the customer exists
+    const customer = getCustomerById(customerId);
+    if (!customer) {
+        throw new Error(`Customer with ID ${customerId} not found`);
+    }
+
+    // Convert value to string for storage
+    const stringValue = value !== null && value !== undefined ?
+        (typeof value === 'object' ? JSON.stringify(value) : String(value)) :
+        null;
+
+    // Use upsert pattern (INSERT OR REPLACE)
+    const stmt = getDb().prepare(`
+        INSERT INTO ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE} (
+            customer_id, field_id, value, created_at, updated_at
+        ) VALUES (
+            @customer_id, @field_id, @value, @now, @now
+        )
+        ON CONFLICT(customer_id, field_id) DO UPDATE SET
+            value = excluded.value,
+            updated_at = excluded.updated_at
+    `);
+
+    const result = stmt.run({
+        customer_id: customerId,
+        field_id: fieldId,
+        value: stringValue,
+        now
+    });
+
+    return result.changes > 0;
+}
+
+// Delete a custom field value
+export function deleteCustomFieldValue(customerId: number, fieldId: number) {
+    const stmt = getDb().prepare(`
+        DELETE FROM ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}
+        WHERE customer_id = ? AND field_id = ?
+    `);
+    const result = stmt.run(customerId, fieldId);
+
+    return result.changes > 0;
+}
+
+// Delete all custom field values for a customer
+export function deleteAllCustomFieldValuesForCustomer(customerId: number) {
+    const stmt = getDb().prepare(`
+        DELETE FROM ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}
+        WHERE customer_id = ?
+    `);
+    const result = stmt.run(customerId);
+
+    return result.changes > 0;
+}
+
 // --- Sync Info ---
 export function getSyncInfo(key: string): string | null {
     const stmt = getDb().prepare(`SELECT value FROM ${SYNC_INFO_TABLE} WHERE key = ?`);
@@ -167,12 +434,85 @@ export function setSyncInfo(key: string, value: string): void {
     stmt.run(key, value);
 }
 
+// Define interfaces for custom field types
+interface CustomFieldDefinition {
+    id: number;
+    name: string;
+    label: string;
+    type: string;
+    required: number;
+    options?: string;
+    default_value?: string;
+    placeholder?: string;
+    description?: string;
+    display_order: number;
+    active: number;
+    created_at: string;
+    updated_at: string;
+}
+
+interface CustomFieldValueRecord {
+    id: number;
+    customer_id: number;
+    field_id: number;
+    value: string | null;
+    created_at: string;
+    updated_at: string;
+    name?: string;
+    label?: string;
+    type?: string;
+    required?: number;
+    options?: string;
+    default_value?: string;
+    placeholder?: string;
+    description?: string;
+}
+
 // --- Customer Operations ---
-// TODO: Implement CRUD for Customers (using direct SQL or Knex)
-// Example:
 export function getAllCustomers(): any[] {
     const stmt = getDb().prepare(`SELECT * FROM ${CUSTOMERS_TABLE} ORDER BY name`);
-    return stmt.all();
+    const customers = stmt.all();
+
+    // Get all active custom fields
+    const activeFields = getActiveCustomFields() as CustomFieldDefinition[];
+
+    if (activeFields.length === 0) {
+        return customers; // No custom fields to process
+    }
+
+    // For each customer, fetch and attach custom field values
+    return customers.map((customer: any) => {
+        if (!customer || typeof customer.id === 'undefined') {
+            return customer; // Skip if customer is invalid
+        }
+
+        const customFieldValues = getCustomFieldValuesForCustomer(customer.id) as CustomFieldValueRecord[];
+
+        // Create a customFields object with field name as key and value as value
+        const customFields: Record<string, any> = {};
+        customFieldValues.forEach((field: CustomFieldValueRecord) => {
+            // Parse value based on field type
+            let parsedValue: any = field.value;
+            if (field.type === 'number' && parsedValue !== null) {
+                parsedValue = parseFloat(parsedValue);
+            } else if (field.type === 'boolean' && parsedValue !== null) {
+                parsedValue = parsedValue === 'true' || parsedValue === '1';
+            } else if (field.type === 'date' && parsedValue !== null) {
+                // Keep as string for date fields
+            } else if (field.type === 'select' && parsedValue !== null) {
+                // Keep as string for select fields
+            }
+
+            if (field.name) {
+                customFields[field.name] = parsedValue;
+            }
+        });
+
+        return {
+            ...customer,
+            customFields
+        };
+    });
 }
 
 // Add a function to get a single customer by ID
@@ -185,9 +525,42 @@ export function getCustomerById(id: number | string): any {
         FROM ${CUSTOMERS_TABLE}
         WHERE id = ?
     `);
-    const customer = stmt.get(id);
-    console.log(`[SQLite] getCustomerById(${id}):`, JSON.stringify(customer)); // Log fetched customer
-    return customer;
+    const customer = stmt.get(id) as { id: number; [key: string]: any };
+
+    if (!customer) {
+        return null;
+    }
+
+    // Get custom field values for this customer
+    const customFieldValues = getCustomFieldValuesForCustomer(customer.id) as CustomFieldValueRecord[];
+
+    // Create a customFields object with field name as key and value as value
+    const customFields: Record<string, any> = {};
+    customFieldValues.forEach((field: CustomFieldValueRecord) => {
+        // Parse value based on field type
+        let parsedValue: any = field.value;
+        if (field.type === 'number' && parsedValue !== null) {
+            parsedValue = parseFloat(parsedValue);
+        } else if (field.type === 'boolean' && parsedValue !== null) {
+            parsedValue = parsedValue === 'true' || parsedValue === '1';
+        } else if (field.type === 'date' && parsedValue !== null) {
+            // Keep as string for date fields
+        } else if (field.type === 'select' && parsedValue !== null) {
+            // Keep as string for select fields
+        }
+
+        if (field.name) {
+            customFields[field.name] = parsedValue;
+        }
+    });
+
+    const customerWithCustomFields = {
+        ...customer,
+        customFields
+    };
+
+    console.log(`[SQLite] getCustomerById(${id}):`, JSON.stringify(customerWithCustomFields)); // Log fetched customer
+    return customerWithCustomFields;
 }
 
 // Example: Upsert using raw SQL (adapt based on actual JTL fields)
@@ -236,6 +609,10 @@ export function upsertCustomer(customerData: any): void {
 // Add a function to create a new customer
 export function createCustomer(customerData: any): any {
     const now = new Date().toISOString();
+
+    // Extract custom fields from customer data
+    const { customFields, ...standardCustomerData } = customerData;
+
     // Conditionally include jtl_kKunde in the insert statement
     const columns = [
         'name', 'firstName', 'company', 'email', 'phone', 'mobile',
@@ -249,79 +626,154 @@ export function createCustomer(customerData: any): any {
     ];
 
     const dataToInsert: any = {
-        ...customerData,
+        ...standardCustomerData,
         now: now,
-        status: customerData.status || 'Active'
+        status: standardCustomerData.status || 'Active'
     };
 
-    if (customerData.jtl_kKunde !== undefined && customerData.jtl_kKunde !== null) {
+    if (standardCustomerData.jtl_kKunde !== undefined && standardCustomerData.jtl_kKunde !== null) {
         columns.unshift('jtl_kKunde');
         valuesPlaceholders.unshift('@jtl_kKunde');
-        dataToInsert.jtl_kKunde = customerData.jtl_kKunde;
+        dataToInsert.jtl_kKunde = standardCustomerData.jtl_kKunde;
     }
 
-    const stmt = getDb().prepare(`
-        INSERT INTO ${CUSTOMERS_TABLE} (
-            ${columns.join(', ')}
-        ) VALUES (
-            ${valuesPlaceholders.join(', ')}
-        )
-    `);
-    
-    const result = stmt.run(dataToInsert);
-    
-    if (result.lastInsertRowid) {
-        return getCustomerById(Number(result.lastInsertRowid));
+    // Use a transaction to ensure all operations succeed or fail together
+    const db = getDb();
+    db.prepare('BEGIN TRANSACTION').run();
+
+    try {
+        // Insert the customer
+        const stmt = db.prepare(`
+            INSERT INTO ${CUSTOMERS_TABLE} (
+                ${columns.join(', ')}
+            ) VALUES (
+                ${valuesPlaceholders.join(', ')}
+            )
+        `);
+
+        const result = stmt.run(dataToInsert);
+        const newCustomerId = Number(result.lastInsertRowid);
+
+        // If we have custom fields, save them
+        if (customFields && typeof customFields === 'object') {
+            const activeFields = getActiveCustomFields() as CustomFieldDefinition[];
+            const fieldMap = new Map(activeFields.map((field: CustomFieldDefinition) => [field.name, field.id]));
+
+            // For each custom field, save its value
+            Object.entries(customFields).forEach(([fieldName, fieldValue]) => {
+                const fieldId = fieldMap.get(fieldName);
+                if (fieldId !== undefined) {
+                    setCustomFieldValue(newCustomerId, fieldId, fieldValue);
+                }
+            });
+        }
+
+        // Commit the transaction
+        db.prepare('COMMIT').run();
+
+        // Return the newly created customer with custom fields
+        return getCustomerById(newCustomerId);
+    } catch (error) {
+        // If anything fails, roll back the transaction
+        db.prepare('ROLLBACK').run();
+        console.error('Error creating customer:', error);
+        throw error;
     }
-    return null;
 }
 
 export function updateCustomer(id: number, customerData: any): any {
     const now = new Date().toISOString();
-    
-    // Construct the SET part of the query dynamically based on provided fields
-    // Separate zip from other data to handle column name difference
-    const { zip, ...otherCustomerData } = customerData;
-    
+
+    // Extract custom fields from customer data
+    const { customFields, zip, ...otherCustomerData } = customerData;
+
     const updateFieldKeys = Object.keys(otherCustomerData)
         .filter(key => key !== 'id' && key !== 'jtl_kKunde'); // Don't update primary keys
-        
+
     const updateAssignments = updateFieldKeys.map(key => `${key} = @${key}`);
 
     if (zip !== undefined) {
         updateAssignments.push(`zipCode = @zip`);
     }
-    
+
     // Add lastModifiedLocally timestamp
     updateAssignments.push(`lastModifiedLocally = @now`);
-    
-    const query = `
-        UPDATE ${CUSTOMERS_TABLE}
-        SET ${updateAssignments.join(', ')}
-        WHERE id = @id
-    `;
-    
-    const stmt = getDb().prepare(query);
-    const paramsToRun: any = {
-        ...otherCustomerData,
-        id: id,
-        now: now
-    };
-    if (zip !== undefined) {
-        paramsToRun.zip = zip;
+
+    // Use a transaction to ensure all operations succeed or fail together
+    const db = getDb();
+    db.prepare('BEGIN TRANSACTION').run();
+
+    try {
+        // Update the customer record
+        const query = `
+            UPDATE ${CUSTOMERS_TABLE}
+            SET ${updateAssignments.join(', ')}
+            WHERE id = @id
+        `;
+
+        const stmt = db.prepare(query);
+        const paramsToRun: any = {
+            ...otherCustomerData,
+            id: id,
+            now: now
+        };
+        if (zip !== undefined) {
+            paramsToRun.zip = zip;
+        }
+        const result = stmt.run(paramsToRun);
+
+        // If we have custom fields, update them
+        if (customFields && typeof customFields === 'object') {
+            const activeFields = getActiveCustomFields() as CustomFieldDefinition[];
+            const fieldMap = new Map(activeFields.map((field: CustomFieldDefinition) => [field.name, field.id]));
+
+            // For each custom field, update its value
+            Object.entries(customFields).forEach(([fieldName, fieldValue]) => {
+                const fieldId = fieldMap.get(fieldName);
+                if (fieldId !== undefined) {
+                    setCustomFieldValue(id, fieldId, fieldValue);
+                }
+            });
+        }
+
+        // Commit the transaction
+        db.prepare('COMMIT').run();
+
+        if (result.changes > 0) {
+            return getCustomerById(id);
+        }
+        return null;
+    } catch (error) {
+        // If anything fails, roll back the transaction
+        db.prepare('ROLLBACK').run();
+        console.error('Error updating customer:', error);
+        throw error;
     }
-    const result = stmt.run(paramsToRun);
-    
-    if (result.changes > 0) {
-        return getCustomerById(id);
-    }
-    return null;
 }
 
 export function deleteCustomer(id: number): boolean {
-    const stmt = getDb().prepare(`DELETE FROM ${CUSTOMERS_TABLE} WHERE id = ?`);
-    const result = stmt.run(id);
-    return result.changes > 0;
+    // Use a transaction to ensure all operations succeed or fail together
+    const db = getDb();
+    db.prepare('BEGIN TRANSACTION').run();
+
+    try {
+        // Delete custom field values first (though the foreign key would handle this)
+        deleteAllCustomFieldValuesForCustomer(id);
+
+        // Then delete the customer
+        const stmt = db.prepare(`DELETE FROM ${CUSTOMERS_TABLE} WHERE id = ?`);
+        const result = stmt.run(id);
+
+        // Commit the transaction
+        db.prepare('COMMIT').run();
+
+        return result.changes > 0;
+    } catch (error) {
+        // If anything fails, roll back the transaction
+        db.prepare('ROLLBACK').run();
+        console.error('Error deleting customer:', error);
+        throw error;
+    }
 }
 
 // --- Product Operations ---
@@ -535,7 +987,7 @@ interface CalendarEventData {
 export function getAllCalendarEvents(): any[] { // Return type matches structure from DB
     const stmt = getDb().prepare(`SELECT * FROM ${CALENDAR_EVENTS_TABLE} ORDER BY start_date`);
     const events = stmt.all();
-    
+
     // Parse recurrence_rule JSON for any events
     return events.map((event: any) => {
         if (event.recurrence_rule && typeof event.recurrence_rule === 'string') {
@@ -553,7 +1005,7 @@ export function createCalendarEvent(eventData: any): Database.RunResult {
     console.log('Creating calendar event with data:', eventData);
     try {
         const now = new Date().toISOString();
-        
+
         // Prepare a clean object with only the required fields
         const cleanData: Record<string, any> = {
             title: String(eventData.title || ''),
@@ -566,14 +1018,14 @@ export function createCalendarEvent(eventData: any): Database.RunResult {
             recurrence_rule: null, // Always include recurrence_rule parameter with default null
             now: now
         };
-        
+
         // Handle recurrence_rule if it exists and isn't null
         if (eventData.recurrence_rule) {
-            cleanData.recurrence_rule = typeof eventData.recurrence_rule === 'string' 
+            cleanData.recurrence_rule = typeof eventData.recurrence_rule === 'string'
                 ? eventData.recurrence_rule
                 : JSON.stringify(eventData.recurrence_rule);
         }
-        
+
         console.log('Sanitized data for SQLite:', cleanData);
 
         const stmt = getDb().prepare(`
@@ -585,7 +1037,7 @@ export function createCalendarEvent(eventData: any): Database.RunResult {
                 @color_code, @event_type, @recurrence_rule, @now, @now
             )
         `);
-        
+
         return stmt.run(cleanData);
     } catch (error) {
         console.error('Error creating calendar event:', error);
@@ -598,12 +1050,12 @@ export function updateCalendarEvent(id: number, eventData: Partial<Omit<Calendar
     try {
         const now = new Date().toISOString();
         const cleanData: Record<string, any> = { ...eventData, id, now };
-        
+
         // Convert boolean to integer for SQLite
         if (typeof eventData.all_day === 'boolean') {
             cleanData.all_day = eventData.all_day ? 1 : 0;
         }
-        
+
         // Handle recurrence_rule if it exists
         if (eventData.recurrence_rule !== undefined) {
             if (eventData.recurrence_rule === null) {
@@ -614,16 +1066,16 @@ export function updateCalendarEvent(id: number, eventData: Partial<Omit<Calendar
                     : JSON.stringify(eventData.recurrence_rule);
             }
         }
-        
+
         // Convert all strings and numbers explicitly
         Object.keys(cleanData).forEach(key => {
             if (typeof cleanData[key] === 'string' || typeof cleanData[key] === 'number') {
                 cleanData[key] = String(cleanData[key]);
             }
         });
-        
+
         console.log('Sanitized data for SQLite update:', cleanData);
-        
+
         let updateFields = Object.keys(eventData)
                                .map(key => `${key} = @${key}`)
                                .join(', ');
@@ -651,44 +1103,44 @@ export function deleteCalendarEvent(id: number): Database.RunResult {
 
 // --- Deal Operations ---
 export function getAllDeals(
-  limit: number = 100, 
-  offset: number = 0, 
+  limit: number = 100,
+  offset: number = 0,
   filter: { stage?: string; query?: string } = {}
 ): any[] {
   let sql = `
-    SELECT d.*, c.name as customer_name 
+    SELECT d.*, c.name as customer_name
     FROM ${DEALS_TABLE} d
-    LEFT JOIN ${CUSTOMERS_TABLE} c ON d.customer_id = c.id 
+    LEFT JOIN ${CUSTOMERS_TABLE} c ON d.customer_id = c.id
     WHERE 1=1
   `;
-  
+
   const params: any[] = [];
-  
+
   // Add stage filter if provided
   if (filter.stage) {
     sql += ` AND d.stage = ?`;
     params.push(filter.stage);
   }
-  
+
   // Add search query filter if provided
   if (filter.query && filter.query.trim() !== '') {
     sql += ` AND (d.name LIKE ? OR c.name LIKE ?)`;
     const searchTerm = `%${filter.query}%`;
     params.push(searchTerm, searchTerm);
   }
-  
+
   sql += ` ORDER BY d.created_date DESC LIMIT ? OFFSET ?`;
   params.push(limit, offset);
-  
+
   const stmt = getDb().prepare(sql);
   return stmt.all(...params);
 }
 
 export function getDealById(dealId: number): any {
   const stmt = getDb().prepare(`
-    SELECT d.*, c.name as customer_name 
+    SELECT d.*, c.name as customer_name
     FROM ${DEALS_TABLE} d
-    LEFT JOIN ${CUSTOMERS_TABLE} c ON d.customer_id = c.id 
+    LEFT JOIN ${CUSTOMERS_TABLE} c ON d.customer_id = c.id
     WHERE d.id = ?
   `);
   return stmt.get(dealId);
@@ -698,7 +1150,7 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
   try {
     // Prepare timestamp
     const now = new Date().toISOString();
-    
+
     // Create deal with mandatory fields
     const stmt = getDb().prepare(`
       INSERT INTO ${DEALS_TABLE} (
@@ -707,7 +1159,7 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
         @customer_id, @name, @value, @stage, @notes, @expected_close_date, @created_date, @last_modified
       )
     `);
-    
+
     const result = stmt.run({
       customer_id: dealData.customer_id,
       name: dealData.name,
@@ -718,7 +1170,7 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
       created_date: now,
       last_modified: now
     });
-    
+
     return { success: true, id: result.lastInsertRowid as number };
   } catch (error) {
     console.error('Error creating deal:', error);
@@ -730,29 +1182,29 @@ export function updateDeal(dealId: number, dealData: any): { success: boolean; e
   try {
     // Update last_modified timestamp
     dealData.last_modified = new Date().toISOString();
-    
+
     // Filter out invalid columns and customer_name
     const validColumns = ['name', 'value', 'stage', 'notes', 'expected_close_date', 'last_modified'];
     const fields = Object.keys(dealData)
       .filter(key => validColumns.includes(key) && dealData[key] !== undefined)
       .map(key => `${key} = @${key}`)
       .join(', ');
-    
+
     if (!fields.length) {
       return { success: false, error: 'No fields to update' };
     }
-    
+
     const stmt = getDb().prepare(`
       UPDATE ${DEALS_TABLE}
       SET ${fields}
       WHERE id = @id
     `);
-    
+
     const result = stmt.run({
       id: dealId,
       ...dealData
     });
-    
+
     return { success: result.changes > 0, error: result.changes === 0 ? 'Deal not found' : undefined };
   } catch (error) {
     console.error(`Error updating deal ${dealId}:`, error);
@@ -763,15 +1215,15 @@ export function updateDeal(dealId: number, dealData: any): { success: boolean; e
 export function updateDealStage(dealId: number, newStage: string): { success: boolean; error?: string } {
   try {
     const now = new Date().toISOString();
-    
+
     const stmt = getDb().prepare(`
       UPDATE ${DEALS_TABLE}
       SET stage = ?, last_modified = ?
       WHERE id = ?
     `);
-    
+
     const result = stmt.run(newStage, now, dealId);
-    
+
     return { success: result.changes > 0, error: result.changes === 0 ? 'Deal not found' : undefined };
   } catch (error) {
     console.error(`Error updating deal stage for ${dealId}:`, error);
@@ -783,8 +1235,8 @@ export function updateDealStage(dealId: number, newStage: string): { success: bo
 export function getDealsForCustomer(customerId: number): any[] {
     // This assumes a 'deals' table with a customer_id field
     const stmt = getDb().prepare(`
-        SELECT * FROM deals 
-        WHERE customer_id = ? 
+        SELECT * FROM deals
+        WHERE customer_id = ?
         ORDER BY created_date DESC
     `);
     return stmt.all(customerId);
@@ -792,50 +1244,50 @@ export function getDealsForCustomer(customerId: number): any[] {
 
 // --- Task Operations ---
 export function getAllTasks(
-  limit: number = 100, 
-  offset: number = 0, 
+  limit: number = 100,
+  offset: number = 0,
   filter: { completed?: boolean; priority?: string; query?: string } = {}
 ): any[] {
   let sql = `
-    SELECT t.*, c.name as customer_name 
+    SELECT t.*, c.name as customer_name
     FROM ${TASKS_TABLE} t
-    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id 
+    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
     WHERE 1=1
   `;
-  
+
   const params: any[] = [];
-  
+
   // Add completed filter if provided
   if (filter.completed !== undefined) {
     sql += ` AND t.completed = ?`;
     params.push(filter.completed ? 1 : 0);
   }
-  
+
   // Add priority filter if provided
   if (filter.priority) {
     sql += ` AND t.priority = ?`;
     params.push(filter.priority);
   }
-  
+
   // Add search query filter if provided
   if (filter.query && filter.query.trim() !== '') {
     sql += ` AND (t.title LIKE ? OR c.name LIKE ? OR t.description LIKE ?)`;
     const searchTerm = `%${filter.query}%`;
     params.push(searchTerm, searchTerm, searchTerm);
   }
-  
+
   sql += ` ORDER BY t.due_date ASC LIMIT ? OFFSET ?`;
   params.push(limit, offset);
-  
+
   const stmt = getDb().prepare(sql);
   return stmt.all(...params);
 }
 
 export function getTaskById(taskId: number): any {
   const stmt = getDb().prepare(`
-    SELECT t.*, c.name as customer_name 
+    SELECT t.*, c.name as customer_name
     FROM ${TASKS_TABLE} t
-    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id 
+    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
     WHERE t.id = ?
   `);
   return stmt.get(taskId);
@@ -845,7 +1297,7 @@ export function createTask(taskData: any): { success: boolean; id?: number; erro
   try {
     // Prepare timestamp
     const now = new Date().toISOString();
-    
+
     // Create task with mandatory fields
     const stmt = getDb().prepare(`
       INSERT INTO ${TASKS_TABLE} (
@@ -856,7 +1308,7 @@ export function createTask(taskData: any): { success: boolean; id?: number; erro
         @created_date, @last_modified
       )
     `);
-    
+
     const result = stmt.run({
       customer_id: taskData.customer_id,
       title: taskData.title,
@@ -867,7 +1319,7 @@ export function createTask(taskData: any): { success: boolean; id?: number; erro
       created_date: now,
       last_modified: now
     });
-    
+
     return { success: true, id: result.lastInsertRowid as number };
   } catch (error) {
     console.error('Error creating task:', error);
@@ -879,33 +1331,33 @@ export function updateTask(taskId: number, taskData: any): { success: boolean; e
   try {
     // Update last_modified timestamp
     taskData.last_modified = new Date().toISOString();
-    
+
     // Convert boolean completed to integer if provided
     if (taskData.completed !== undefined) {
       taskData.completed = taskData.completed ? 1 : 0;
     }
-    
+
     // Build dynamic update query based on provided fields
     const fields = Object.keys(taskData)
       .filter(key => key !== 'id' && taskData[key] !== undefined)
       .map(key => `${key} = @${key}`)
       .join(', ');
-    
+
     if (!fields.length) {
       return { success: false, error: 'No fields to update' };
     }
-    
+
     const stmt = getDb().prepare(`
       UPDATE ${TASKS_TABLE}
       SET ${fields}
       WHERE id = @id
     `);
-    
+
     const result = stmt.run({
       id: taskId,
       ...taskData
     });
-    
+
     return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
   } catch (error) {
     console.error(`Error updating task ${taskId}:`, error);
@@ -916,15 +1368,15 @@ export function updateTask(taskId: number, taskData: any): { success: boolean; e
 export function updateTaskCompletion(taskId: number, completed: boolean): { success: boolean; error?: string } {
   try {
     const now = new Date().toISOString();
-    
+
     const stmt = getDb().prepare(`
       UPDATE ${TASKS_TABLE}
       SET completed = ?, last_modified = ?
       WHERE id = ?
     `);
-    
+
     const result = stmt.run(completed ? 1 : 0, now, taskId);
-    
+
     return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
   } catch (error) {
     console.error(`Error updating task completion for ${taskId}:`, error);
@@ -936,7 +1388,7 @@ export function deleteTask(taskId: number): { success: boolean; error?: string }
   try {
     const stmt = getDb().prepare(`DELETE FROM ${TASKS_TABLE} WHERE id = ?`);
     const result = stmt.run(taskId);
-    
+
     return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
   } catch (error) {
     console.error(`Error deleting task ${taskId}:`, error);
@@ -948,8 +1400,8 @@ export function deleteTask(taskId: number): { success: boolean; error?: string }
 export function getTasksForCustomer(customerId: number): any[] {
     // This assumes a 'tasks' table with a customer_id field
     const stmt = getDb().prepare(`
-        SELECT * FROM tasks 
-        WHERE customer_id = ? 
+        SELECT * FROM tasks
+        WHERE customer_id = ?
         ORDER BY due_date ASC
     `);
     return stmt.all(customerId);
@@ -1015,6 +1467,143 @@ export function upsertJtlVersandart(versandart: { kVersandart: number; cName: st
 export function getAllJtlVersandarten(): { kVersandart: number; cName: string }[] {
     const stmt = getDb().prepare(`SELECT kVersandart, cName FROM ${JTL_VERSANDARTEN_TABLE} ORDER BY cName`);
     return stmt.all() as { kVersandart: number; cName: string }[];
+}
+
+// --- Dashboard Operations ---
+
+/**
+ * Get dashboard statistics including customer counts, deal values, and task counts
+ */
+export function getDashboardStats(): {
+    totalCustomers: number;
+    newCustomersLastMonth: number;
+    activeDealsCount: number;
+    activeDealsValue: number;
+    pendingTasksCount: number;
+    dueTodayTasksCount: number;
+    conversionRate: number;
+} {
+    try {
+        const db = getDb();
+
+        // Get total customers count
+        const totalCustomersStmt = db.prepare(`SELECT COUNT(*) as count FROM ${CUSTOMERS_TABLE}`);
+        const totalCustomersResult = totalCustomersStmt.get() as { count: number };
+        const totalCustomers = totalCustomersResult.count;
+
+        // Get new customers in the last month
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        const oneMonthAgoStr = oneMonthAgo.toISOString();
+
+        const newCustomersStmt = db.prepare(`
+            SELECT COUNT(*) as count FROM ${CUSTOMERS_TABLE}
+            WHERE dateAdded >= ?
+        `);
+        const newCustomersResult = newCustomersStmt.get(oneMonthAgoStr) as { count: number };
+        const newCustomersLastMonth = newCustomersResult.count;
+
+        // Get active deals count and value
+        // Assuming 'active' deals are those not in 'Closed Won' or 'Closed Lost' stages
+        const activeDealsStmt = db.prepare(`
+            SELECT COUNT(*) as count, SUM(value) as total_value
+            FROM ${DEALS_TABLE}
+            WHERE stage NOT IN ('Closed Won', 'Closed Lost')
+        `);
+        const activeDealsResult = activeDealsStmt.get() as { count: number; total_value: number | null };
+        const activeDealsCount = activeDealsResult.count;
+        const activeDealsValue = activeDealsResult.total_value || 0;
+
+        // Get pending tasks count
+        const pendingTasksStmt = db.prepare(`
+            SELECT COUNT(*) as count FROM ${TASKS_TABLE}
+            WHERE completed = 0
+        `);
+        const pendingTasksResult = pendingTasksStmt.get() as { count: number };
+        const pendingTasksCount = pendingTasksResult.count;
+
+        // Get tasks due today
+        const today = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD
+        const dueTodayTasksStmt = db.prepare(`
+            SELECT COUNT(*) as count FROM ${TASKS_TABLE}
+            WHERE completed = 0 AND date(due_date) = ?
+        `);
+        const dueTodayTasksResult = dueTodayTasksStmt.get(today) as { count: number };
+        const dueTodayTasksCount = dueTodayTasksResult.count;
+
+        // Calculate conversion rate (closed won deals / total closed deals)
+        const conversionRateStmt = db.prepare(`
+            SELECT
+                COUNT(CASE WHEN stage = 'Closed Won' THEN 1 END) as won,
+                COUNT(CASE WHEN stage IN ('Closed Won', 'Closed Lost') THEN 1 END) as total
+            FROM ${DEALS_TABLE}
+        `);
+        const conversionResult = conversionRateStmt.get() as { won: number; total: number };
+        const conversionRate = conversionResult.total > 0
+            ? (conversionResult.won / conversionResult.total) * 100
+            : 0;
+
+        return {
+            totalCustomers,
+            newCustomersLastMonth,
+            activeDealsCount,
+            activeDealsValue,
+            pendingTasksCount,
+            dueTodayTasksCount,
+            conversionRate
+        };
+    } catch (error) {
+        console.error('Error getting dashboard stats:', error);
+        // Return default values on error
+        return {
+            totalCustomers: 0,
+            newCustomersLastMonth: 0,
+            activeDealsCount: 0,
+            activeDealsValue: 0,
+            pendingTasksCount: 0,
+            dueTodayTasksCount: 0,
+            conversionRate: 0
+        };
+    }
+}
+
+/**
+ * Get recent customers with basic information
+ */
+export function getRecentCustomers(limit: number = 5): any[] {
+    try {
+        const stmt = getDb().prepare(`
+            SELECT id, name, email, dateAdded, jtl_dateCreated
+            FROM ${CUSTOMERS_TABLE}
+            ORDER BY dateAdded DESC
+            LIMIT ?
+        `);
+        return stmt.all(limit);
+    } catch (error) {
+        console.error('Error getting recent customers:', error);
+        return [];
+    }
+}
+
+/**
+ * Get upcoming tasks with customer information
+ */
+export function getUpcomingTasks(limit: number = 5): any[] {
+    try {
+        const stmt = getDb().prepare(`
+            SELECT t.id, t.title, t.priority, t.customer_id, t.due_date,
+                   c.name as customer_name
+            FROM ${TASKS_TABLE} t
+            LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
+            WHERE t.completed = 0
+            ORDER BY t.due_date ASC
+            LIMIT ?
+        `);
+        return stmt.all(limit);
+    } catch (error) {
+        console.error('Error getting upcoming tasks:', error);
+        return [];
+    }
 }
 
 // --- Cleanup ---

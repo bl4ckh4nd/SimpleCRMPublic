@@ -34,6 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea"; // Added Textarea
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Added Table components
 import type { Customer, Deal, Task } from "@/services/data/types" // Updated import
+import { CustomFieldsForm } from "@/components/custom-fields-form";
 // Import the specific route definition
 import { customerDetailRoute } from "@/router"
 
@@ -72,6 +73,7 @@ export default function CustomerDetailPage() {
     city: "",
     country: "",
     affiliateLink: "",
+    customFields: {},
   })
 
   useEffect(() => {
@@ -85,13 +87,13 @@ export default function CustomerDetailPage() {
       }
 
       setIsLoading(true);
-      
+
       try {
         // Pass customerId string directly to the service
         const api = window.electronAPI as any; // Type assertion for direct invoke access
         const dbCustomer = await api.invoke('db:get-customer', customerId);
         console.log('Fetched customer data in component:', dbCustomer); // Log fetched data
-        
+
         if (dbCustomer) {
           setCustomer(dbCustomer);
           // Pre-fill edit form with fetched data
@@ -109,6 +111,7 @@ export default function CustomerDetailPage() {
             city: dbCustomer.city || "",
             country: dbCustomer.country || "",
             affiliateLink: dbCustomer.affiliateLink || "",
+            customFields: dbCustomer.customFields || {},
           });
         } else {
           toast.error(`Kunde mit ID ${customerId} nicht gefunden.`);
@@ -119,7 +122,7 @@ export default function CustomerDetailPage() {
         toast.error("Fehler beim Laden des Kunden.");
         navigate({ to: "/customers" });
       }
-      
+
       setIsLoading(false);
     };
 
@@ -130,16 +133,16 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     const fetchRelatedItems = async () => {
       if (!customerId) return;
-      
+
       setIsLoadingRelated(true);
-      
+
       try {
         const api = window.electronAPI as any;
-        
+
         // Fetch deals for this customer
         const customerDeals = await api.invoke('db:get-deals-for-customer', customerId);
         setDeals(customerDeals || []);
-        
+
         // Fetch tasks for this customer
         const customerTasks = await api.invoke('db:get-tasks-for-customer', customerId);
         setTasks(customerTasks || []);
@@ -147,10 +150,10 @@ export default function CustomerDetailPage() {
         console.error('Failed to fetch related items:', error);
         toast.error("Fehler beim Laden von zugehörigen Deals und Aufgaben.");
       }
-      
+
       setIsLoadingRelated(false);
     };
-    
+
     fetchRelatedItems();
   }, [customerId]);
 
@@ -183,7 +186,7 @@ export default function CustomerDetailPage() {
       // Use window.electronAPI directly
       const api = window.electronAPI as any;
       await api.invoke('db:update-customer', updatedCustomer);
-      
+
       // Update local state
       setCustomer(updatedCustomer);
       setIsEditOpen(false);
@@ -196,12 +199,12 @@ export default function CustomerDetailPage() {
 
   const handleDeleteCustomer = async () => {
     if (!customer) return;
-    
+
     try {
       // Use window.electronAPI directly
       const api = window.electronAPI as any;
       await api.invoke('db:delete-customer', customer.id);
-      
+
       toast.success(`Kunde ${customer.name} gelöscht.`);
       navigate({ to: "/customers" });
     } catch (error) {
@@ -249,130 +252,157 @@ export default function CustomerDetailPage() {
                     Bearbeiten
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[525px]"> {/* Increased width */}
+                <DialogContent className="sm:max-w-[650px]"> {/* Increased width */}
                   <DialogHeader>
                     <DialogTitle>Kunde bearbeiten</DialogTitle>
                     <DialogDescription>Ändern Sie die Informationen des Kunden unten.</DialogDescription>
                   </DialogHeader>
-                  {/* Updated Grid for more fields */}
-                  <div className="grid grid-cols-1 gap-4 py-4 md:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor="firstName">Vorname</Label>
-                      <Input
-                        id="firstName"
-                        value={editedCustomer.firstName}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, firstName: e.target.value })}
+                  <Tabs defaultValue="basic">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="basic">Grunddaten</TabsTrigger>
+                      <TabsTrigger value="custom">Benutzerdefinierte Felder</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="basic">
+                      <div className="grid grid-cols-1 gap-4 py-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                          <Label htmlFor="firstName">Vorname</Label>
+                          <Input
+                            id="firstName"
+                            value={editedCustomer.firstName}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, firstName: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">Nachname</Label>
+                          <Input
+                            id="name"
+                            value={editedCustomer.name}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, name: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="email">E-Mail</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={editedCustomer.email}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, email: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="phone">Telefon</Label>
+                          <Input
+                            id="phone"
+                            value={editedCustomer.phone}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, phone: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="mobile">Mobil</Label>
+                          <Input
+                            id="mobile"
+                            value={editedCustomer.mobile}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, mobile: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="company">Firma</Label>
+                          <Input
+                            id="company"
+                            value={editedCustomer.company}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, company: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="street">Straße</Label>
+                          <Input
+                            id="street"
+                            value={editedCustomer.street}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, street: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="zip">PLZ</Label>
+                          <Input
+                            id="zip"
+                            value={editedCustomer.zip || ""} // Rely on editedCustomer.zip
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, zip: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="city">Stadt</Label>
+                          <Input
+                            id="city"
+                            value={editedCustomer.city}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, city: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="country">Land</Label>
+                          <Input
+                            id="country"
+                            value={editedCustomer.country}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, country: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="status">Status</Label>
+                          <Select
+                            value={editedCustomer.status}
+                            onValueChange={(value) => setEditedCustomer({ ...editedCustomer, status: value || 'Active' })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Status auswählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Active">Aktiv</SelectItem>
+                              <SelectItem value="Lead">Lead</SelectItem>
+                              <SelectItem value="Inactive">Inaktiv</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="affiliateLink">Affiliate Link</Label>
+                          <Input
+                            id="affiliateLink"
+                            value={editedCustomer.affiliateLink}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, affiliateLink: e.target.value })}
+                          />
+                        </div>
+                        {/* Notes spanning full width */}
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label htmlFor="notes">Notizen</Label>
+                          <Textarea
+                            id="notes"
+                            value={editedCustomer.notes}
+                            onChange={(e) => setEditedCustomer({ ...editedCustomer, notes: e.target.value })}
+                            placeholder="Fügen Sie Notizen zu diesem Kunden hinzu"
+                            rows={4} // Increased rows
+                          />
+                        </div>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="custom">
+                      <CustomFieldsForm
+                        customerId={customerId}
+                        formData={editedCustomer}
+                        onChange={(field, value) => {
+                          // Handle nested fields (customFields.fieldName)
+                          if (field.startsWith('customFields.')) {
+                            const fieldName = field.split('.')[1];
+                            setEditedCustomer(prev => ({
+                              ...prev,
+                              customFields: {
+                                ...prev.customFields,
+                                [fieldName]: value
+                              }
+                            }));
+                          }
+                        }}
+                        className="py-4"
                       />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="name">Nachname</Label>
-                      <Input
-                        id="name"
-                        value={editedCustomer.name}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, name: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">E-Mail</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={editedCustomer.email}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, email: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="phone">Telefon</Label>
-                      <Input
-                        id="phone"
-                        value={editedCustomer.phone}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, phone: e.target.value })}
-                      />
-                    </div>
-                     <div className="grid gap-2">
-                      <Label htmlFor="mobile">Mobil</Label>
-                      <Input
-                        id="mobile"
-                        value={editedCustomer.mobile}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, mobile: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="company">Firma</Label>
-                      <Input
-                        id="company"
-                        value={editedCustomer.company}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, company: e.target.value })}
-                      />
-                    </div>
-                     <div className="grid gap-2">
-                      <Label htmlFor="street">Straße</Label>
-                      <Input
-                        id="street"
-                        value={editedCustomer.street}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, street: e.target.value })}
-                      />
-                    </div>
-                     <div className="grid gap-2">
-                      <Label htmlFor="zip">PLZ</Label>
-                      <Input
-                        id="zip"
-                        value={editedCustomer.zip || ""} // Rely on editedCustomer.zip
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, zip: e.target.value })}
-                      />
-                    </div>
-                     <div className="grid gap-2">
-                      <Label htmlFor="city">Stadt</Label>
-                      <Input
-                        id="city"
-                        value={editedCustomer.city}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, city: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="country">Land</Label>
-                      <Input
-                        id="country"
-                        value={editedCustomer.country}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, country: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="status">Status</Label>
-                      <Select
-                        value={editedCustomer.status}
-                        onValueChange={(value) => setEditedCustomer({ ...editedCustomer, status: value || 'Active' })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Status auswählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Active">Aktiv</SelectItem>
-                          <SelectItem value="Lead">Lead</SelectItem>
-                          <SelectItem value="Inactive">Inaktiv</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                     <div className="grid gap-2">
-                      <Label htmlFor="affiliateLink">Affiliate Link</Label>
-                      <Input
-                        id="affiliateLink"
-                        value={editedCustomer.affiliateLink}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, affiliateLink: e.target.value })}
-                      />
-                    </div>
-                    {/* Notes spanning full width */}
-                    <div className="grid gap-2 md:col-span-2">
-                      <Label htmlFor="notes">Notizen</Label>
-                      <Textarea
-                        id="notes"
-                        value={editedCustomer.notes}
-                        onChange={(e) => setEditedCustomer({ ...editedCustomer, notes: e.target.value })}
-                        placeholder="Fügen Sie Notizen zu diesem Kunden hinzu"
-                        rows={4} // Increased rows
-                      />
-                    </div>
-                  </div>
+                    </TabsContent>
+                  </Tabs>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                       Abbrechen
@@ -452,14 +482,13 @@ export default function CustomerDetailPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
-
-            <Tabs defaultValue="notes">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="notes">Notizen</TabsTrigger>
-                <TabsTrigger value="deals">Deals</TabsTrigger>
-                <TabsTrigger value="tasks">Aufgaben</TabsTrigger>
-                <TabsTrigger value="affiliate">Affiliate</TabsTrigger>
+            </Card>            <Tabs defaultValue="notes">
+              <TabsList className="inline-flex h-auto w-full justify-start space-x-2 rounded-none border-b bg-transparent p-0">
+                <TabsTrigger value="notes" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Notizen</TabsTrigger>
+                <TabsTrigger value="custom" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Benutzerdefinierte Felder</TabsTrigger>
+                <TabsTrigger value="deals" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Deals</TabsTrigger>
+                <TabsTrigger value="tasks" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Aufgaben</TabsTrigger>
+                <TabsTrigger value="affiliate" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Affiliate</TabsTrigger>
               </TabsList>
               <TabsContent value="notes" className="mt-4">
                 <Card>
@@ -477,6 +506,33 @@ export default function CustomerDetailPage() {
                   <CardFooter>
                     <Button variant="outline" onClick={() => setIsEditOpen(true)}>
                       Notiz hinzufügen
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </TabsContent>
+              <TabsContent value="custom" className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Benutzerdefinierte Felder</CardTitle>
+                    <CardDescription>Zusätzliche Informationen zu diesem Kunden</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {customer.customFields && Object.keys(customer.customFields).length > 0 ? (
+                      <div className="space-y-4">
+                        {Object.entries(customer.customFields).map(([key, value]) => (
+                          <div key={key} className="grid grid-cols-2 gap-2 border-b pb-2">
+                            <div className="font-medium">{key}</div>
+                            <div>{value !== null && value !== undefined ? String(value) : "-"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground">Keine benutzerdefinierten Felder verfügbar. Fügen Sie benutzerdefinierte Felder hinzu, indem Sie den Kunden bearbeiten.</p>
+                    )}
+                  </CardContent>
+                  <CardFooter>
+                    <Button variant="outline" onClick={() => setIsEditOpen(true)}>
+                      Benutzerdefinierte Felder bearbeiten
                     </Button>
                   </CardFooter>
                 </Card>

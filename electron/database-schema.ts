@@ -6,6 +6,8 @@ export const SYNC_INFO_TABLE = 'sync_info'; // To store last sync status/time
 export const CALENDAR_EVENTS_TABLE = 'calendar_events'; // Added
 export const DEALS_TABLE = 'deals'; // Added deals table constant
 export const TASKS_TABLE = 'tasks'; // Added tasks table constant
+export const CUSTOMER_CUSTOM_FIELDS_TABLE = 'customer_custom_fields'; // Custom fields definitions
+export const CUSTOMER_CUSTOM_FIELD_VALUES_TABLE = 'customer_custom_field_values'; // Custom field values
 
 export const JTL_FIRMEN_TABLE = 'jtl_firmen';
 export const JTL_WARENLAGER_TABLE = 'jtl_warenlager';
@@ -156,6 +158,40 @@ export const createJtlVersandartenTable = `
   );
 `;
 
+// Create table for custom field definitions
+export const createCustomerCustomFieldsTable = `
+  CREATE TABLE IF NOT EXISTS ${CUSTOMER_CUSTOM_FIELDS_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    label TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'text', 'number', 'date', 'boolean', 'select'
+    required INTEGER NOT NULL DEFAULT 0, -- 0 = false, 1 = true
+    options TEXT, -- JSON string for select options: [{"value": "option1", "label": "Option 1"}, ...]
+    default_value TEXT, -- Default value for the field
+    placeholder TEXT, -- Placeholder text for the field
+    description TEXT, -- Help text for the field
+    display_order INTEGER NOT NULL DEFAULT 0, -- Order in which to display fields
+    active INTEGER NOT NULL DEFAULT 1, -- 0 = inactive, 1 = active
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
+// Create table for custom field values
+export const createCustomerCustomFieldValuesTable = `
+  CREATE TABLE IF NOT EXISTS ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    field_id INTEGER NOT NULL,
+    value TEXT, -- Store all values as text, convert as needed in the application
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE,
+    FOREIGN KEY (field_id) REFERENCES ${CUSTOMER_CUSTOM_FIELDS_TABLE}(id) ON DELETE CASCADE,
+    UNIQUE(customer_id, field_id) -- Each customer can have only one value per field
+  );
+`;
+
 export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_customers_jtl_kKunde ON ${CUSTOMERS_TABLE}(jtl_kKunde);`,
     `CREATE INDEX IF NOT EXISTS idx_customers_name ON ${CUSTOMERS_TABLE}(name);`,
@@ -178,5 +214,11 @@ export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_jtl_firmen_name ON ${JTL_FIRMEN_TABLE}(cName);`,
     `CREATE INDEX IF NOT EXISTS idx_jtl_warenlager_name ON ${JTL_WARENLAGER_TABLE}(cName);`,
     `CREATE INDEX IF NOT EXISTS idx_jtl_zahlungsarten_name ON ${JTL_ZAHLUNGSARTEN_TABLE}(cName);`,
-    `CREATE INDEX IF NOT EXISTS idx_jtl_versandarten_name ON ${JTL_VERSANDARTEN_TABLE}(cName);`
+    `CREATE INDEX IF NOT EXISTS idx_jtl_versandarten_name ON ${JTL_VERSANDARTEN_TABLE}(cName);`,
+    // Indexes for custom fields
+    `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_name ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(name);`,
+    `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_active ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(active);`,
+    `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_display_order ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(display_order);`,
+    `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_customer_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_field_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(field_id);`
 ];
