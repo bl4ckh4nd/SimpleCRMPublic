@@ -37,16 +37,22 @@ import {
   PaginationNext,
   PaginationPrevious
 } from "@/components/ui/pagination"
+import { GroupSelector, GroupOption } from "@/components/grouping/group-selector"
+import { GroupedList } from "@/components/grouping/grouped-list"
+import { dealGroupingFields, groupItemsByField } from "@/lib/grouping"
 
 // Define the Deal type for better type safety
 type Deal = {
   id: number;
   name: string;
   customer: string;
+  customer_id: number;
   value: string;
+  value_calculation_method?: 'static' | 'dynamic';
   createdDate: string;
   expectedCloseDate: string;
   stage: string;
+  notes?: string;
 }
 
 // Define a type for API response of deals
@@ -92,6 +98,9 @@ export default function DealsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [limit] = useState(10)
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [isGrouped, setIsGrouped] = useState(false)
+  const [selectedGrouping, setSelectedGrouping] = useState<string | null>(null)
+  const [groupingOptions, setGroupingOptions] = useState<GroupOption[]>([])
   const [newDeal, setNewDeal] = useState({
     name: "",
     customer: "",
@@ -176,6 +185,15 @@ export default function DealsPage() {
   useEffect(() => {
     loadDeals()
   }, [loadDeals])
+
+  // Initialize grouping options from dealGroupingFields
+  useEffect(() => {
+    const options = dealGroupingFields.map(field => ({
+      value: field.value,
+      label: field.label
+    }))
+    setGroupingOptions(options)
+  }, [])
 
   // Setup dnd-kit sensors
   const sensors = useSensors(
@@ -358,6 +376,15 @@ export default function DealsPage() {
                 <LayoutGrid className="h-4 w-4" />
               </Button>
             </div>
+            {viewMode === "table" && (
+              <GroupSelector
+                options={groupingOptions}
+                selectedGrouping={selectedGrouping}
+                isGrouped={isGrouped}
+                onGroupingChange={setSelectedGrouping}
+                onToggleGrouping={setIsGrouped}
+              />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">
@@ -539,7 +566,7 @@ export default function DealsPage() {
             <CardDescription>
               {isLoading
                 ? "Deals werden geladen..."
-                : `Sie haben ${deals.length} Deals in Ihrer Pipeline${activeFilter ? ` (gefiltert nach: ${activeFilter})` : ''}`}
+                : `Sie haben ${deals.length} Deals in Ihrer Pipeline${activeFilter ? ` (gefiltert nach: ${activeFilter})` : ''}${isGrouped && selectedGrouping ? ` (gruppiert nach: ${dealGroupingFields.find(f => f.value === selectedGrouping)?.label || selectedGrouping})` : ''}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -549,41 +576,22 @@ export default function DealsPage() {
               </div>
             ) : viewMode === "table" ? (
               <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Deal-Name</TableHead>
-                      <TableHead>Kunde</TableHead>
-                      <TableHead className="hidden md:table-cell">Wert</TableHead>
-                      <TableHead className="hidden md:table-cell">Berechnung</TableHead>
-                      <TableHead className="hidden md:table-cell">Erstellungsdatum</TableHead>
-                      <TableHead className="hidden md:table-cell">Voraussichtlicher Abschluss</TableHead>
-                      <TableHead>Phase</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deals.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center">
-                          Keine Deals gefunden
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      deals.map((deal) => (
-                        <TableRow key={deal.id}>
-                          <TableCell className="font-medium">
-                            <Link to="/deals/$dealId" params={{ dealId: deal.id.toString() }} className="hover:underline">
-                              {deal.name}
-                            </Link>
-                          </TableCell>
-                          <TableCell>{deal.customer}</TableCell>
-                          <TableCell className="hidden md:table-cell">{deal.value} €</TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {deal.value_calculation_method === 'dynamic' ? 'Dynamisch' : 'Statisch'}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">{deal.createdDate}</TableCell>
-                          <TableCell className="hidden md:table-cell">{deal.expectedCloseDate}</TableCell>
-                          <TableCell>
+                {isGrouped && selectedGrouping ? (
+                  // Grouped view
+                  <div className="mt-4">
+                    <GroupedList
+                      groups={groupItemsByField(deals, selectedGrouping, dealGroupingFields)}
+                      renderItem={(deal) => (
+                        <div className="border-b py-2 px-4 hover:bg-muted/50">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Link to="/deals/$dealId" params={{ dealId: deal.id.toString() }} className="font-medium hover:underline">
+                                {deal.name}
+                              </Link>
+                              <div className="text-sm text-muted-foreground">
+                                {deal.customer} • {deal.value} €
+                              </div>
+                            </div>
                             <Badge
                               variant={
                                 deal.stage === "Gewonnen"
@@ -597,12 +605,74 @@ export default function DealsPage() {
                             >
                               {deal.stage}
                             </Badge>
+                          </div>
+                        </div>
+                      )}
+                      keyExtractor={(deal) => deal.id}
+                      groupHeaderClassName="mb-2"
+                      groupContentClassName="mb-4 space-y-1 pl-8"
+                    />
+                  </div>
+                ) : (
+                  // Regular table view
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Deal-Name</TableHead>
+                        <TableHead>Kunde</TableHead>
+                        <TableHead className="hidden md:table-cell">Wert</TableHead>
+                        <TableHead className="hidden md:table-cell">Berechnung</TableHead>
+                        <TableHead className="hidden md:table-cell">Erstellungsdatum</TableHead>
+                        <TableHead className="hidden md:table-cell">Voraussichtlicher Abschluss</TableHead>
+                        <TableHead>Phase</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {deals.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center">
+                            Keine Deals gefunden
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>                {(
+                      ) : (
+                        deals.map((deal) => (
+                          <TableRow key={deal.id}>
+                            <TableCell className="font-medium">
+                              <Link to="/deals/$dealId" params={{ dealId: deal.id.toString() }} className="hover:underline">
+                                {deal.name}
+                              </Link>
+                            </TableCell>
+                            <TableCell>{deal.customer}</TableCell>
+                            <TableCell className="hidden md:table-cell">{deal.value} €</TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {deal.value_calculation_method === 'dynamic' ? 'Dynamisch' : 'Statisch'}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">{deal.createdDate}</TableCell>
+                            <TableCell className="hidden md:table-cell">{deal.expectedCloseDate}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  deal.stage === "Gewonnen"
+                                    ? "default"
+                                    : deal.stage === "Verloren"
+                                      ? "destructive"
+                                      : deal.stage === "Verhandlung"
+                                        ? "secondary"
+                                        : "outline"
+                                }
+                              >
+                                {deal.stage}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+
+                {/* Pagination - show only when not grouped */}
+                {!isGrouped && (
                   <div className="mt-4 flex justify-center">
                     <Pagination>
                       <PaginationContent>

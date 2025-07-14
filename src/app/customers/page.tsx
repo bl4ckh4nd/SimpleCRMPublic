@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { 
-  ChevronDown, 
-  Plus, 
-  Search, 
-  SlidersHorizontal, 
-  Copy, 
+import {
+  ChevronDown,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Copy,
   Loader2,
   ArrowUpDown,
   MoreHorizontal,
@@ -24,10 +24,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { localDataService } from "@/services/data/localDataService"
+import { customFieldService } from "@/services/data/customFieldService"
 import type { Customer } from "@/services/data/types"
 import { AddCustomerDialog } from "@/components/add-customer-dialog"
 import { SyncStatusDisplay } from "@/components/sync-status-display"
 import { DataTablePagination } from "@/components/data-table-pagination"
+import { GroupSelector, GroupOption } from "@/components/grouping/group-selector"
+import { GroupedList } from "@/components/grouping/grouped-list"
+import { customerGroupingFields, groupItemsByField, getCustomFieldGroupingOptions } from "@/lib/grouping"
 
 import {
   ColumnDef,
@@ -190,6 +194,12 @@ export default function CustomersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const navigate = useNavigate()
 
+  // Grouping state
+  const [isGrouped, setIsGrouped] = useState(false)
+  const [selectedGrouping, setSelectedGrouping] = useState<string | null>(null)
+  const [groupingOptions, setGroupingOptions] = useState<GroupOption[]>([])
+  const [availableGroupingFields, setAvailableGroupingFields] = useState<typeof customerGroupingFields>([])
+
   // React Table State
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -197,12 +207,79 @@ export default function CustomersPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [globalFilter, setGlobalFilter] = useState(''); // State for global filter input
 
+  // Initialize grouping options from customerGroupingFields and custom fields
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const initializeGroupingOptions = async () => {
+      try {
+        // Get standard grouping options
+        const standardOptions = customerGroupingFields.map(field => ({
+          value: field.value,
+          label: field.label
+        }));
+
+        // Get custom field grouping options
+        const customFieldGroupings = await getCustomFieldGroupingOptions();
+        const customOptions = customFieldGroupings.map(field => ({
+          value: field.value,
+          label: field.label
+        }));
+
+        // Combine standard and custom options
+        setGroupingOptions([...standardOptions, ...customOptions]);
+
+        // Add custom field groupings to the available grouping fields
+        setAvailableGroupingFields([...customerGroupingFields, ...customFieldGroupings]);
+      } catch (error) {
+        console.error("Failed to initialize grouping options:", error);
+        // Fallback to standard options
+        const standardOptions = customerGroupingFields.map(field => ({
+          value: field.value,
+          label: field.label
+        }));
+        setGroupingOptions(standardOptions);
+        setAvailableGroupingFields(customerGroupingFields);
+      }
+    };
+
+    initializeGroupingOptions();
+  }, []);
+
+  useEffect(() => {
+    const fetchCustomersWithCustomFields = async () => {
       setIsLoading(true)
       try {
+        // Fetch customers
         const fetchedCustomers = await localDataService.getCustomers()
-        setCustomers(fetchedCustomers)
+
+        // For each customer, fetch their custom field values
+        const customersWithFields = await Promise.all(
+          fetchedCustomers.map(async (customer) => {
+            try {
+              const customFieldValues = await customFieldService.getCustomFieldValuesForCustomer(Number(customer.id));
+
+              // Convert array of values to a key-value object
+              const customFields = customFieldValues.reduce((acc, field) => {
+                acc[field.name || ''] = field.value;
+                return acc;
+              }, {} as Record<string, any>);
+
+              // Return customer with custom fields
+              return {
+                ...customer,
+                customFields
+              };
+            } catch (error) {
+              console.error(`Failed to fetch custom fields for customer ${customer.id}:`, error);
+              // Return customer without custom fields
+              return {
+                ...customer,
+                customFields: {}
+              };
+            }
+          })
+        );
+
+        setCustomers(customersWithFields);
       } catch (error) {
         console.error("Failed to fetch customers:", error)
         toast.error("Could not load customers from local database.")
@@ -211,7 +288,7 @@ export default function CustomersPage() {
         setIsLoading(false)
       }
     }
-    fetchCustomers()
+    fetchCustomersWithCustomFields()
   }, [])
 
   const table = useReactTable({
@@ -263,7 +340,7 @@ export default function CustomersPage() {
       setIsLoading(true); // Indicate processing
       // Call the actual API
       const api = window.electronAPI as any;
-      
+
       // Delete each customer
       for (const id of selectedIds) {
         await api.invoke('db:delete-customer', id);
@@ -307,6 +384,15 @@ export default function CustomersPage() {
                 onChange={(e) => setGlobalFilter(e.target.value)}
               />
             </div>
+
+            {/* Grouping Selector */}
+            <GroupSelector
+              options={groupingOptions}
+              selectedGrouping={selectedGrouping}
+              isGrouped={isGrouped}
+              onGroupingChange={setSelectedGrouping}
+              onToggleGrouping={setIsGrouped}
+            />
 
             {/* Status Filter */}
             <DropdownMenu>
@@ -381,7 +467,9 @@ export default function CustomersPage() {
           <CardHeader className="pb-2">
             <CardTitle>Kundenliste</CardTitle>
             <CardDescription>
-              {isLoading ? "Lade Kunden..." : ` ${table.getFilteredRowModel().rows.length} von ${customers.length} Kunden angezeigt.`}
+              {isLoading
+                ? "Lade Kunden..."
+                : ` ${table.getFilteredRowModel().rows.length} von ${customers.length} Kunden angezeigt${isGrouped && selectedGrouping ? ` (gruppiert nach: ${availableGroupingFields.find(f => f.value === selectedGrouping)?.label || selectedGrouping})` : ''}.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -390,7 +478,36 @@ export default function CustomersPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-2">Lade Daten...</span>
               </div>
+            ) : isGrouped && selectedGrouping ? (
+              // Grouped view
+              <div className="mt-4">
+                <GroupedList
+                  groups={groupItemsByField(table.getFilteredRowModel().rows.map(row => row.original), selectedGrouping, availableGroupingFields)}
+                  renderItem={(customer) => (
+                    <div className="border-b py-2 px-4 hover:bg-muted/50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Link to="/customers/$id" params={{ id: customer.id.toString() }} className="font-medium hover:underline">
+                            {`${customer.firstName || ''} ${customer.name}`}
+                          </Link>
+                          <div className="text-sm text-muted-foreground">
+                            {customer.company ? `${customer.company} • ` : ''}
+                            {customer.email || customer.phone || customer.mobile || 'Keine Kontaktdaten'}
+                          </div>
+                        </div>
+                        <Badge variant={customer.status === "Active" ? "default" : customer.status === "Lead" ? "secondary" : "outline"}>
+                          {customer.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                  keyExtractor={(customer) => customer.id}
+                  groupHeaderClassName="mb-2"
+                  groupContentClassName="mb-4 space-y-1 pl-8"
+                />
+              </div>
             ) : (
+              // Regular table view
               <>
                 <div className="rounded-md border">
                   <Table>
