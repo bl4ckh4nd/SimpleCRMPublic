@@ -735,8 +735,8 @@ function setupIpcHandlers() {
   // --- Sync Handlers ---
   ipcMain.handle('sync:run', async () => {
     try {
-      await runSync();
-      return { success: true, message: 'Sync completed (or started if async)' };
+      await runSync(mainWindow);
+      return { success: true, message: 'Sync completed successfully' };
     } catch (error) {
       log.error('IPC Error running sync:', error);
       throw error;

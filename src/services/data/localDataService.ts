@@ -4,6 +4,7 @@ import type { DataService, Customer, Product } from './types'; // Assuming Produ
 const mapDbCustomerToApp = (dbCustomer: any): Customer => ({
     id: dbCustomer.id.toString(), // Convert SQLite int ID to string if needed by frontend
     jtl_kKunde: dbCustomer.jtl_kKunde,
+    customerNumber: dbCustomer.customerNumber, // Map JTL customer number
     name: dbCustomer.name ?? '',
     firstName: dbCustomer.firstName,
     company: dbCustomer.company,

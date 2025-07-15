@@ -28,6 +28,7 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<Omit<Customer, 'id' | 'jtl_kKunde'>>({
+    customerNumber: '', // For local customers, this will be empty
     name: '',
     firstName: '',
     company: '',

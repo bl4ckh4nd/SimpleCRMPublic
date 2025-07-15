@@ -13,7 +13,8 @@ import {
   Clock,
   Loader2,
   Copy, // Added Copy
-  Link as LinkIcon // Added LinkIcon for affiliate link
+  Link as LinkIcon, // Added LinkIcon for affiliate link
+  User // Added User icon for customer number
 } from "lucide-react"; // Corrected lucide-react import - removed duplicates
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import type { Customer, Deal, Task } from "@/services/data/types" // Updated imp
 import { CustomFieldsForm } from "@/components/custom-fields-form";
 // Import the specific route definition
 import { customerDetailRoute } from "@/router"
+import { getPrimaryPhone, getFormattedPhone } from "@/lib/contact-utils"
 
 // Update interface to match route params - TanStack Router typically uses $paramName for file routes
 // Removed RouteParams interface as it's not strictly needed when not using 'from' in useParams
@@ -60,6 +62,7 @@ export default function CustomerDetailPage() {
   const [isLoadingRelated, setIsLoadingRelated] = useState(false) // Loading state for related items
   // Initialize with empty or default values based on the Customer type
   const [editedCustomer, setEditedCustomer] = useState<Partial<Customer>>({
+    customerNumber: "", // JTL customer number (read-only)
     name: "",
     firstName: "", // Added firstName
     email: "",
@@ -98,6 +101,7 @@ export default function CustomerDetailPage() {
           setCustomer(dbCustomer);
           // Pre-fill edit form with fetched data
           setEditedCustomer({
+            customerNumber: dbCustomer.customerNumber || "",
             name: dbCustomer.name || "",
             firstName: dbCustomer.firstName || "",
             email: dbCustomer.email || "",
@@ -264,6 +268,17 @@ export default function CustomerDetailPage() {
                     </TabsList>
                     <TabsContent value="basic">
                       <div className="grid grid-cols-1 gap-4 py-4 md:grid-cols-2">
+                        {editedCustomer.customerNumber && (
+                          <div className="grid gap-2">
+                            <Label htmlFor="customerNumber">Kundennummer (JTL)</Label>
+                            <Input
+                              id="customerNumber"
+                              value={editedCustomer.customerNumber}
+                              disabled
+                              className="bg-gray-50 text-gray-500"
+                            />
+                          </div>
+                        )}
                         <div className="grid gap-2">
                           <Label htmlFor="firstName">Vorname</Label>
                           <Input
@@ -442,14 +457,19 @@ export default function CustomerDetailPage() {
                 <CardTitle>Kundeninformationen</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {customer.customerNumber && (
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Kundennr.: {customer.customerNumber}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span>{customer.email || "-"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                   {/* Show phone or mobile */}
-                  <span>{customer.phone || customer.mobile || "-"}</span>
+                  <span>{getFormattedPhone(customer) || getPrimaryPhone(customer) || "-"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Building className="h-4 w-4 text-muted-foreground" />

@@ -18,6 +18,7 @@ export const createCustomersTable = `
   CREATE TABLE IF NOT EXISTS ${CUSTOMERS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jtl_kKunde INTEGER UNIQUE, -- JTL primary key, nullable for local customers
+    customerNumber TEXT,       -- JTL customer number (cKundenNr)
     name TEXT,
     firstName TEXT,
     company TEXT,

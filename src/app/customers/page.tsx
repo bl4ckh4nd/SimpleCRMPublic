@@ -27,6 +27,7 @@ import { localDataService } from "@/services/data/localDataService"
 import { customFieldService } from "@/services/data/customFieldService"
 import type { Customer } from "@/services/data/types"
 import { AddCustomerDialog } from "@/components/add-customer-dialog"
+import { getPrimaryPhone, getPrimaryContact } from "@/lib/contact-utils"
 import { SyncStatusDisplay } from "@/components/sync-status-display"
 import { DataTablePagination } from "@/components/data-table-pagination"
 import { GroupSelector, GroupOption } from "@/components/grouping/group-selector"
@@ -100,6 +101,16 @@ const columns: ColumnDef<Customer>[] = [
     ),
   },
   {
+    accessorKey: "customerNumber",
+    header: ({ column }) => (
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        Kundennr.
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => row.original.customerNumber || '-',
+  },
+  {
     accessorKey: "company",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -120,11 +131,11 @@ const columns: ColumnDef<Customer>[] = [
      cell: ({ row }) => row.original.email || '-',
   },
   {
-    // Combined Phone Column
-    accessorFn: (row) => row.phone || row.mobile,
+    // Combined Phone Column with proper prioritization
+    accessorFn: (row) => getPrimaryPhone(row),
     id: 'contactPhone',
     header: "Telefon",
-    cell: ({ row }) => row.original.phone || row.original.mobile || '-',
+    cell: ({ row }) => getPrimaryPhone(row.original) || '-',
   },
   {
     accessorKey: "status",
@@ -143,9 +154,10 @@ const columns: ColumnDef<Customer>[] = [
     filterFn: 'equals', // Use built-in 'equals' or a custom function if needed
   },
   {
-    accessorKey: "jtl_kKunde",
-    header: "JTL ID",
-    cell: ({ row }) => row.original.jtl_kKunde || '-',
+    accessorKey: "customerNumber",
+    id: "jtlCustomerNumber",
+    header: "JTL Kundennr.",
+    cell: ({ row }) => row.original.customerNumber || '-',
   },
   {
     id: "actions",
@@ -171,6 +183,18 @@ const columns: ColumnDef<Customer>[] = [
     enableHiding: false,
   }
 ];
+
+// German column name mapping for visibility dropdown
+const columnDisplayNames: Record<string, string> = {
+  'fullName': 'Name',
+  'customerNumber': 'Kundennr.',
+  'jtlCustomerNumber': 'JTL Kundennr.',
+  'company': 'Firma',
+  'email': 'E-Mail',
+  'contactPhone': 'Telefon',
+  'status': 'Status',
+  'actions': 'Aktionen'
+};
 
 // Custom global filter function
 const globalFilterFn: FilterFn<Customer> = (row, columnId, filterValue) => {
@@ -429,7 +453,7 @@ export default function CustomersPage() {
                             checked={column.getIsVisible()}
                             onCheckedChange={(value) => column.toggleVisibility(!!value)}
                         >
-                            {typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id}
+                            {columnDisplayNames[column.id] || column.id}
                         </DropdownMenuCheckboxItem>
                         )
                     })}
@@ -492,7 +516,7 @@ export default function CustomersPage() {
                           </Link>
                           <div className="text-sm text-muted-foreground">
                             {customer.company ? `${customer.company} • ` : ''}
-                            {customer.email || customer.phone || customer.mobile || 'Keine Kontaktdaten'}
+                            {getPrimaryContact(customer)}
                           </div>
                         </div>
                         <Badge variant={customer.status === "Active" ? "default" : customer.status === "Lead" ? "secondary" : "outline"}>

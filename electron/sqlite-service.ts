@@ -181,6 +181,16 @@ function runMigrations() {
             console.log('Migration completed: Added value_calculation_method column to deals table');
         }
 
+        // Migration: Add customerNumber column to customers table if it doesn't exist
+        const customerColumns = db.prepare(`PRAGMA table_info(${CUSTOMERS_TABLE})`).all();
+        const hasCustomerNumber = customerColumns.some((col: any) => col.name === 'customerNumber');
+
+        if (!hasCustomerNumber) {
+            console.log('Adding customerNumber column to customers table...');
+            db.exec(`ALTER TABLE ${CUSTOMERS_TABLE} ADD COLUMN customerNumber TEXT`);
+            console.log('Migration completed: Added customerNumber column to customers table');
+        }
+
         // Add more migrations here as needed
 
     } catch (error) {
@@ -548,7 +558,7 @@ export function getAllCustomers(): any[] {
 // Add a function to get a single customer by ID
 export function getCustomerById(id: number | string): any {
     const stmt = getDb().prepare(`
-        SELECT id, jtl_kKunde, name, firstName, company, email, phone, mobile,
+        SELECT id, jtl_kKunde, customerNumber, name, firstName, company, email, phone, mobile,
                street, city, country, status, notes, affiliateLink,
                jtl_dateCreated, jtl_blocked, dateAdded, lastModifiedLocally, lastSynced,
                COALESCE(zipCode, '') AS zip
@@ -1664,7 +1674,7 @@ export function getDashboardStats(): {
 export function getRecentCustomers(limit: number = 5): any[] {
     try {
         const stmt = getDb().prepare(`
-            SELECT id, name, email, dateAdded, jtl_dateCreated
+            SELECT id, customerNumber, name, email, dateAdded, jtl_dateCreated
             FROM ${CUSTOMERS_TABLE}
             ORDER BY dateAdded DESC
             LIMIT ?

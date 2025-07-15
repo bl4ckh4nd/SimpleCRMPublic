@@ -44,6 +44,7 @@ export interface CustomFieldOption {
 export interface Customer {
     id: string; // Frontend might use string ID
     jtl_kKunde?: number;
+    customerNumber?: string; // JTL customer number (cKundenNr)
     name: string;
     firstName?: string;
     company?: string;

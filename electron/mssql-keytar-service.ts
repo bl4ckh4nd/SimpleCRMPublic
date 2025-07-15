@@ -284,7 +284,19 @@ export async function fetchJtlCustomers() {
                 a.cISO AS AddressCountryCode,
                 a.cUSTID AS AddressVatId
             FROM dbo.tKunde k
-            LEFT JOIN dbo.tAdresse a ON k.kKunde = a.kKunde AND a.nStandard = 1 -- Ensure join to standard address
+            LEFT JOIN (
+                -- First, try to get the standard address
+                SELECT kKunde, cFirma, cVorname, cName, cStrasse, cPLZ, cOrt, cLand, cTel, cMobil, cMail, cBundesland, cISO, cUSTID
+                FROM dbo.tAdresse 
+                WHERE nStandard = 1
+                UNION ALL
+                -- If no standard address exists, get the first available address
+                SELECT DISTINCT a1.kKunde, a1.cFirma, a1.cVorname, a1.cName, a1.cStrasse, a1.cPLZ, a1.cOrt, a1.cLand, a1.cTel, a1.cMobil, a1.cMail, a1.cBundesland, a1.cISO, a1.cUSTID
+                FROM dbo.tAdresse a1
+                WHERE NOT EXISTS (SELECT 1 FROM dbo.tAdresse a2 WHERE a2.kKunde = a1.kKunde AND a2.nStandard = 1)
+                AND a1.kAdresse = (SELECT MIN(kAdresse) FROM dbo.tAdresse a3 WHERE a3.kKunde = a1.kKunde)
+            ) a ON k.kKunde = a.kKunde
+            WHERE (k.cSperre != 'Y' OR k.cSperre IS NULL)  -- Only active customers
             ORDER BY k.kKunde;
         `);
         console.log(`Fetched ${result.recordset.length} customers from JTL.`);
@@ -317,6 +329,7 @@ export async function fetchJtlProducts() {
             FROM dbo.tArtikel a
             LEFT JOIN dbo.tArtikelBeschreibung tab ON a.kArtikel = tab.kArtikel AND tab.kSprache = 1 -- Assuming kSprache = 1
             LEFT JOIN dbo.tLagerbestand tl ON a.kArtikel = tl.kArtikel
+            WHERE a.cAktiv = 'Y'  -- Only active products
             ORDER BY a.kArtikel;
         `);
          const duration = ((performance.now() - startTime) / 1000).toFixed(2);
