@@ -36,12 +36,20 @@ export const customFieldService = {
    */
   async getActiveCustomFields(): Promise<CustomField[]> {
     try {
+      console.log(`🔍 [Frontend] customFieldService.getActiveCustomFields() called`);
+      console.log(`🔍 [Frontend] CustomFieldService call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+      
       const fields = await window.electronAPI.invoke('custom-fields:get-active') as CustomField[];
-      return fields.map(field => ({
+      console.log(`🔍 [Frontend] customFieldService received ${fields.length} active fields`);
+      
+      const result = fields.map(field => ({
         ...field,
         required: Boolean(field.required),
         active: Boolean(field.active)
       }));
+      
+      console.log(`🔍 [Frontend] customFieldService returning ${result.length} formatted fields`);
+      return result;
     } catch (error) {
       console.error('Failed to fetch active custom fields:', error);
       return [];

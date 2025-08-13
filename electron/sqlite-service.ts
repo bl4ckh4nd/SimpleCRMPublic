@@ -131,12 +131,16 @@ export function initializeDatabase() {
         ensureTableExists(CUSTOMER_CUSTOM_FIELDS_TABLE, createCustomerCustomFieldsTable, [
             `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_name ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(name);`,
             `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_active ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(active);`,
-            `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_display_order ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(display_order);`
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_display_order ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(display_order);`,
+            // Covering index for the batch query
+            `CREATE INDEX IF NOT EXISTS idx_cf_active_display ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(active, display_order, name) WHERE active = 1;`
         ]);
 
         ensureTableExists(CUSTOMER_CUSTOM_FIELD_VALUES_TABLE, createCustomerCustomFieldValuesTable, [
             `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_customer_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id);`,
-            `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_field_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(field_id);`
+            `CREATE INDEX IF NOT EXISTS idx_customer_custom_field_values_field_id ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(field_id);`,
+            // Composite index for optimized custom field queries
+            `CREATE INDEX IF NOT EXISTS idx_cfv_customer_field_composite ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id, field_id);`
         ]);
 
         // Run migrations for schema updates
@@ -219,12 +223,15 @@ export function getAllCustomFields() {
 
 // Get active custom field definitions
 export function getActiveCustomFields() {
+    console.log(`🔍 [SQLite] getActiveCustomFields() called`);
     const stmt = getDb().prepare(`
         SELECT * FROM ${CUSTOMER_CUSTOM_FIELDS_TABLE}
         WHERE active = 1
         ORDER BY display_order ASC, name ASC
     `);
-    return stmt.all();
+    const result = stmt.all();
+    console.log(`🔍 [SQLite] Found ${result.length} active custom fields`);
+    return result;
 }
 
 // Get a single custom field by ID
@@ -391,6 +398,37 @@ export function getCustomFieldValuesForCustomer(customerId: number) {
     return stmt.all(customerId);
 }
 
+// Batch load custom field values for multiple customers (optimized)
+export function getCustomFieldValuesForAllCustomers(): Map<number, CustomFieldValueRecord[]> {
+    console.log(`🔍 [SQLite] getCustomFieldValuesForAllCustomers() called - This is the EXPENSIVE operation!`);
+    const startTime = Date.now();
+    
+    const stmt = getDb().prepare(`
+        SELECT cfv.id, cfv.customer_id, cfv.field_id, cfv.value,
+               cf.name, cf.label, cf.type, cf.required, cf.options,
+               cf.default_value, cf.placeholder, cf.description
+        FROM ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE} cfv
+        JOIN ${CUSTOMER_CUSTOM_FIELDS_TABLE} cf ON cfv.field_id = cf.id
+        WHERE cf.active = 1
+        ORDER BY cfv.customer_id, cf.display_order ASC, cf.name ASC
+    `);
+    
+    const allValues = stmt.all() as CustomFieldValueRecord[];
+    console.log(`🔍 [SQLite] Loaded ${allValues.length} custom field values in ${Date.now() - startTime}ms`);
+    
+    const valuesByCustomer = new Map<number, CustomFieldValueRecord[]>();
+    
+    for (const value of allValues) {
+        if (!valuesByCustomer.has(value.customer_id)) {
+            valuesByCustomer.set(value.customer_id, []);
+        }
+        valuesByCustomer.get(value.customer_id)!.push(value);
+    }
+    
+    console.log(`🔍 [SQLite] Processed custom fields for ${valuesByCustomer.size} customers`);
+    return valuesByCustomer;
+}
+
 // Set a custom field value for a customer
 export function setCustomFieldValue(customerId: number, fieldId: number, value: any) {
     const now = new Date().toISOString();
@@ -509,10 +547,102 @@ interface CustomFieldValueRecord {
 }
 
 // --- Customer Operations ---
-export function getAllCustomers(): any[] {
+
+// Lightweight function for dropdown population - no custom fields
+export function getCustomersForDropdown(): any[] {
+    const stmt = getDb().prepare(`
+        SELECT id, name, firstName, company, customerNumber 
+        FROM ${CUSTOMERS_TABLE} 
+        ORDER BY name
+        LIMIT 100
+    `);
+    return stmt.all().map((customer: any) => ({
+        id: customer.id,
+        name: customer.name || customer.firstName || customer.company || 'Unknown',
+        customerNumber: customer.customerNumber
+    }));
+}
+
+// Search customers with limit for autocomplete/combobox
+export function searchCustomers(query: string = '', limit: number = 20): any[] {
+    console.log(`🔍 [SQLite] searchCustomers() called with query: "${query}", limit: ${limit}`);
+    console.log(`🔍 [SQLite] SearchCustomers call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    
+    const startTime = Date.now();
+    let sql = `
+        SELECT id, name, firstName, company, customerNumber, email
+        FROM ${CUSTOMERS_TABLE}
+    `;
+    
+    const params: any[] = [];
+    
+    if (query && query.trim() !== '') {
+        console.log(`🔍 [SQLite] Building search query with term: "${query}"`);
+    } else {
+        console.log(`🔍 [SQLite] No search query provided, will return first ${limit} customers`);
+    }
+    
+    if (query && query.trim() !== '') {
+        sql += ` WHERE (
+            name LIKE ? OR 
+            firstName LIKE ? OR 
+            company LIKE ? OR 
+            customerNumber LIKE ? OR
+            email LIKE ?
+        )`;
+        const searchTerm = `%${query}%`;
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    sql += ` ORDER BY 
+        CASE 
+            WHEN name LIKE ? THEN 1
+            WHEN firstName LIKE ? THEN 2
+            WHEN company LIKE ? THEN 3
+            ELSE 4
+        END,
+        name ASC
+        LIMIT ?`;
+    
+    if (query && query.trim() !== '') {
+        const startTerm = `${query}%`;
+        params.push(startTerm, startTerm, startTerm);
+    } else {
+        params.push('', '', '');
+    }
+    params.push(limit);
+    
+    console.log(`🔍 [SQLite] Executing customer search SQL with ${params.length} parameters`);
+    const stmt = getDb().prepare(sql);
+    const results = stmt.all(...params);
+    const loadTime = Date.now() - startTime;
+    
+    console.log(`🔍 [SQLite] searchCustomers() found ${results.length} customers in ${loadTime}ms`);
+    
+    return results.map((customer: any) => ({
+        id: customer.id,
+        name: customer.name || customer.firstName || customer.company || 'Unknown',
+        customerNumber: customer.customerNumber,
+        email: customer.email
+    }));
+}
+
+export function getAllCustomers(includeCustomFields: boolean = false): any[] {
+    console.log(`🔍 [SQLite] getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
+    console.log(`🔍 [SQLite] Stack trace:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    
+    const startTime = Date.now();
     const stmt = getDb().prepare(`SELECT * FROM ${CUSTOMERS_TABLE} ORDER BY name`);
     const customers = stmt.all();
+    console.log(`🔍 [SQLite] Loaded ${customers.length} customers in ${Date.now() - startTime}ms`);
 
+    // Skip custom field loading if not needed
+    if (!includeCustomFields) {
+        console.log(`🔍 [SQLite] Skipping custom fields, returning ${customers.length} customers`);
+        return customers;
+    }
+
+    console.log(`🔍 [SQLite] Loading custom fields for ${customers.length} customers...`);
     // Get all active custom fields
     const activeFields = getActiveCustomFields() as CustomFieldDefinition[];
 
@@ -520,13 +650,16 @@ export function getAllCustomers(): any[] {
         return customers; // No custom fields to process
     }
 
-    // For each customer, fetch and attach custom field values
+    // Batch load all custom field values in a single query
+    const customFieldValuesByCustomer = getCustomFieldValuesForAllCustomers();
+
+    // For each customer, attach custom field values from the batch-loaded data
     return customers.map((customer: any) => {
         if (!customer || typeof customer.id === 'undefined') {
             return customer; // Skip if customer is invalid
         }
 
-        const customFieldValues = getCustomFieldValuesForCustomer(customer.id) as CustomFieldValueRecord[];
+        const customFieldValues = customFieldValuesByCustomer.get(customer.id) || [];
 
         // Create a customFields object with field name as key and value as value
         const customFields: Record<string, any> = {};
@@ -827,6 +960,46 @@ export function getProductById(id: number): Product | null {
     const stmt = getDb().prepare(`SELECT * FROM ${PRODUCTS_TABLE} WHERE id = ?`);
     const result = stmt.get(id);
     return result ? result as Product : null;
+}
+
+export function searchProducts(query: string = '', limit: number = 20): Product[] {
+    console.log(`🔍 [SQLite] searchProducts() called with query: "${query}", limit: ${limit}`);
+    console.log(`🔍 [SQLite] SearchProducts call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    
+    const startTime = Date.now();
+    
+    let stmt;
+    let results;
+    
+    if (!query.trim()) {
+        // If no query, return recent/active products
+        stmt = getDb().prepare(`
+            SELECT * FROM ${PRODUCTS_TABLE} 
+            WHERE isActive = 1 
+            ORDER BY name 
+            LIMIT ?
+        `);
+        results = stmt.all(limit);
+    } else {
+        // Search by name, description, or product number
+        const searchPattern = `%${query.toLowerCase()}%`;
+        stmt = getDb().prepare(`
+            SELECT * FROM ${PRODUCTS_TABLE} 
+            WHERE (
+                LOWER(name) LIKE ? OR 
+                LOWER(description) LIKE ? OR 
+                LOWER(productNumber) LIKE ?
+            ) AND isActive = 1
+            ORDER BY 
+                CASE WHEN LOWER(name) LIKE ? THEN 1 ELSE 2 END,
+                name
+            LIMIT ?
+        `);
+        results = stmt.all(searchPattern, searchPattern, searchPattern, `${query.toLowerCase()}%`, limit);
+    }
+    
+    console.log(`🔍 [SQLite] searchProducts() returned ${results.length} products in ${Date.now() - startTime}ms`);
+    return results as Product[];
 }
 
 // For creating products manually within the app

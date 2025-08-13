@@ -44,7 +44,7 @@ export const localDataService: DataService = {
       }
       // Use type assertion to avoid TypeScript errors
       const api = window.electronAPI as any;
-      const dbCustomers = await api.invoke('db:get-customers');
+      const dbCustomers = await api.invoke('db:get-customers', false); // Skip custom fields for performance
       return dbCustomers.map(mapDbCustomerToApp);
     } catch (error) {
         console.error("Error invoking 'db:get-customers':", error);
@@ -157,7 +157,7 @@ export const getLocalCustomers = async (): Promise<Customer[]> => {
     }
     try {
         // Use type assertion for invoke if TS struggles with the type
-        const dbCustomers = await (window.electronAPI as any).invoke('db:get-customers');
+        const dbCustomers = await (window.electronAPI as any).invoke('db:get-customers', false); // Skip custom fields for performance
         console.log("localDataService: Received customers from main:", dbCustomers);
 
         // Basic validation (can be expanded with Zod)

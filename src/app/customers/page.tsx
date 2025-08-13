@@ -270,16 +270,28 @@ export default function CustomersPage() {
 
   useEffect(() => {
     const fetchCustomersWithCustomFields = async () => {
+      console.log(`🔍 [CustomersPage] Starting to fetch customers with custom fields`);
+      const startTime = Date.now();
+      
       setIsLoading(true)
       try {
         // Fetch customers
+        console.log(`🔍 [CustomersPage] Fetching customers list...`);
+        const fetchStartTime = Date.now();
         const fetchedCustomers = await localDataService.getCustomers()
+        console.log(`🔍 [CustomersPage] Fetched ${fetchedCustomers.length} customers in ${Date.now() - fetchStartTime}ms`);
 
-        // For each customer, fetch their custom field values
+        // PERFORMANCE CRITICAL: For each customer, fetch their custom field values
+        // This creates N+1 queries (1 for customers + N for each customer's custom fields)
+        console.log(`🔍 [CustomersPage] PERFORMANCE WARNING: About to fetch custom fields for ${fetchedCustomers.length} customers individually (N+1 query pattern)`);
+        const customFieldsStartTime = Date.now();
+        
         const customersWithFields = await Promise.all(
-          fetchedCustomers.map(async (customer) => {
+          fetchedCustomers.map(async (customer, index) => {
             try {
+              const customerStartTime = Date.now();
               const customFieldValues = await customFieldService.getCustomFieldValuesForCustomer(Number(customer.id));
+              console.log(`🔍 [CustomersPage] Customer ${index + 1}/${fetchedCustomers.length} (ID: ${customer.id}) custom fields fetched in ${Date.now() - customerStartTime}ms`);
 
               // Convert array of values to a key-value object
               const customFields = customFieldValues.reduce((acc, field) => {
@@ -303,6 +315,9 @@ export default function CustomersPage() {
           })
         );
 
+        console.log(`🔍 [CustomersPage] All custom fields fetched in ${Date.now() - customFieldsStartTime}ms`);
+        console.log(`🔍 [CustomersPage] Total time to load customers with custom fields: ${Date.now() - startTime}ms`);
+        
         setCustomers(customersWithFields);
       } catch (error) {
         console.error("Failed to fetch customers:", error)

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CustomerCombobox } from "@/components/customer-combobox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -87,6 +88,8 @@ function formatDealForUI(apiDeal: DealFromApi): Deal {
 }
 
 export default function DealsPage() {
+  console.log(`🔍 [DealsPage] Component initialized at ${Date.now()}`);
+  
   const { toast } = useToast()
   const [deals, setDeals] = useState<Deal[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -112,33 +115,12 @@ export default function DealsPage() {
     dateValue: undefined as Date | undefined // For the date picker UI component
   })
 
-  // Fetch all customers for the dropdown
-  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([])
-  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false)
-
-  // Load customers
-  useEffect(() => {
-    const loadCustomers = async () => {
-      setIsLoadingCustomers(true)
-      try {
-        const customersData = await window.electronAPI.invoke('db:get-customers')
-        setCustomers(Array.isArray(customersData) ? customersData as { id: number; name: string }[] : [])
-      } catch (error) {
-        console.error('Failed to load customers:', error)
-        toast({
-          title: "Fehler",
-          description: "Kunden konnten nicht geladen werden",
-          variant: "destructive"
-        })
-      } finally {
-        setIsLoadingCustomers(false)
-      }
-    }
-    loadCustomers()
-  }, [toast])
 
   // Load deals with filtering and pagination
   const loadDeals = useCallback(async () => {
+    console.log(`🔍 [DealsPage] loadDeals() called at ${Date.now()}`, { activeFilter, page, searchQuery });
+    const startTime = Date.now();
+    
     setIsLoading(true)
     try {
       const filter: { stage?: string; query?: string } = {}
@@ -153,17 +135,22 @@ export default function DealsPage() {
         filter.query = searchQuery
       }
 
+      console.log(`🔍 [DealsPage] Calling deals:get-all IPC with`, { limit, offset: (page - 1) * limit, filter });
+      
       const apiDeals = await window.electronAPI.invoke('deals:get-all', {
         limit,
         offset: (page - 1) * limit,
         filter
       })
 
+      console.log(`🔍 [DealsPage] Received ${Array.isArray(apiDeals) ? apiDeals.length : 0} deals from IPC in ${Date.now() - startTime}ms`);
+
       // Convert API deals to UI format
       const formattedDeals = Array.isArray(apiDeals)
         ? apiDeals.map(formatDealForUI)
         : []
 
+      console.log(`🔍 [DealsPage] Formatted ${formattedDeals.length} deals for UI`);
       setDeals(formattedDeals)
 
       // Calculate total pages based on results (this is an approximation)
@@ -177,21 +164,26 @@ export default function DealsPage() {
         variant: "destructive"
       })
     } finally {
+      const totalTime = Date.now() - startTime;
+      console.log(`🔍 [DealsPage] loadDeals() completed in ${totalTime}ms`);
       setIsLoading(false)
     }
   }, [activeFilter, limit, page, searchQuery, toast])
 
   // Load deals when component mounts and when dependencies change
   useEffect(() => {
+    console.log(`🔍 [DealsPage] useEffect[loadDeals] triggered at ${Date.now()}`);
     loadDeals()
   }, [loadDeals])
 
   // Initialize grouping options from dealGroupingFields
   useEffect(() => {
+    console.log(`🔍 [DealsPage] useEffect[groupingOptions] triggered at ${Date.now()}`);
     const options = dealGroupingFields.map(field => ({
       value: field.value,
       label: field.label
     }))
+    console.log(`🔍 [DealsPage] Set ${options.length} grouping options`);
     setGroupingOptions(options)
   }, [])
 
@@ -415,9 +407,20 @@ export default function DealsPage() {
             <ExportButton data={deals} fileName="deals.json">
               Exportieren
             </ExportButton>
-            <Dialog open={isAddDealOpen} onOpenChange={setIsAddDealOpen}>
+            <Dialog 
+              open={isAddDealOpen} 
+              onOpenChange={(open) => {
+                console.log(`🔍 [DealsPage] New Deal dialog ${open ? 'OPENED' : 'CLOSED'} at ${Date.now()}`);
+                if (open) {
+                  console.log(`🚨 [DealsPage] PERFORMANCE ALERT: New Deal dialog opening - CustomerCombobox will initialize!`);
+                }
+                setIsAddDealOpen(open);
+              }}
+            >
               <DialogTrigger asChild>
-                <Button>
+                <Button onClick={() => {
+                  console.log(`🔍 [DealsPage] "Neuer Deal" button clicked at ${Date.now()}`);
+                }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Neuer Deal
                 </Button>
@@ -439,38 +442,17 @@ export default function DealsPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="customer">Kunde</Label>
-                    <Select
+                    <CustomerCombobox
                       value={newDeal.customer_id}
                       onValueChange={(value) => {
-                        const selectedCustomer = customers.find(c => c.id.toString() === value)
                         setNewDeal({
                           ...newDeal,
                           customer_id: value,
-                          customer: selectedCustomer?.name || ""
+                          customer: "" // Will be populated from the selected customer
                         })
                       }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Kunden auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isLoadingCustomers ? (
-                          <div className="flex items-center justify-center p-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          </div>
-                        ) : customers.length === 0 ? (
-                          <div className="p-2 text-center text-sm text-muted-foreground">
-                            Keine Kunden gefunden
-                          </div>
-                        ) : (
-                          customers.map(customer => (
-                            <SelectItem key={customer.id} value={customer.id.toString()}>
-                              {customer.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Kunde auswählen..."
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="value_calculation_method">Wertberechnung</Label>

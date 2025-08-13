@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added for CustomerDetails
+import { ProductCombobox } from "@/components/product-combobox";
 
 interface PageParams {
   id: string;
@@ -742,9 +743,8 @@ export default function DealDetailPage() {
 
   function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
     const { toast } = useToast();
-    const [allProducts, setAllProducts] = useState<Product[]>([]);
-    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-    const [selectedProductId, setSelectedProductId] = useState<string>("");
+    // Removed allProducts and isLoadingProducts - ProductCombobox handles this internally
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number>(1);
     const [price, setPrice] = useState<number>(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -758,36 +758,27 @@ export default function DealDetailPage() {
 
     useEffect(() => {
       if (isOpen) {
-        setSelectedProductId("");
+        setSelectedProductId(null);
         setQuantity(1);
         setPrice(0);
-
-        const fetchAllProducts = async () => {
-          setIsLoadingProducts(true);
-          try {
-            if (window.electronAPI?.invoke) {
-              const productsData = await window.electronAPI.invoke<Product[]>('products:get-all');
-              setAllProducts(productsData || []);
-            } else {
-              console.error("window.electronAPI or invoke method not found for products:get-all.");
-              toast({ variant: "destructive", title: "Fehler", description: "Produktliste konnte nicht geladen werden." });
-            }
-          } catch (error) {
-            console.error("Error fetching all products:", error);
-            toast({ variant: "destructive", title: "Fehler", description: "Produktliste konnte nicht geladen werden." });
-          } finally {
-            setIsLoadingProducts(false);
-          }
-        };
-        fetchAllProducts();
+        // Removed fetchAllProducts - ProductCombobox handles product loading internally
       }
-    }, [isOpen, toast]);
+    }, [isOpen]);
 
-    const handleProductChange = (productIdString: string) => {
+    const handleProductChange = async (productIdString: string | null) => {
       setSelectedProductId(productIdString);
-      const selectedProduct = allProducts.find(p => String(p.id) === productIdString);
-      if (selectedProduct) {
-        setPrice(selectedProduct.price || 0);
+      if (productIdString) {
+        try {
+          const selectedProduct = await window.electronAPI?.invoke('products:get-by-id', Number(productIdString)) as Product;
+          if (selectedProduct) {
+            setPrice(selectedProduct.price || 0);
+          } else {
+            setPrice(0);
+          }
+        } catch (error) {
+          console.error("Error fetching product details:", error);
+          setPrice(0);
+        }
       } else {
         setPrice(0);
       }
@@ -817,22 +808,18 @@ export default function DealDetailPage() {
               Wählen Sie ein Produkt aus und geben Sie Menge und Preis an.
             </DialogDescription>
           </DialogHeader>
-          {isLoadingProducts ? (
-            <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-          ) : (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="product" className="text-right">Produkt</Label>
-                <Select value={selectedProductId} onValueChange={handleProductChange} name="product">
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Produkt auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allProducts.length === 0 && <SelectItem value="no-products" disabled>Keine Produkte verfügbar</SelectItem>}
-                    {allProducts.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name} ({formatCurrency(p.price)})</SelectItem>)}
-                  </SelectContent>
-                </Select>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="product" className="text-right">Produkt</Label>
+              <div className="col-span-3">
+                <ProductCombobox
+                  value={selectedProductId}
+                  onValueChange={handleProductChange}
+                  placeholder="Produkt suchen..."
+                  disabled={isSubmitting}
+                />
               </div>
+            </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="quantity" className="text-right">Menge</Label>
                 <Input
@@ -857,12 +844,11 @@ export default function DealDetailPage() {
                 />
               </div>
             </div>
-          )}
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline" onClick={onClose}>Abbrechen</Button>
             </DialogClose>
-            <Button type="button" onClick={handleSubmit} disabled={isSubmitting || isLoadingProducts || !selectedProductId}>
+            <Button type="button" onClick={handleSubmit} disabled={isSubmitting || !selectedProductId}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Hinzufügen
             </Button>
           </DialogFooter>

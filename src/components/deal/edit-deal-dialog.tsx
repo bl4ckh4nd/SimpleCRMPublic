@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Combobox } from "@/components/ui/combobox";
+import { ProductCombobox } from "@/components/product-combobox";
 import { Trash2, PlusCircle } from "lucide-react";
 import { Deal, DealStage } from "@/types/deal";
 import { Product } from "@/types";
@@ -40,7 +40,7 @@ const formatCurrency = (amount: number): string => {
 
 export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialogProps) {
   const [editedDeal, setEditedDeal] = useState<Deal>({ ...deal });
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  // Removed allProducts state since ProductCombobox handles searching internally
   const [dealProducts, setDealProducts] = useState<DealProductLink[]>([]);
   const [initialDealProducts, setInitialDealProducts] = useState<DealProductLink[]>([]);
 
@@ -52,15 +52,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAllProducts = useCallback(async () => {
-    try {
-      const products = await window.electronAPI.invoke<Product[]>('products:get-all');
-      setAllProducts(products.filter((p: Product) => p.isActive));
-    } catch (err) {
-      console.error("Error fetching all products:", err);
-      setError("Fehler beim Laden der Produktliste.");
-    }
-  }, []);
+  // Removed fetchAllProducts since ProductCombobox handles searching internally
 
   const fetchDealProducts = useCallback(async (dealId: number) => {
     setIsLoading(true);
@@ -87,7 +79,6 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
       setInitialDealProducts([]);
       setError(null);
       setIsSaving(false);
-      fetchAllProducts();
       fetchDealProducts(deal.id);
       setSelectedProductId(null);
       setQuantity(1);
@@ -95,24 +86,40 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
     } else {
       setDealProducts([]);
       setInitialDealProducts([]);
-      setAllProducts([]);
     }
-  }, [deal, isOpen, fetchAllProducts, fetchDealProducts]);
+  }, [deal, isOpen, fetchDealProducts]);
 
   useEffect(() => {
-    const selectedProduct = allProducts.find(p => p.id === Number(selectedProductId));
-    if (selectedProduct) {
-      setPriceAtTime(selectedProduct.price);
+    if (selectedProductId) {
+      // Fetch product details to set price
+      const fetchProductPrice = async () => {
+        try {
+          const product = await window.electronAPI.invoke('products:get-by-id', Number(selectedProductId)) as Product;
+          if (product) {
+            setPriceAtTime(product.price);
+          }
+        } catch (error) {
+          console.error("Error fetching product details:", error);
+        }
+      };
+      fetchProductPrice();
+    } else {
+      setPriceAtTime(0);
     }
-  }, [selectedProductId, allProducts]);
+  }, [selectedProductId]);
 
-  const handleAddProduct = () => {
+  const handleAddProduct = async () => {
     if (!selectedProductId) {
         alert("Bitte wählen Sie ein Produkt aus.");
         return;
     }
-    const productToAdd = allProducts.find(p => p.id === Number(selectedProductId));
-    if (!productToAdd) return;
+    
+    try {
+      const productToAdd = await window.electronAPI.invoke('products:get-by-id', Number(selectedProductId)) as Product;
+      if (!productToAdd) {
+        alert("Produkt konnte nicht gefunden werden.");
+        return;
+      }
 
     const existingIndex = dealProducts.findIndex(p => p.id === productToAdd.id);
 
@@ -130,9 +137,13 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
         setDealProducts([...dealProducts, newLink]);
     }
 
-    setSelectedProductId(null);
-    setQuantity(1);
-    setPriceAtTime(0);
+      setSelectedProductId(null);
+      setQuantity(1);
+      setPriceAtTime(0);
+    } catch (error) {
+      console.error("Error adding product:", error);
+      alert("Fehler beim Hinzufügen des Produkts.");
+    }
   };
 
   const handleRemoveProduct = (productIdToRemove: number) => {
@@ -212,7 +223,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
     }
   };
 
-  const productOptions = allProducts.map(p => ({ value: p.id.toString(), label: `${p.name} (${formatCurrency(p.price)})` }));
+  // Remove productOptions since ProductCombobox handles searching internally
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -292,10 +303,9 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
               <div className="flex items-end gap-2 p-3 border rounded-md bg-muted/40">
                  <div className="flex-grow grid gap-1.5">
                      <Label htmlFor="product-select">Produkt auswählen</Label>
-                     <Combobox
-                         options={productOptions}
+                     <ProductCombobox
                          value={selectedProductId}
-                         onChange={setSelectedProductId}
+                         onValueChange={setSelectedProductId}
                          placeholder="Produkt suchen..."
                          disabled={isSaving}
                      />

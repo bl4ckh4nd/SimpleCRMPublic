@@ -46,6 +46,7 @@ const {
   deleteCustomer,
   getAllProducts,
   getProductById,
+  searchProducts,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -180,12 +181,59 @@ function setupIpcHandlers() {
   });
 
   // --- Database Handlers (SQLite) ---
-  ipcMain.handle('db:get-customers', async () => {
+  ipcMain.handle('db:get-customers', async (event, includeCustomFields = false) => {
     try {
-      return getAllCustomers();
+      console.log(`🔍 [IPC] db:get-customers called with includeCustomFields=${includeCustomFields}`);
+      console.log(`🔍 [IPC] Sender frame info:`, {
+        frameUrl: event.sender.getURL(),
+        frameOrigin: event.sender.getURL().split('/').slice(0,3).join('/'),
+        processId: event.sender.processId,
+        routingId: event.sender.routingId
+      });
+      console.log(`🔍 [IPC] Full call stack:`, new Error().stack?.split('\n').slice(1, 10).join('\n'));
+      const result = getAllCustomers(includeCustomFields);
+      console.log(`🔍 [IPC] db:get-customers returning ${result.length} customers`);
+      return result;
     } catch (error) {
       log.error('IPC Error getting customers:', error);
       throw error; // Propagate error to renderer
+    }
+  });
+
+  // Lightweight customer loading for dropdowns
+  ipcMain.handle('db:get-customers-dropdown', async () => {
+    try {
+      console.log(`🔍 [IPC] db:get-customers-dropdown called`);
+      const { getCustomersForDropdown } = require('./sqlite-service');
+      const result = getCustomersForDropdown();
+      console.log(`🔍 [IPC] db:get-customers-dropdown returning ${result.length} customers`);
+      return result;
+    } catch (error) {
+      log.error('IPC Error getting customers for dropdown:', error);
+      throw error;
+    }
+  });
+
+  // Search customers for autocomplete
+  ipcMain.handle('db:search-customers', async (event, query, limit = 20) => {
+    try {
+      console.log(`🔍 [IPC] db:search-customers called with query: "${query}", limit: ${limit}`);
+      console.log(`🔍 [IPC] Search customers - Sender info:`, {
+        frameUrl: event.sender.getURL(),
+        processId: event.sender.processId,
+        routingId: event.sender.routingId
+      });
+      
+      const startTime = Date.now();
+      const { searchCustomers } = require('./sqlite-service');
+      const result = searchCustomers(query, limit);
+      const loadTime = Date.now() - startTime;
+      
+      console.log(`🔍 [IPC] db:search-customers returning ${result.length} customers in ${loadTime}ms`);
+      return result;
+    } catch (error) {
+      log.error('IPC Error searching customers:', error);
+      throw error;
     }
   });
 
@@ -316,6 +364,18 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('products:search', async (_, query = '', limit = 20) => {
+    console.log(`🔍 [IPC] products:search called with query: "${query}", limit: ${limit}`);
+    console.log(`🔍 [IPC] ProductSearch call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    
+    try {
+      return searchProducts(query, limit);
+    } catch (error) {
+      log.error('IPC Error searching products:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('products:get-by-id', async (_, productId) => {
     try {
       return getProductById(productId);
@@ -360,9 +420,21 @@ function setupIpcHandlers() {
   });
 
   // --- Deal Handlers (SQLite) ---
-  ipcMain.handle('deals:get-all', async (_, { limit, offset, filter } = {}) => {
+  ipcMain.handle('deals:get-all', async (event, { limit, offset, filter } = {}) => {
     try {
-      return getAllDeals(limit, offset, filter);
+      console.log(`🔍 [IPC] deals:get-all called with params:`, { limit, offset, filter });
+      console.log(`🔍 [IPC] Deals page load - Sender info:`, {
+        frameUrl: event.sender.getURL(),
+        processId: event.sender.processId,
+        routingId: event.sender.routingId
+      });
+      
+      const startTime = Date.now();
+      const result = getAllDeals(limit, offset, filter);
+      const loadTime = Date.now() - startTime;
+      
+      console.log(`🔍 [IPC] deals:get-all returning ${result.length} deals in ${loadTime}ms`);
+      return result;
     } catch (error) {
       log.error('IPC Error getting all deals:', error);
       return [];
@@ -559,7 +631,11 @@ function setupIpcHandlers() {
 
   ipcMain.handle('custom-fields:get-active', async () => {
     try {
-      return getActiveCustomFields();
+      console.log(`🔍 [IPC] custom-fields:get-active called`);
+      console.log(`🔍 [IPC] Custom fields call stack:`, new Error().stack?.split('\n').slice(1, 4).join('\n'));
+      const result = getActiveCustomFields();
+      console.log(`🔍 [IPC] custom-fields:get-active returning ${result.length} fields`);
+      return result;
     } catch (error) {
       log.error('IPC Error getting active custom fields:', error);
       throw error;
@@ -889,6 +965,11 @@ async function createMainWindow() {
     log.info('[Electron Main] Attempting to load content into mainWindow...');
     await loadURLFunction(mainWindow);
     log.info('[Electron Main] Content loaded into mainWindow successfully.');
+    
+    // Open DevTools automatically for frontend debugging
+    // Force DevTools open for performance testing regardless of mode
+    log.info('[Electron Main] Opening DevTools for performance testing...');
+    mainWindow.webContents.openDevTools();
   } catch (error) {
     log.error('[Electron Main] Failed to load URL using loadURLFunction:', error);
     const errorMsg = `Failed to load application content. Error: ${error.message}\nURL: ${error.url || (isDevelopment ? 'http://localhost:5173' : 'app://- (electron-serve)') }`;

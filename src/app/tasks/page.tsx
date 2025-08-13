@@ -24,8 +24,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import ExportButton from "@/components/export-button"
+import { CustomerCombobox } from "@/components/customer-combobox"
 import { taskService } from "@/services/data/taskService"
-import { customerService } from "@/services/data/customerService"
 import { useToast } from "@/components/ui/use-toast"
 import { Task } from "@/services/data/types"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
@@ -74,33 +74,11 @@ export default function TasksPage() {
     completed: false
   })
 
-  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([])
-  const [loadingCustomers, setLoadingCustomers] = useState(false)
-
   // Load tasks from database
   useEffect(() => {
     loadTasks()
   }, [currentPage, statusFilter, priorityFilter, searchQuery])
 
-  // Load customers for the dropdown
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      setLoadingCustomers(true)
-      try {
-        const result = await customerService.getAllCustomers()
-        setCustomers(result.map(c => ({ 
-          id: c.id.toString(), 
-          name: c.name || c.firstName || 'Unknown' 
-        })))
-      } catch (error) {
-        console.error('Failed to load customers:', error)
-      } finally {
-        setLoadingCustomers(false)
-      }
-    }
-
-    fetchCustomers()
-  }, [])
 
   const loadTasks = async () => {
     setLoading(true)
@@ -326,22 +304,11 @@ export default function TasksPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="customer_id">Kunde</Label>
-                    <Select
-                      value={newTask.customer_id ? newTask.customer_id.toString() : ''}
+                    <CustomerCombobox
+                      value={newTask.customer_id}
                       onValueChange={(value) => setNewTask({ ...newTask, customer_id: Number(value) })}
-                      disabled={loadingCustomers}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingCustomers ? "Kunden werden geladen..." : "Kunden auswählen"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Kunde auswählen..."
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="due_date">Fälligkeitsdatum</Label>

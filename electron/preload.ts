@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('electron', {
       const allowedChannels: string[] = [
         // DB Channels
         'db:get-customers',
+        'db:get-customers-dropdown',
+        'db:search-customers',
         'db:get-customer',
         'db:create-customer',
         'db:update-customer',
@@ -43,6 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       const allowedChannels: string[] = [
         // DB Channels
         'db:get-customers',
+        'db:get-customers-dropdown',
+        'db:search-customers',
         'db:get-customer',
         'db:create-customer',
         'db:update-customer',

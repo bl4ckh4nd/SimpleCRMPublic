@@ -7,14 +7,22 @@ export const customerService = {
   /**
    * Fetch all customers
    */
-  async getAllCustomers(): Promise<Customer[]> {
+  async getAllCustomers(includeCustomFields: boolean = false): Promise<Customer[]> {
     try {
-      const customers = await window.electronAPI.invoke('db:get-customers') as any[];
-      return customers.map((customer: any) => ({
+      console.log(`🔍 [Frontend] customerService.getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
+      console.log(`🔍 [Frontend] CustomerService call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+      
+      const customers = await window.electronAPI.invoke('db:get-customers', includeCustomFields) as any[];
+      console.log(`🔍 [Frontend] customerService received ${customers.length} customers`);
+      
+      const result = customers.map((customer: any) => ({
         ...customer,
         id: customer.id.toString(), // Ensure ID is a string
         zip: customer.zip || '' // Ensure zip is present and defaults to empty string
       }));
+      
+      console.log(`🔍 [Frontend] customerService returning ${result.length} formatted customers`);
+      return result;
     } catch (error) {
       console.error('Failed to fetch customers:', error);
       return [];
