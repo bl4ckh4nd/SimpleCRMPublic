@@ -965,11 +965,6 @@ async function createMainWindow() {
     log.info('[Electron Main] Attempting to load content into mainWindow...');
     await loadURLFunction(mainWindow);
     log.info('[Electron Main] Content loaded into mainWindow successfully.');
-    
-    // Open DevTools automatically for frontend debugging
-    // Force DevTools open for performance testing regardless of mode
-    log.info('[Electron Main] Opening DevTools for performance testing...');
-    mainWindow.webContents.openDevTools();
   } catch (error) {
     log.error('[Electron Main] Failed to load URL using loadURLFunction:', error);
     const errorMsg = `Failed to load application content. Error: ${error.message}\nURL: ${error.url || (isDevelopment ? 'http://localhost:5173' : 'app://- (electron-serve)') }`;
