@@ -1,0 +1,70 @@
+#
+# Cross‑platform line endings and binary handling
+# Repository: SimpleCRM (Windows + Linux devs)
+#
+
+# Default: normalize text to LF across OSes
+* text=auto eol=lf
+
+# Windows scripts should keep CRLF to avoid execution quirks
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+
+# Unix shell scripts (LF)
+*.sh  text eol=lf
+
+# Common source files (explicit for clarity)
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.json  text eol=lf
+*.jsonc text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+
+# Lockfiles (avoid CRLF churn on Windows)
+package-lock.json text eol=lf
+yarn.lock         text eol=lf
+pnpm-lock.yaml    text eol=lf
+*.lock            text eol=lf
+
+# Treat binary assets as binary (no EOL normalization, no diffs)
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.svg   text eol=lf
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.eot   binary
+*.mp4   binary
+*.mov   binary
+*.webm  binary
+*.pdf   binary
+*.zip   binary
+*.7z    binary
+*.gz    binary
+*.bz2   binary
+*.rar   binary
+*.tar   binary
+*.db    binary
+*.sqlite  binary
+*.sqlite3 binary
+*.bin   binary
+*.exe   binary
+*.dll   binary
+

@@ -4,6 +4,99 @@ import keytar from 'keytar';
 import { MssqlSettings } from './types'; // Assuming types.ts exists
 import { performance } from 'perf_hooks'; // For timing
 
+// #COMPLETION_DRIVE: Assuming SQL error codes are consistent across MSSQL versions
+// #SUGGEST_VERIFY: Test with different MSSQL versions and authentication scenarios
+interface DetailedMssqlError {
+    category: 'authentication' | 'network' | 'database' | 'permission' | 'ssl' | 'timeout' | 'unknown';
+    code?: number;
+    originalMessage: string;
+    userMessage: string;
+    suggestion: string;
+    severity: 'low' | 'medium' | 'high';
+}
+
+function categorizeAndTranslateMssqlError(error: any): DetailedMssqlError {
+    const originalMessage = error?.message || error?.toString() || 'Unknown error';
+    const code = error?.code || error?.number || error?.originalError?.code;
+    
+    // Common MSSQL error patterns
+    if (originalMessage.includes('Login failed') || code === 18456) {
+        return {
+            category: 'authentication',
+            code: code,
+            originalMessage,
+            userMessage: 'Anmeldung fehlgeschlagen: Benutzername oder Passwort ist falsch',
+            suggestion: 'Überprüfen Sie Benutzername und Passwort. Stellen Sie sicher, dass der Benutzer Zugriff auf die Datenbank hat.',
+            severity: 'high'
+        };
+    }
+    
+    if (originalMessage.includes('Cannot open database') || code === 4060) {
+        return {
+            category: 'database',
+            code: code,
+            originalMessage,
+            userMessage: 'Datenbank nicht gefunden oder nicht zugänglich',
+            suggestion: 'Überprüfen Sie den Datenbanknamen und stellen Sie sicher, dass sie existiert und der Benutzer Zugriff darauf hat.',
+            severity: 'high'
+        };
+    }
+    
+    if (originalMessage.includes('Network-related') || originalMessage.includes('transport-level') || code === 2) {
+        return {
+            category: 'network',
+            code: code,
+            originalMessage,
+            userMessage: 'Verbindung zum Server fehlgeschlagen',
+            suggestion: 'Überprüfen Sie Servername, Port und Netzwerkverbindung. Stellen Sie sicher, dass der SQL Server läuft und erreichbar ist.',
+            severity: 'high'
+        };
+    }
+    
+    if (originalMessage.includes('timeout') || originalMessage.includes('Timeout') || code === 'ETIMEOUT') {
+        return {
+            category: 'timeout',
+            code: code,
+            originalMessage,
+            userMessage: 'Verbindung zur Datenbank ist zu langsam oder unterbrochen',
+            suggestion: 'Überprüfen Sie die Netzwerkverbindung und versuchen Sie es erneut. Bei persistierenden Problemen kontaktieren Sie den Datenbankadministrator.',
+            severity: 'medium'
+        };
+    }
+    
+    if (originalMessage.includes('SSL') || originalMessage.includes('certificate') || originalMessage.includes('TLS')) {
+        return {
+            category: 'ssl',
+            code: code,
+            originalMessage,
+            userMessage: 'SSL/TLS Zertifikatsproblem',
+            suggestion: 'Aktivieren Sie "Serverzertifikat akzeptieren" in den Einstellungen oder konfigurieren Sie ein gültiges SSL-Zertifikat.',
+            severity: 'medium'
+        };
+    }
+    
+    if (originalMessage.includes('permission') || originalMessage.includes('denied') || code === 229) {
+        return {
+            category: 'permission',
+            code: code,
+            originalMessage,
+            userMessage: 'Keine Berechtigung für diese Operation',
+            suggestion: 'Der Benutzer hat keine ausreichenden Berechtigungen. Kontaktieren Sie den Datenbankadministrator.',
+            severity: 'high'
+        };
+    }
+    
+    // Default for unknown errors
+    return {
+        category: 'unknown',
+        code: code,
+        originalMessage,
+        userMessage: `Unbekannter Datenbankfehler${code ? ` (Code: ${code})` : ''}`,
+        suggestion: 'Überprüfen Sie die Verbindungseinstellungen und versuchen Sie es erneut. Details finden Sie in den Entwicklertools.',
+        severity: 'medium'
+    };
+}
+
 const STORE_KEY_SETTINGS = 'mssqlSettings_v2';
 const KEYTAR_SERVICE = 'SimpleCRMElectron-MSSQL';
 
@@ -21,6 +114,36 @@ const store: Store<MssqlKeytarStoreSchema> = new Store<MssqlKeytarStoreSchema>({
 
 let pool: sql.ConnectionPool | null = null;
 
+// Parse common SQL Server input formats into host/instance/port components.
+// Supports:
+// - "host\\instance"
+// - "host,1433" or "host:1433" (and with optional tcp: prefix)
+// - plain "host"
+function parseServerInput(raw: string): { host: string; instanceName?: string; portFromServer?: number } {
+    let s = raw.trim();
+    if (s.toLowerCase().startsWith('tcp:')) s = s.slice(4);
+
+    // If contains comma or colon with digits at the end => explicit port
+    const portMatch = s.match(/^(.*?)[,:](\d{1,5})$/);
+    if (portMatch) {
+        const host = portMatch[1];
+        const portNum = Number(portMatch[2]);
+        if (Number.isInteger(portNum) && portNum > 0 && portNum <= 65535) {
+            return { host, portFromServer: portNum };
+        }
+    }
+
+    // If contains backslash => instance name
+    const instanceIdx = s.indexOf('\\');
+    if (instanceIdx > -1) {
+        const host = s.substring(0, instanceIdx);
+        const instanceName = s.substring(instanceIdx + 1);
+        return { host, instanceName };
+    }
+
+    return { host: s };
+}
+
 // Function to generate a unique account name for keytar
 function getKeytarAccount(settings: Pick<MssqlSettings, 'server' | 'database' | 'user' | 'port'>): string {
     // If server contains instance name, use it for uniqueness, otherwise just server.
@@ -29,22 +152,60 @@ function getKeytarAccount(settings: Pick<MssqlSettings, 'server' | 'database' | 
     return `${serverIdentifier}:${settings.port || 1433}-${settings.database || 'unknown_db'}-${settings.user || 'unknown_user'}`;
 }
 
-// Helper to get effective connection parameters based on forcePort
-function getEffectiveConnectionParams(settings: MssqlSettings): Pick<MssqlSettings, 'server' | 'port'> {
-    let effectiveServer = settings.server;
-    let effectivePort = settings.port;
+// Build a robust connection config supporting instance names and direct port connections.
+function buildConnectionConfig(settings: MssqlSettings): sql.config {
+    const parsed = parseServerInput(settings.server);
 
-    if (settings.forcePort && settings.server && settings.server.includes('\\') && typeof settings.port === 'number') {
-        console.log(`[MSSQL Keytar] 'forcePort' is true for named instance. Modifying server to connect directly.`);
-        effectiveServer = settings.server.split('\\')[0]; // Use only the hostname
-        // effectivePort remains settings.port (the one to be forced)
-        console.log(`[MSSQL Keytar] Effective params for direct connection: Server='${effectiveServer}', Port=${effectivePort}`);
-    } else if (settings.server && settings.server.includes('\\')) {
-        console.log(`[MSSQL Keytar] Named instance detected. Port ${settings.port} will be ignored by mssql driver; SQL Browser will be used.`);
-        // In this case, mssql library handles it, port in config might be ignored.
-        // We pass the original server and port, mssql decides.
+    // Priority order for deciding how to connect:
+    // 1) If forcePort is true and a port is provided (either in field or parsed), connect directly host+port.
+    // 2) Else, if server string provided a port (host,port or host:port), connect directly to that port.
+    // 3) Else, if an instance is present (host\instance), use instanceName (SQL Browser-based).
+    // 4) Else, connect with host + provided numeric port (from settings).
+
+    const numericPort = typeof settings.port === 'number' ? settings.port : undefined;
+    const portFromServer = parsed.portFromServer;
+    const hasInstance = !!parsed.instanceName;
+
+    let server = parsed.host;
+    let port: number | undefined = undefined;
+    let instanceName: string | undefined = undefined;
+
+    if ((settings.forcePort && (numericPort || portFromServer)) || (!settings.forcePort && portFromServer)) {
+        // Direct port connection (either forced or explicitly provided in server string)
+        port = (settings.forcePort ? (numericPort ?? portFromServer) : portFromServer)!;
+        console.log(`[MSSQL Keytar] Using direct port connection. Server='${server}', Port=${port}.`);
+    } else if (hasInstance) {
+        // SQL Browser resolution path
+        instanceName = parsed.instanceName;
+        console.log(`[MSSQL Keytar] Using instance resolution. Server='${server}', Instance='${instanceName}'.`);
+    } else if (numericPort) {
+        // Fallback to explicit numeric port from settings
+        port = numericPort;
+        console.log(`[MSSQL Keytar] Using configured port. Server='${server}', Port=${port}.`);
+    } else {
+        console.log(`[MSSQL Keytar] No port or instance specified. Using server='${server}' with driver defaults.`);
     }
-    return { server: effectiveServer, port: effectivePort };
+
+    // Base config
+    const config: sql.config = {
+        user: settings.user,
+        password: settings.password,
+        database: settings.database,
+        server,
+        // Only set port when we have one; drivers treat undefined differently than 0
+        ...(typeof port === 'number' ? { port } : {}),
+        options: {
+            encrypt: settings.encrypt ?? true,
+            trustServerCertificate: settings.trustServerCertificate ?? false,
+            // Only set instanceName if we actually want Browser-based resolution
+            ...(instanceName ? { instanceName } : {}),
+        },
+        pool: { max: 10, min: 0, idleTimeoutMillis: 30000 },
+        connectionTimeout: 15000,
+        requestTimeout: 15000,
+    };
+
+    return config;
 }
 
 export async function saveMssqlSettingsWithKeytar(settings: MssqlSettings): Promise<void> {
@@ -149,7 +310,7 @@ export async function clearMssqlPasswordFromKeytar(): Promise<{ success: boolean
     }
 }
 
-export async function testConnectionWithKeytar(settings: MssqlSettings): Promise<boolean> {
+export async function testConnectionWithKeytar(settings: MssqlSettings): Promise<{ success: boolean; error?: DetailedMssqlError }> {
     let effectivePassword = settings.password;
 
     // If password is not provided in the settings input (i.e., undefined),
@@ -175,31 +336,38 @@ export async function testConnectionWithKeytar(settings: MssqlSettings): Promise
         console.log('[MSSQL Keytar] For test connection, using password provided in settings input.');
     }
 
-    const { server: connectServer, port: connectPort } = getEffectiveConnectionParams(settings);
-
+    const initialConfig = buildConnectionConfig({ ...settings, password: effectivePassword });
     let testPool: sql.ConnectionPool | null = null;
     try {
-        console.log(`[MSSQL Keytar] Test Connection: Attempting to connect to Server: ${connectServer}, Port: ${connectPort === undefined ? '(default)' : connectPort}`);
-        testPool = new sql.ConnectionPool({
-            user: settings.user,
-            password: effectivePassword, // Use the determined effective password
-            database: settings.database,
-            server: connectServer, // Use effective server
-            port: connectPort,     // Use effective port
-            pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }, // Minimal pool for testing
-            options: {
-                encrypt: settings.encrypt ?? true,
-                trustServerCertificate: settings.trustServerCertificate ?? false
-            },
-            connectionTimeout: 10000, // Increased slightly for potentially slower direct connections
-            requestTimeout: 10000
-        });
+        console.log(`[MSSQL Keytar] Test Connection: Attempting with config:`, JSON.stringify({ server: initialConfig.server, port: (initialConfig as any).port, options: (initialConfig as any).options }));
+        testPool = new sql.ConnectionPool({ ...initialConfig, pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }, connectionTimeout: 10000, requestTimeout: 10000 });
         await testPool.connect();
         console.log('[MSSQL Keytar] Connection test successful.');
-        return true;
+        return { success: true };
     } catch (error) {
-        console.error('[MSSQL Keytar] Connection test failed:', (error as Error).message);
-        return false;
+        // If this was an instance-based attempt and we have a port, try a direct port fallback.
+        const parsed = parseServerInput(settings.server);
+        const canFallbackToPort = !!parsed.instanceName && (typeof settings.port === 'number' || parsed.portFromServer);
+        if (!settings.forcePort && canFallbackToPort) {
+            try {
+                console.warn('[MSSQL Keytar] Instance resolution failed; retrying with direct host+port.');
+                const port = (typeof settings.port === 'number' ? settings.port : parsed.portFromServer)!;
+                const fallbackConfig = buildConnectionConfig({ ...settings, server: parsed.host, port, password: effectivePassword, forcePort: true });
+                if (testPool) await testPool.close();
+                testPool = new sql.ConnectionPool({ ...fallbackConfig, pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }, connectionTimeout: 10000, requestTimeout: 10000 });
+                await testPool.connect();
+                console.log('[MSSQL Keytar] Fallback connection successful.');
+                return { success: true };
+            } catch (fallbackErr) {
+                const detailedFallback = categorizeAndTranslateMssqlError(fallbackErr);
+                console.error('[MSSQL Keytar] Fallback connection failed:', detailedFallback.originalMessage);
+                return { success: false, error: detailedFallback };
+            }
+        }
+        const detailedError = categorizeAndTranslateMssqlError(error);
+        console.error('[MSSQL Keytar] Connection test failed:', detailedError.originalMessage);
+        console.log('[MSSQL Keytar] Error details:', detailedError);
+        return { success: false, error: detailedError };
     } finally {
         if (testPool) {
             await testPool.close();
@@ -215,46 +383,62 @@ async function getConnectionPool(): Promise<sql.ConnectionPool> {
     await closeMssqlPool();
 
     const settings = await getMssqlSettingsWithKeytar();
-    if (!settings || !settings.server || !settings.user || !settings.database) { // Added more checks
+    if (!settings || !settings.server || !settings.user || !settings.database) {
         throw new Error('MSSQL settings not fully configured or password missing.');
     }
 
-    const { server: connectServer, port: connectPort } = getEffectiveConnectionParams(settings);
-
     try {
-         console.log(`[MSSQL Keytar] Pool: Attempting to connect to Server: ${connectServer}, Port: ${connectPort === undefined ? '(default)' : connectPort}, DB: ${settings.database}, User: ${settings.user}`);
-         pool = new sql.ConnectionPool({
-            user: settings.user,
-            password: settings.password, // Password retrieved from Keytar
-            database: settings.database,
-            server: connectServer, // Use effective server
-            port: connectPort,     // Use effective port
-            pool: {
-                max: 10, // Adjust pool size as needed
-                min: 0,
-                idleTimeoutMillis: 30000
-            },
-            options: {
-                encrypt: settings.encrypt ?? true, // Provide default
-                trustServerCertificate: settings.trustServerCertificate ?? false // Provide default
-            },
-             connectionTimeout: 15000, // Standard connection timeout
-             requestTimeout: 15000    // Standard request timeout
-        });
+         const initialConfig = buildConnectionConfig(settings);
+         console.log(`[MSSQL Keytar] Pool: Attempt with`, JSON.stringify({ server: initialConfig.server, port: (initialConfig as any).port, options: (initialConfig as any).options }));
+         pool = new sql.ConnectionPool(initialConfig);
 
         await pool.connect();
         console.log('[MSSQL Keytar] MSSQL Connection Pool established.');
 
         pool.on('error', async (err) => {
-            console.error('[MSSQL Keytar] MSSQL Pool Error:', err);
+            const detailedError = categorizeAndTranslateMssqlError(err);
+            console.error('[MSSQL Keytar] MSSQL Pool Error:', detailedError.originalMessage);
+            console.log('[MSSQL Keytar] Pool Error Details:', detailedError);
             await closeMssqlPool(); // Attempt to close the errored pool
         });
 
         return pool;
     } catch (error) {
-        console.error('[MSSQL Keytar] Failed to create connection pool:', error);
+        // If this was an instance-based attempt and we have a port, try a direct port fallback
+        const parsed = parseServerInput(settings.server);
+        const canFallbackToPort = !!parsed.instanceName && (typeof settings.port === 'number' || parsed.portFromServer);
+        if (!settings.forcePort && canFallbackToPort) {
+            try {
+                console.warn('[MSSQL Keytar] Pool connect failed via instance; retrying with direct host+port.');
+                const port = (typeof settings.port === 'number' ? settings.port : parsed.portFromServer)!;
+                const fallbackConfig = buildConnectionConfig({ ...settings, server: parsed.host, port, forcePort: true });
+                pool = new sql.ConnectionPool(fallbackConfig);
+                await pool.connect();
+                console.log('[MSSQL Keytar] MSSQL Connection Pool established via fallback.');
+                pool.on('error', async (err) => {
+                    const detailedError = categorizeAndTranslateMssqlError(err);
+                    console.error('[MSSQL Keytar] MSSQL Pool Error (fallback):', detailedError.originalMessage);
+                    await closeMssqlPool();
+                });
+                return pool;
+            } catch (fallbackErr) {
+                const detailedFallback = categorizeAndTranslateMssqlError(fallbackErr);
+                console.error('[MSSQL Keytar] Fallback pool connect failed:', detailedFallback.originalMessage);
+                pool = null;
+                const errorMessage = `${detailedFallback.userMessage} - ${detailedFallback.suggestion}`;
+                const error_to_throw = new Error(errorMessage);
+                (error_to_throw as any).detailedError = detailedFallback;
+                throw error_to_throw;
+            }
+        }
+        const detailedError = categorizeAndTranslateMssqlError(error);
+        console.error('[MSSQL Keytar] Failed to create connection pool:', detailedError.originalMessage);
+        console.log('[MSSQL Keytar] Pool Creation Error Details:', detailedError);
         pool = null; // Ensure pool is null on failure
-        throw new Error(`Failed to connect to MSSQL: ${(error as Error).message}`); // Rethrow with clearer message
+        const errorMessage = `${detailedError.userMessage} - ${detailedError.suggestion}`;
+        const error_to_throw = new Error(errorMessage);
+        (error_to_throw as any).detailedError = detailedError;
+        throw error_to_throw;
     }
 }
 
@@ -302,8 +486,15 @@ export async function fetchJtlCustomers() {
         console.log(`Fetched ${result.recordset.length} customers from JTL.`);
         return result.recordset;
     } catch (error) {
-        console.error('Error fetching JTL customers:', error);
-        throw error; // Re-throw to be handled by sync service
+        const detailedError = categorizeAndTranslateMssqlError(error);
+        console.error('Error fetching JTL customers:', detailedError.originalMessage);
+        console.log('Customer fetch error details:', detailedError);
+        
+        // Create enhanced error for sync service
+        const enhancedError = new Error(`Fehler beim Laden der Kunden: ${detailedError.userMessage}`);
+        (enhancedError as any).detailedError = detailedError;
+        (enhancedError as any).context = 'fetchJtlCustomers';
+        throw enhancedError;
     }
 }
 

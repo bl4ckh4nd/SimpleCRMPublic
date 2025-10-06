@@ -788,11 +788,21 @@ function setupIpcHandlers() {
         // forcePort is expected to be a boolean from the client
       };
       log.info('[IPC Main] mssql:test-connection: Processed settings for test:', JSON.stringify(processedSettings));
-      const success = await testConnectionWithKeytar(processedSettings);
-      return { success: success };
+      const result = await testConnectionWithKeytar(processedSettings);
+      
+      if (result.success) {
+        return { success: true };
+      } else {
+        // Return detailed error information to frontend
+        return { 
+          success: false, 
+          error: result.error?.userMessage || 'Test connection failed',
+          errorDetails: result.error || null
+        };
+      }
     } catch (error) {
       log.error('[IPC Main] mssql:test-connection: Error testing connection:', error.message, error.stack);
-      return { success: false, error: (error).message || 'Test connection failed in main process' };
+      return { success: false, error: error.message || 'Test connection failed in main process' };
     }
   });
 

@@ -345,9 +345,23 @@ export async function runSync(mainWindow: BrowserWindow | null, options?: { incr
 
     } catch (error) {
         console.error('Synchronization failed:', error);
-        const errorMessage = `Sync failed: ${(error as Error).message}`;
+        
+        // Extract detailed error information if available
+        const detailedError = (error as any)?.detailedError;
+        const context = (error as any)?.context || 'unknown operation';
+        
+        let errorMessage = `Sync failed: ${(error as Error).message}`;
+        
+        if (detailedError) {
+            // Use German error message if available
+            errorMessage = `Sync fehlgeschlagen bei ${context}: ${detailedError.userMessage}`;
+            if (detailedError.suggestion) {
+                errorMessage += ` - ${detailedError.suggestion}`;
+            }
+        }
+        
         sendSyncStatus(mainWindow, 'Error', errorMessage);
-        return { success: false, message: errorMessage };
+        return { success: false, message: errorMessage, errorDetails: detailedError };
     } finally {
         isSyncing = false;
     }

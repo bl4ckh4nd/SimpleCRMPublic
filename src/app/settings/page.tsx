@@ -147,7 +147,7 @@ export default function SettingsPage() {
     try {
       // Use dataForTest for the connection test
       console.log('[SettingsPage] Attempting to invoke mssql:test-connection with dataForTest:', dataForTest);
-      const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', dataForTest)
+      const testResult: { success: boolean; error?: string; errorDetails?: any } = await (window.electronAPI as any).invoke('mssql:test-connection', dataForTest)
       console.log('[SettingsPage] mssql:test-connection IPC call returned:', testResult);
       setConnectionStatus(testResult.success ? 'success' : 'error')
  
@@ -173,7 +173,21 @@ export default function SettingsPage() {
           toast({ variant: "destructive", title: "Speichern fehlgeschlagen", description: saveResult.error || "Konnte die Einstellungen nicht speichern." })
         }
       } else {
-        toast({ variant: "destructive", title: "Verbindung fehlgeschlagen", description: testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen." })
+        // Enhanced error handling with detailed messages and suggestions
+        const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
+        const errorDetails = testResult.errorDetails;
+        
+        let toastDescription = errorMessage;
+        if (errorDetails?.suggestion) {
+          toastDescription += `\n\nLösungsvorschlag: ${errorDetails.suggestion}`;
+        }
+        
+        console.error('[SettingsPage] Connection test failed. Error details:', errorDetails);
+        toast({ 
+          variant: "destructive", 
+          title: "Verbindung fehlgeschlagen", 
+          description: toastDescription 
+        })
       }
     } catch (error: any) {
       console.error("Error testing/saving connection:", error)
@@ -252,12 +266,26 @@ export default function SettingsPage() {
       return
     }
     try {
-      const testResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:test-connection', dataToTest)
+      const testResult: { success: boolean; error?: string; errorDetails?: any } = await (window.electronAPI as any).invoke('mssql:test-connection', dataToTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
       if (testResult.success) {
         toast({ title: "Erfolg", description: "Verbindung erfolgreich." })
       } else {
-        toast({ variant: "destructive", title: "Verbindung fehlgeschlagen", description: testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen." })
+        // Enhanced error handling with detailed messages and suggestions
+        const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
+        const errorDetails = testResult.errorDetails;
+        
+        let toastDescription = errorMessage;
+        if (errorDetails?.suggestion) {
+          toastDescription += `\n\nLösungsvorschlag: ${errorDetails.suggestion}`;
+        }
+        
+        console.error('[SettingsPage] Connection test failed. Error details:', errorDetails);
+        toast({ 
+          variant: "destructive", 
+          title: "Verbindung fehlgeschlagen", 
+          description: toastDescription 
+        })
       }
     } catch (error: any) {
       console.error("Error testing connection:", error)
@@ -309,7 +337,16 @@ export default function SettingsPage() {
       }
     } catch (error: any) {
       console.error("Error running sync:", error)
-      const errorMsg = error.message || "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation."
+      let errorMsg = error.message || "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation."
+      
+      // Check if we have detailed error information from the sync result
+      if (error.errorDetails) {
+        errorMsg = error.errorDetails.userMessage || errorMsg;
+        if (error.errorDetails.suggestion) {
+          errorMsg += `\n\nLösungsvorschlag: ${error.errorDetails.suggestion}`;
+        }
+      }
+      
       toast({ variant: "destructive", title: "Sync Fehler", description: errorMsg })
       setSyncStatusMessage(`Fehler: ${errorMsg}`)
     } finally {

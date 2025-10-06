@@ -16,7 +16,13 @@ export function handleApiError(
 
   let description = userFriendlyBaseMessage;
 
-  if (error instanceof Error) {
+  // Check for detailed error information first
+  if (error?.errorDetails) {
+    description = error.errorDetails.userMessage || userFriendlyBaseMessage;
+    if (error.errorDetails.suggestion) {
+      description += `\n\nLösungsvorschlag: ${error.errorDetails.suggestion}`;
+    }
+  } else if (error instanceof Error) {
     description = error.message || userFriendlyBaseMessage;
   } else if (typeof error === 'string' && error.length > 0) {
     description = error;
