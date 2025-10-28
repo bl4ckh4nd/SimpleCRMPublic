@@ -15,9 +15,10 @@
     "types": ["vite/client"],
     "incremental": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["./shared/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "tailwind.config.ts"], 
+  "include": ["src/**/*.ts", "src/**/*.tsx", "shared/**/*.ts", "vite.config.ts", "tailwind.config.ts"], 
   "exclude": ["node_modules", "dist", "electron"] // Exclude build/electron folders
 }

@@ -3,16 +3,21 @@
     "target": "ES2020",
     "module": "CommonJS",
     "outDir": "./dist-electron",
-    "rootDir": "./electron",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    "sourceMap": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"]
+    }
   },
   "include": [
-    "electron/**/*.ts"
+    "electron/**/*.ts",
+    "shared/**/*.ts"
   ],
   "exclude": [
     "node_modules",

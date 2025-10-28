@@ -96,8 +96,8 @@ const {
   getDashboardStats,
   getRecentCustomers,
   getUpcomingTasks
-} = require('../dist-electron/sqlite-service');
-const { initializeSyncService, runSync, getLastSyncStatus } = require('../dist-electron/sync-service');
+} = require('../dist-electron/electron/sqlite-service');
+const { initializeSyncService, runSync, getLastSyncStatus } = require('../dist-electron/electron/sync-service');
 const {
   initializeMssqlService,
   saveMssqlSettingsWithKeytar,
@@ -105,8 +105,8 @@ const {
   testConnectionWithKeytar,
   closeMssqlPool,
   clearMssqlPasswordFromKeytar // Import the new function
-} = require('../dist-electron/mssql-keytar-service');
-const { createJtlOrder } = require('../dist-electron/jtl-order-service'); // Added
+} = require('../dist-electron/electron/mssql-keytar-service');
+const { createJtlOrder } = require('../dist-electron/electron/jtl-order-service'); // Added
 
 // Keep a global reference of the mainWindow object
 let mainWindow;
@@ -953,7 +953,7 @@ async function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'), // Path relative to dist-electron/main.js
+      preload: path.join(__dirname, 'electron/preload.js'), // Adjusted to nested preload output
     },
     title: 'SimpleCRM',
     backgroundColor: '#FFFFFF',

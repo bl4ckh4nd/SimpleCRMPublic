@@ -3,97 +3,52 @@ import Store from 'electron-store';
 import keytar from 'keytar';
 import { MssqlSettings } from './types'; // Assuming types.ts exists
 import { performance } from 'perf_hooks'; // For timing
+import {
+    getFriendlyMssqlError,
+    type MssqlErrorCategory,
+    type MssqlErrorSeverity,
+} from '../shared/errors/mssql';
 
 // #COMPLETION_DRIVE: Assuming SQL error codes are consistent across MSSQL versions
 // #SUGGEST_VERIFY: Test with different MSSQL versions and authentication scenarios
 interface DetailedMssqlError {
-    category: 'authentication' | 'network' | 'database' | 'permission' | 'ssl' | 'timeout' | 'unknown';
-    code?: number;
+    category: MssqlErrorCategory;
+    code?: string;
     originalMessage: string;
     userMessage: string;
     suggestion: string;
-    severity: 'low' | 'medium' | 'high';
+    severity: MssqlErrorSeverity;
+    title: string;
+    docsUrl?: string;
 }
 
-function categorizeAndTranslateMssqlError(error: any): DetailedMssqlError {
-    const originalMessage = error?.message || error?.toString() || 'Unknown error';
-    const code = error?.code || error?.number || error?.originalError?.code;
-    
-    // Common MSSQL error patterns
-    if (originalMessage.includes('Login failed') || code === 18456) {
-        return {
-            category: 'authentication',
-            code: code,
-            originalMessage,
-            userMessage: 'Anmeldung fehlgeschlagen: Benutzername oder Passwort ist falsch',
-            suggestion: 'Überprüfen Sie Benutzername und Passwort. Stellen Sie sicher, dass der Benutzer Zugriff auf die Datenbank hat.',
-            severity: 'high'
-        };
-    }
-    
-    if (originalMessage.includes('Cannot open database') || code === 4060) {
-        return {
-            category: 'database',
-            code: code,
-            originalMessage,
-            userMessage: 'Datenbank nicht gefunden oder nicht zugänglich',
-            suggestion: 'Überprüfen Sie den Datenbanknamen und stellen Sie sicher, dass sie existiert und der Benutzer Zugriff darauf hat.',
-            severity: 'high'
-        };
-    }
-    
-    if (originalMessage.includes('Network-related') || originalMessage.includes('transport-level') || code === 2) {
-        return {
-            category: 'network',
-            code: code,
-            originalMessage,
-            userMessage: 'Verbindung zum Server fehlgeschlagen',
-            suggestion: 'Überprüfen Sie Servername, Port und Netzwerkverbindung. Stellen Sie sicher, dass der SQL Server läuft und erreichbar ist.',
-            severity: 'high'
-        };
-    }
-    
-    if (originalMessage.includes('timeout') || originalMessage.includes('Timeout') || code === 'ETIMEOUT') {
-        return {
-            category: 'timeout',
-            code: code,
-            originalMessage,
-            userMessage: 'Verbindung zur Datenbank ist zu langsam oder unterbrochen',
-            suggestion: 'Überprüfen Sie die Netzwerkverbindung und versuchen Sie es erneut. Bei persistierenden Problemen kontaktieren Sie den Datenbankadministrator.',
-            severity: 'medium'
-        };
-    }
-    
-    if (originalMessage.includes('SSL') || originalMessage.includes('certificate') || originalMessage.includes('TLS')) {
-        return {
-            category: 'ssl',
-            code: code,
-            originalMessage,
-            userMessage: 'SSL/TLS Zertifikatsproblem',
-            suggestion: 'Aktivieren Sie "Serverzertifikat akzeptieren" in den Einstellungen oder konfigurieren Sie ein gültiges SSL-Zertifikat.',
-            severity: 'medium'
-        };
-    }
-    
-    if (originalMessage.includes('permission') || originalMessage.includes('denied') || code === 229) {
-        return {
-            category: 'permission',
-            code: code,
-            originalMessage,
-            userMessage: 'Keine Berechtigung für diese Operation',
-            suggestion: 'Der Benutzer hat keine ausreichenden Berechtigungen. Kontaktieren Sie den Datenbankadministrator.',
-            severity: 'high'
-        };
-    }
-    
-    // Default for unknown errors
+function categorizeAndTranslateMssqlError(error: unknown): DetailedMssqlError {
+    const parsed = getFriendlyMssqlError(error, 'de');
+
+    const category: MssqlErrorCategory = parsed.category ?? 'unknown';
+    const severity: MssqlErrorSeverity = parsed.severity ?? 'medium';
+
+    const originalMessage =
+        parsed.originalMessage ||
+        (error && typeof error === 'object' && 'message' in (error as any)
+            ? String((error as any).message)
+            : typeof error === 'string'
+                ? error
+                : 'Unknown error');
+
+    const suggestion =
+        parsed.actionableAdvice ??
+        'Überprüfen Sie die Verbindungseinstellungen und konsultieren Sie das Log für weitere Details.';
+
     return {
-        category: 'unknown',
-        code: code,
+        category,
+        code: parsed.code,
         originalMessage,
-        userMessage: `Unbekannter Datenbankfehler${code ? ` (Code: ${code})` : ''}`,
-        suggestion: 'Überprüfen Sie die Verbindungseinstellungen und versuchen Sie es erneut. Details finden Sie in den Entwicklertools.',
-        severity: 'medium'
+        userMessage: parsed.description,
+        suggestion,
+        severity,
+        title: parsed.title,
+        docsUrl: parsed.docsUrl,
     };
 }
 
