@@ -89,6 +89,9 @@ const tasksRoute = new Route({
 const calendarRoute = new Route({ // Added calendarRoute
   getParentRoute: () => rootRoute,
   path: '/calendar',
+  validateSearch: (search: Record<string, unknown>) => ({
+    date: typeof search.date === 'string' ? search.date : undefined,
+  }),
   component: () => (
 
       <CalendarPage />

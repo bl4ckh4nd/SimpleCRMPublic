@@ -87,7 +87,7 @@ export const columns: ColumnDef<Product>[] = [
   },
   {
     accessorKey: "sku",
-    header: "SKU",
+    header: "Artikel-Nr.",
     cell: ({ row }) => row.getValue("sku") || '-', // Display '-' if SKU is null
   },
   {

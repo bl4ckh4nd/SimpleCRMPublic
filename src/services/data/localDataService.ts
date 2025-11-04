@@ -1,4 +1,5 @@
 import type { DataService, Customer, Product } from './types'; // Assuming Product type is added to types.ts
+import { IPCChannels } from '@shared/ipc/channels';
 
 // Type mapping might be needed if frontend types differ slightly from SQLite types
 const mapDbCustomerToApp = (dbCustomer: any): Customer => ({
@@ -44,7 +45,7 @@ export const localDataService: DataService = {
       }
       // Use type assertion to avoid TypeScript errors
       const api = window.electronAPI as any;
-      const dbCustomers = await api.invoke('db:get-customers', false); // Skip custom fields for performance
+      const dbCustomers = await api.invoke(IPCChannels.Db.GetCustomers, false); // Skip custom fields for performance
       return dbCustomers.map(mapDbCustomerToApp);
     } catch (error) {
         console.error("Error invoking 'db:get-customers':", error);
@@ -62,7 +63,7 @@ export const localDataService: DataService = {
       const api = window.electronAPI as any;
       
       // Call the main process to get a specific customer by ID
-      const dbCustomer = await api.invoke('db:get-customer', { id });
+      const dbCustomer = await api.invoke(IPCChannels.Db.GetCustomer, Number(id));
       
       // If no customer found, return null
       if (!dbCustomer) return null;
@@ -81,7 +82,7 @@ export const localDataService: DataService = {
       }
       
       const api = window.electronAPI as any;
-      const response = await api.invoke('db:create-customer', data);
+      const response = await api.invoke(IPCChannels.Db.CreateCustomer, data);
       
       if (!response.success) {
         throw new Error(response.error || 'Failed to create customer');
@@ -100,7 +101,7 @@ export const localDataService: DataService = {
       }
       
       const api = window.electronAPI as any;
-      const response = await api.invoke('db:update-customer', { id: Number(id), customerData: data });
+      const response = await api.invoke(IPCChannels.Db.UpdateCustomer, { id: Number(id), customerData: data });
       
       if (!response.success) {
         throw new Error(response.error || 'Failed to update customer');
@@ -119,7 +120,7 @@ export const localDataService: DataService = {
       }
       
       const api = window.electronAPI as any;
-      const response = await api.invoke('db:delete-customer', Number(id));
+      const response = await api.invoke(IPCChannels.Db.DeleteCustomer, Number(id));
       
       if (!response.success) {
         throw new Error(response.error || 'Failed to delete customer');
@@ -138,7 +139,7 @@ export const localDataService: DataService = {
        }
        // Use type assertion to avoid TypeScript errors
        const api = window.electronAPI as any;
-       const dbProducts = await api.invoke('db:get-products');
+       const dbProducts = await api.invoke(IPCChannels.Products.GetAll);
        return dbProducts.map(mapDbProductToApp);
     } catch (error) {
         console.error("Error invoking 'db:get-products':", error);
@@ -149,7 +150,9 @@ export const localDataService: DataService = {
 };
 
 export const getLocalCustomers = async (): Promise<Customer[]> => {
-    console.log("localDataService: getLocalCustomers called");
+    if (import.meta.env.DEV) {
+        console.debug("localDataService: getLocalCustomers called");
+    }
     // Check if electronAPI and invoke exist before calling
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
         console.warn("Electron API not available for getLocalCustomers.");
@@ -157,8 +160,10 @@ export const getLocalCustomers = async (): Promise<Customer[]> => {
     }
     try {
         // Use type assertion for invoke if TS struggles with the type
-        const dbCustomers = await (window.electronAPI as any).invoke('db:get-customers', false); // Skip custom fields for performance
-        console.log("localDataService: Received customers from main:", dbCustomers);
+        const dbCustomers = await (window.electronAPI as any).invoke(IPCChannels.Db.GetCustomers, false); // Skip custom fields for performance
+        if (import.meta.env.DEV) {
+            console.debug("localDataService: Received customers from main", { count: Array.isArray(dbCustomers) ? dbCustomers.length : 'unknown' });
+        }
 
         // Basic validation (can be expanded with Zod)
         if (!Array.isArray(dbCustomers)) {
@@ -192,7 +197,9 @@ export const getLocalCustomers = async (): Promise<Customer[]> => {
 
 // --- Products ---
 export const getLocalProducts = async (): Promise<Product[]> => {
-    console.log("localDataService: getLocalProducts called");
+    if (import.meta.env.DEV) {
+        console.debug("localDataService: getLocalProducts called");
+    }
     // Check if electronAPI and invoke exist before calling
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
         console.warn("Electron API not available for getLocalProducts.");
@@ -200,8 +207,10 @@ export const getLocalProducts = async (): Promise<Product[]> => {
     }
     try {
          // Use type assertion for invoke if TS struggles with the type
-        const dbProducts = await (window.electronAPI as any).invoke('db:get-products');
-        console.log("localDataService: Received products from main:", dbProducts);
+        const dbProducts = await (window.electronAPI as any).invoke(IPCChannels.Products.GetAll);
+        if (import.meta.env.DEV) {
+            console.debug("localDataService: Received products from main", { count: Array.isArray(dbProducts) ? dbProducts.length : 'unknown' });
+        }
 
         // Basic validation
         if (!Array.isArray(dbProducts)) {

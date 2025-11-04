@@ -22,14 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableViewOptions } from "./data-table-view-options"
 
@@ -39,21 +32,51 @@ interface DataTableProps<TData, TValue> {
   // Optional: Pass meta data down (used in product-table for edit/delete)
   meta?: any;
   searchKey?: string;
+  searchKeys?: string[];
+  searchPlaceholder?: string;
 }
 
-export function DataTable<TData, TValue>({ 
-  columns, 
-  data, 
+export function DataTable<TData, TValue>({
+  columns,
+  data,
   meta,
-  searchKey = "name" 
+  searchKey = "name",
+  searchKeys,
+  searchPlaceholder,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [rowSelection, setRowSelection] = React.useState({}) 
+  const [rowSelection, setRowSelection] = React.useState({})
+  const [globalSearch, setGlobalSearch] = React.useState("")
+
+  const effectiveSearchKeys = React.useMemo(() => {
+    if (searchKeys && searchKeys.length > 0) {
+      return searchKeys
+    }
+    return searchKey ? [searchKey] : []
+  }, [searchKey, searchKeys])
+
+  const filteredData = React.useMemo(() => {
+    const normalized = globalSearch.trim().toLowerCase()
+    if (!normalized || effectiveSearchKeys.length === 0) {
+      return data
+    }
+
+    return data.filter((item) =>
+      effectiveSearchKeys.some((key) => {
+        const value = (item as Record<string, unknown>)[key]
+        if (value === null || value === undefined) {
+          return false
+        }
+
+        return String(value).toLowerCase().includes(normalized)
+      })
+    )
+  }, [data, effectiveSearchKeys, globalSearch])
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     meta, // Pass meta to the table instance
     getCoreRowModel: getCoreRowModel(),
@@ -73,19 +96,29 @@ export function DataTable<TData, TValue>({
     },
   })
 
+  const placeholderText =
+    searchPlaceholder ??
+    (effectiveSearchKeys.length === 1
+      ? `Suche nach ${effectiveSearchKeys[0]}...`
+      : "Suche...")
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+    setGlobalSearch(value)
+    table.setPageIndex(0)
+  }
+
   return (
     <div className="space-y-4">
-        <div className="flex items-center justify-between py-4">
-            <Input
-                placeholder={`Suche nach ${searchKey}...`}
-                value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-                onChange={(event) =>
-                    table.getColumn(searchKey)?.setFilterValue(event.target.value)
-                }
-                className="max-w-sm"
-            />
-            <DataTableViewOptions table={table} />
-        </div>
+      <div className="flex items-center justify-between py-4">
+        <Input
+          placeholder={placeholderText}
+          value={globalSearch}
+          onChange={handleSearchChange}
+          className="max-w-sm"
+        />
+        <DataTableViewOptions table={table} />
+      </div>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -133,4 +166,4 @@ export function DataTable<TData, TValue>({
       <DataTablePagination table={table} />
     </div>
   )
-} 
+}

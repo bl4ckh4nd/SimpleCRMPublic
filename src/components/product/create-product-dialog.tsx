@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { ProductForm } from "./product-form"
+import { IPCChannels } from '@shared/ipc/channels';
 
 interface CreateProductDialogProps {
   isOpen: boolean;
@@ -34,7 +35,10 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
         sku: values.sku || null, 
         description: values.description || null,
       };
-      const result = await window.electronAPI.invoke('products:create', dataToSend) as { success: boolean, error?: string };
+      const result = await window.electronAPI.invoke<typeof IPCChannels.Products.Create>(
+        IPCChannels.Products.Create,
+        dataToSend
+      ) as { success: boolean, error?: string };
       console.log('Create result:', result);
       if (result.success) {
         onProductCreated(); // Call callback to refetch

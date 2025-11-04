@@ -15,6 +15,11 @@ interface SyncStatus {
     timestamp?: string; // ISO string
 }
 
+interface WindowState {
+  isMaximized: boolean;
+  isFullScreen: boolean;
+}
+
 // Augment the Window interface
 declare global {
     interface Window {
@@ -23,6 +28,8 @@ declare global {
             minimize: () => void;
             maximize: () => void;
             close: () => void;
+            getWindowState?: () => Promise<WindowState>;
+            onWindowStateChange?: (callback: (state: WindowState) => void) => () => void;
         };
     }
 }

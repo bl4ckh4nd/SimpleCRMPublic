@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "WebSearch",
+      "Bash(node -e:*)",
+      "Bash(cat:*)",
+      "Bash(npm run rewrite-electron-aliases:dry:*)",
+      "WebFetch(domain:www.electronjs.org)"
     ],
     "deny": []
   }

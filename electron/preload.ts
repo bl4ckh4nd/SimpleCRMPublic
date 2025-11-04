@@ -1,30 +1,28 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { AllowedInvokeChannels } from '@shared/ipc/channels';
+
+type WindowState = {
+  isMaximized: boolean;
+  isFullScreen: boolean;
+};
+
+const allowedInvokeChannels = new Set(AllowedInvokeChannels);
 
 contextBridge.exposeInMainWorld('electron', {
   minimize: () => ipcRenderer.send('window-control', 'minimize'),
   maximize: () => ipcRenderer.send('window-control', 'maximize'),
   close: () => ipcRenderer.send('window-control', 'close'),
+  getWindowState: () => ipcRenderer.invoke('window:get-state') as Promise<WindowState>,
+  onWindowStateChange: (callback: (state: WindowState) => void) => {
+    const listener = (_event: IpcRendererEvent, state: WindowState) => callback(state);
+    ipcRenderer.on('window-state-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('window-state-changed', listener);
+    };
+  },
   ipcRenderer: {
     invoke: (channel: string, ...args: any[]) => {
-      const allowedChannels: string[] = [
-        // DB Channels
-        'db:get-customers',
-        'db:get-customers-dropdown',
-        'db:search-customers',
-        'db:get-customer',
-        'db:create-customer',
-        'db:update-customer',
-        'db:delete-customer',
-        'db:get-deals-for-customer',
-        'db:get-tasks-for-customer',
-
-        // Calendar Channels
-        'db:getCalendarEvents',
-        'db:addCalendarEvent',
-        'db:updateCalendarEvent',
-        'db:deleteCalendarEvent',
-      ];
-      if (allowedChannels.includes(channel)) {
+      if (allowedInvokeChannels.has(channel)) {
         return ipcRenderer.invoke(channel, ...args);
       }
       console.error(`IPC invoke blocked for channel: ${channel}`);
@@ -42,87 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // --- Generic Invoke Handler ---
   invoke: (channel: string, ...args: any[]) => {
-      const allowedChannels: string[] = [
-        // DB Channels
-        'db:get-customers',
-        'db:get-customers-dropdown',
-        'db:search-customers',
-        'db:get-customer',
-        'db:create-customer',
-        'db:update-customer',
-        'db:delete-customer',
-        'db:get-deals-for-customer',
-        'db:get-tasks-for-customer',
-
-        // Calendar Channels
-        'db:getCalendarEvents',
-        'db:addCalendarEvent',
-        'db:updateCalendarEvent',
-        'db:deleteCalendarEvent',
-
-        // Product Channels
-        'products:get-all',
-        'products:get-by-id',
-        'products:create',
-        'products:update',
-        'products:delete',
-
-        // Deal Channels (new)
-        'deals:get-all',
-        'deals:get-by-id',
-        'deals:create',
-        'deals:update',
-        'deals:update-stage',
-
-        // Deal-Product Link Channels
-        'deals:get-products',
-        'deals:add-product',
-        'deals:remove-product',
-        'deals:update-product-quantity',
-
-        // Task Channels (new)
-        'tasks:get-all',
-        'tasks:get-by-id',
-        'tasks:create',
-        'tasks:update',
-        'tasks:toggle-completion',
-        'tasks:delete',
-
-        // Sync Channels
-        'sync:run',
-        'sync:get-status',
-        'sync:get-info',      // Added
-        'sync:set-info',      // Added
-
-        // MSSQL Channels (using Keytar service)
-        'mssql:save-settings',
-        'mssql:get-settings',
-        'mssql:test-connection',
-        'mssql:clear-password', // Added new channel
-        // JTL Channels
-        'jtl:get-firmen',
-        'jtl:get-warenlager',
-        'jtl:get-zahlungsarten',
-        'jtl:get-versandarten',
-        'jtl:create-order', // Added as it's used in deal detail page
-
-        // Dashboard Channels
-        'dashboard:get-stats',
-        'dashboard:get-recent-customers',
-        'dashboard:get-upcoming-tasks',
-
-        // Custom Fields Channels
-        'custom-fields:get-all',
-        'custom-fields:get-active',
-        'custom-fields:get-by-id',
-        'custom-fields:create',
-        'custom-fields:update',
-        'custom-fields:delete',
-        'custom-fields:get-values-for-customer',
-        'custom-fields:set-value',
-        'custom-fields:delete-value'
-      ];
-      if (allowedChannels.includes(channel)) {
+      if (allowedInvokeChannels.has(channel)) {
           return ipcRenderer.invoke(channel, ...args);
       }
       console.error(`IPC invoke blocked for channel: ${channel}`);
@@ -142,12 +60,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'fromMain',
         'save-data-reply',
         'load-data-reply',
-        'sync:status-update' // Add sync status channel
+        'sync:status-update', // Add sync status channel
+        'window-state-changed',
     ];
     if (validChannels.includes(channel)) {
       const listener = (event: IpcRendererEvent, ...args: any[]) => func(...args);
-      // Ensure we remove previous listener for the same channel to avoid duplicates
-      ipcRenderer.removeAllListeners(channel);
       ipcRenderer.on(channel, listener);
       // Return a cleanup function
       return () => {
@@ -161,3 +78,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners(channel);
   }
 });
+
+// Log successful preload initialization
+console.log('[Preload] Successfully loaded and exposed electronAPI to main world');

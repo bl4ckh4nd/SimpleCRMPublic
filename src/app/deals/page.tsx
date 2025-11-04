@@ -41,6 +41,7 @@ import {
 import { GroupSelector, GroupOption } from "@/components/grouping/group-selector"
 import { GroupedList } from "@/components/grouping/grouped-list"
 import { dealGroupingFields, groupItemsByField } from "@/lib/grouping"
+import { IPCChannels } from '@shared/ipc/channels';
 
 // Define the Deal type for better type safety
 type Deal = {
@@ -137,11 +138,14 @@ export default function DealsPage() {
 
       console.log(`🔍 [DealsPage] Calling deals:get-all IPC with`, { limit, offset: (page - 1) * limit, filter });
       
-      const apiDeals = await window.electronAPI.invoke('deals:get-all', {
-        limit,
-        offset: (page - 1) * limit,
-        filter
-      })
+      const apiDeals = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetAll>(
+        IPCChannels.Deals.GetAll,
+        {
+          limit,
+          offset: (page - 1) * limit,
+          filter
+        }
+      )
 
       console.log(`🔍 [DealsPage] Received ${Array.isArray(apiDeals) ? apiDeals.length : 0} deals from IPC in ${Date.now() - startTime}ms`);
 
@@ -224,7 +228,10 @@ export default function DealsPage() {
         expected_close_date: newDeal.expectedCloseDate || null
       }
 
-      const result = await window.electronAPI.invoke('deals:create', dealData) as { success: boolean; id?: number; error?: string }
+      const result = await window.electronAPI.invoke<typeof IPCChannels.Deals.Create>(
+        IPCChannels.Deals.Create,
+        dealData
+      ) as { success: boolean; id?: number; error?: string }
 
       if (result.success && result.id) {
         toast({
@@ -286,10 +293,13 @@ export default function DealsPage() {
 
       // Persist the change to the database
       try {
-        const result = await window.electronAPI.invoke('deals:update-stage', {
-          dealId,
-          newStage
-        }) as { success: boolean; error?: string }
+        const result = await window.electronAPI.invoke<typeof IPCChannels.Deals.UpdateStage>(
+          IPCChannels.Deals.UpdateStage,
+          {
+            dealId,
+            newStage
+          }
+        ) as { success: boolean; error?: string }
 
         if (!result.success) {
           throw new Error(result.error || 'Failed to update deal stage')
@@ -711,4 +721,3 @@ export default function DealsPage() {
     </main>
   )
 }
-

@@ -37,13 +37,22 @@ import { Product, DealProduct } from './types';
 const dbPath = path.join(app.getPath('userData'), 'database.sqlite');
 let db: Database.Database;
 // Optional: let knex: Knex.Knex;
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+const sqliteVerboseLogger = (...args: unknown[]) => {
+    if (isDevelopment) {
+        console.debug('[SQLite]', ...args);
+    }
+};
 
 export function initializeDatabase() {
     const dbExists = fs.existsSync(dbPath);
-    db = new Database(dbPath, { verbose: console.log }); // Enable logging for dev
+    db = new Database(dbPath, isDevelopment ? { verbose: sqliteVerboseLogger } : undefined);
 
     if (!dbExists) {
-        console.log('Initializing new SQLite database...');
+        if (isDevelopment) {
+            console.debug('Initializing new SQLite database...');
+        }
         try {
             // Enable Foreign Keys support right away
             db.exec('PRAGMA foreign_keys = ON;');
@@ -65,13 +74,17 @@ export function initializeDatabase() {
             // Seed initial sync info if needed
             setSyncInfo('lastSyncStatus', 'Never');
             setSyncInfo('lastSyncTimestamp', '');
-            console.log('Database initialized successfully.');
+            if (isDevelopment) {
+                console.debug('Database initialized successfully.');
+            }
         } catch (error) {
             console.error('Failed to initialize database schema:', error);
             throw error; // Rethrow to prevent app start with bad DB
         }
     } else {
-        console.log('Database already exists.');
+        if (isDevelopment) {
+            console.debug('Database already exists.');
+        }
         // Ensure Foreign Keys are enabled on existing DBs too
         db.exec('PRAGMA foreign_keys = ON;');
         // Here you could add migration logic if schema changes
@@ -183,6 +196,28 @@ function runMigrations() {
             console.log('Adding value_calculation_method column to deals table...');
             db.exec(`ALTER TABLE ${DEALS_TABLE} ADD COLUMN value_calculation_method TEXT DEFAULT 'static'`);
             console.log('Migration completed: Added value_calculation_method column to deals table');
+        }
+
+        // Migration: Add calendar_event_id column to tasks table if it doesn't exist
+        const taskColumnsStmt = db.prepare(`PRAGMA table_info(${TASKS_TABLE})`);
+        const taskColumns = taskColumnsStmt.all();
+        const hasCalendarEventId = taskColumns.some((col: any) => col.name === 'calendar_event_id');
+
+        if (!hasCalendarEventId) {
+            console.log('Adding calendar_event_id column to tasks table...');
+            db.exec(`ALTER TABLE ${TASKS_TABLE} ADD COLUMN calendar_event_id INTEGER`);
+            console.log('Migration completed: Added calendar_event_id column to tasks table');
+        }
+
+        // Migration: Add task_id column to calendar events table if it doesn't exist
+        const calendarColumnsStmt = db.prepare(`PRAGMA table_info(${CALENDAR_EVENTS_TABLE})`);
+        const calendarColumns = calendarColumnsStmt.all();
+        const hasTaskId = calendarColumns.some((col: any) => col.name === 'task_id');
+
+        if (!hasTaskId) {
+            console.log('Adding task_id column to calendar events table...');
+            db.exec(`ALTER TABLE ${CALENDAR_EVENTS_TABLE} ADD COLUMN task_id INTEGER`);
+            console.log('Migration completed: Added task_id column to calendar events table');
         }
 
         // Migration: Add customerNumber column to customers table if it doesn't exist
@@ -612,12 +647,16 @@ export function searchCustomers(query: string = '', limit: number = 20): any[] {
     }
     params.push(limit);
     
-    console.log(`🔍 [SQLite] Executing customer search SQL with ${params.length} parameters`);
+    if (isDevelopment) {
+        console.debug(`🔍 [SQLite] Executing customer search SQL with ${params.length} parameters`);
+    }
     const stmt = getDb().prepare(sql);
     const results = stmt.all(...params);
     const loadTime = Date.now() - startTime;
     
-    console.log(`🔍 [SQLite] searchCustomers() found ${results.length} customers in ${loadTime}ms`);
+    if (isDevelopment) {
+        console.debug(`🔍 [SQLite] searchCustomers() found ${results.length} customers in ${loadTime}ms`);
+    }
     
     return results.map((customer: any) => ({
         id: customer.id,
@@ -628,21 +667,28 @@ export function searchCustomers(query: string = '', limit: number = 20): any[] {
 }
 
 export function getAllCustomers(includeCustomFields: boolean = false): any[] {
-    console.log(`🔍 [SQLite] getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
-    console.log(`🔍 [SQLite] Stack trace:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    if (isDevelopment) {
+        console.debug(`🔍 [SQLite] getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
+    }
     
     const startTime = Date.now();
     const stmt = getDb().prepare(`SELECT * FROM ${CUSTOMERS_TABLE} ORDER BY name`);
     const customers = stmt.all();
-    console.log(`🔍 [SQLite] Loaded ${customers.length} customers in ${Date.now() - startTime}ms`);
+    if (isDevelopment) {
+        console.debug(`🔍 [SQLite] Loaded ${customers.length} customers in ${Date.now() - startTime}ms`);
+    }
 
     // Skip custom field loading if not needed
     if (!includeCustomFields) {
-        console.log(`🔍 [SQLite] Skipping custom fields, returning ${customers.length} customers`);
+        if (isDevelopment) {
+            console.debug(`🔍 [SQLite] Skipping custom fields, returning ${customers.length} customers`);
+        }
         return customers;
     }
 
-    console.log(`🔍 [SQLite] Loading custom fields for ${customers.length} customers...`);
+    if (isDevelopment) {
+        console.debug(`🔍 [SQLite] Loading custom fields for ${customers.length} customers...`);
+    }
     // Get all active custom fields
     const activeFields = getActiveCustomFields() as CustomFieldDefinition[];
 
@@ -732,7 +778,6 @@ export function getCustomerById(id: number | string): any {
         customFields
     };
 
-    console.log(`[SQLite] getCustomerById(${id}):`, JSON.stringify(customerWithCustomFields)); // Log fetched customer
     return customerWithCustomFields;
 }
 
@@ -965,39 +1010,50 @@ export function getProductById(id: number): Product | null {
 export function searchProducts(query: string = '', limit: number = 20): Product[] {
     console.log(`🔍 [SQLite] searchProducts() called with query: "${query}", limit: ${limit}`);
     console.log(`🔍 [SQLite] SearchProducts call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
-    
+
     const startTime = Date.now();
-    
+
+    const trimmedQuery = query.trim();
+    const lowerQuery = trimmedQuery.toLowerCase();
+    const likePattern = `%${lowerQuery}%`;
+    const prefixPattern = `${lowerQuery}%`;
+
     let stmt;
     let results;
-    
-    if (!query.trim()) {
+
+    if (!trimmedQuery) {
         // If no query, return recent/active products
         stmt = getDb().prepare(`
-            SELECT * FROM ${PRODUCTS_TABLE} 
-            WHERE isActive = 1 
-            ORDER BY name 
-            LIMIT ?
+            SELECT * FROM ${PRODUCTS_TABLE}
+            WHERE isActive = 1
+            ORDER BY name
+            LIMIT @limit
         `);
-        results = stmt.all(limit);
+        results = stmt.all({ limit });
     } else {
-        // Search by name, description, or product number
-        const searchPattern = `%${query.toLowerCase()}%`;
+        // Search by name, description, or SKU (cArtNr)
         stmt = getDb().prepare(`
-            SELECT * FROM ${PRODUCTS_TABLE} 
+            SELECT * FROM ${PRODUCTS_TABLE}
             WHERE (
-                LOWER(name) LIKE ? OR 
-                LOWER(description) LIKE ? OR 
-                LOWER(productNumber) LIKE ?
-            ) AND isActive = 1
-            ORDER BY 
-                CASE WHEN LOWER(name) LIKE ? THEN 1 ELSE 2 END,
+                LOWER(name) LIKE @likePattern OR
+                LOWER(description) LIKE @likePattern OR
+                LOWER(sku) LIKE @likePattern OR
+                (sku IS NOT NULL AND LOWER(sku) = @lowerQuery)
+            )
+            AND isActive = 1
+            ORDER BY
+                CASE
+                    WHEN LOWER(name) LIKE @prefixPattern THEN 1
+                    WHEN LOWER(sku) LIKE @prefixPattern THEN 2
+                    WHEN LOWER(description) LIKE @prefixPattern THEN 3
+                    ELSE 4
+                END,
                 name
-            LIMIT ?
+            LIMIT @limit
         `);
-        results = stmt.all(searchPattern, searchPattern, searchPattern, `${query.toLowerCase()}%`, limit);
+        results = stmt.all({ likePattern, lowerQuery, prefixPattern, limit });
     }
-    
+
     console.log(`🔍 [SQLite] searchProducts() returned ${results.length} products in ${Date.now() - startTime}ms`);
     return results as Product[];
 }
@@ -1257,9 +1313,27 @@ interface CalendarEventData {
     recurrence_rule?: string; // Store as JSON string
 }
 
-export function getAllCalendarEvents(): any[] { // Return type matches structure from DB
-    const stmt = getDb().prepare(`SELECT * FROM ${CALENDAR_EVENTS_TABLE} ORDER BY start_date`);
-    const events = stmt.all();
+export function getAllCalendarEvents(startDate?: string, endDate?: string): any[] { // Return type matches structure from DB
+    let query = `SELECT * FROM ${CALENDAR_EVENTS_TABLE}`;
+    const params: any[] = [];
+
+    if (startDate || endDate) {
+        query += ' WHERE';
+        if (startDate) {
+            query += ' start_date >= ?';
+            params.push(startDate);
+        }
+        if (endDate) {
+            if (startDate) query += ' AND';
+            query += ' end_date <= ?';
+            params.push(endDate);
+        }
+    }
+
+    query += ' ORDER BY start_date';
+
+    const stmt = getDb().prepare(query);
+    const events = params.length > 0 ? stmt.all(...params) : stmt.all();
 
     // Parse recurrence_rule JSON for any events
     return events.map((event: any) => {
@@ -1289,6 +1363,7 @@ export function createCalendarEvent(eventData: any): Database.RunResult {
             color_code: String(eventData.color_code || '#3174ad'),
             event_type: String(eventData.event_type || ''),
             recurrence_rule: null, // Always include recurrence_rule parameter with default null
+            task_id: eventData.task_id ?? null,
             now: now
         };
 
@@ -1304,10 +1379,10 @@ export function createCalendarEvent(eventData: any): Database.RunResult {
         const stmt = getDb().prepare(`
             INSERT INTO ${CALENDAR_EVENTS_TABLE} (
                 title, description, start_date, end_date, all_day,
-                color_code, event_type, recurrence_rule, created_at, updated_at
+                color_code, event_type, recurrence_rule, task_id, created_at, updated_at
             ) VALUES (
                 @title, @description, @start_date, @end_date, @all_day,
-                @color_code, @event_type, @recurrence_rule, @now, @now
+                @color_code, @event_type, @recurrence_rule, @task_id, @now, @now
             )
         `);
 
@@ -1340,6 +1415,10 @@ export function updateCalendarEvent(id: number, eventData: Partial<Omit<Calendar
             }
         }
 
+        if (eventData.task_id !== undefined) {
+            cleanData.task_id = eventData.task_id;
+        }
+
         // Convert all strings and numbers explicitly
         Object.keys(cleanData).forEach(key => {
             if (typeof cleanData[key] === 'string' || typeof cleanData[key] === 'number') {
@@ -1349,7 +1428,8 @@ export function updateCalendarEvent(id: number, eventData: Partial<Omit<Calendar
 
         console.log('Sanitized data for SQLite update:', cleanData);
 
-        let updateFields = Object.keys(eventData)
+        const keysToUpdate = Object.keys(eventData);
+        let updateFields = keysToUpdate
                                .map(key => `${key} = @${key}`)
                                .join(', ');
 
@@ -1576,10 +1656,10 @@ export function createTask(taskData: any): { success: boolean; id?: number; erro
     const stmt = getDb().prepare(`
       INSERT INTO ${TASKS_TABLE} (
         customer_id, title, description, due_date, priority, completed,
-        created_date, last_modified
+        calendar_event_id, created_date, last_modified
       ) VALUES (
         @customer_id, @title, @description, @due_date, @priority, @completed,
-        @created_date, @last_modified
+        @calendar_event_id, @created_date, @last_modified
       )
     `);
 
@@ -1587,9 +1667,10 @@ export function createTask(taskData: any): { success: boolean; id?: number; erro
       customer_id: taskData.customer_id,
       title: taskData.title,
       description: taskData.description || '',
-      due_date: taskData.due_date,
+      due_date: taskData.due_date ?? '',
       priority: taskData.priority,
       completed: taskData.completed ? 1 : 0,
+      calendar_event_id: taskData.calendar_event_id ?? null,
       created_date: now,
       last_modified: now
     });

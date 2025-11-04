@@ -12,6 +12,7 @@ import { parse } from 'date-fns/parse';
 import { startOfWeek } from 'date-fns/startOfWeek';
 import { getDay } from 'date-fns/getDay';
 import { enUS, de } from 'date-fns/locale';
+import { useSearch } from "@tanstack/react-router";
 import { MainNav } from "@/components/main-nav";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,9 +26,6 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -35,6 +33,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CalendarEvent, CalendarRBCEvent, RecurrenceRule, OnEventResizeArgs, OnEventDropArgs } from '@/types';
+import { calendarService, TASK_EVENT_COMPLETED_COLOR, TASK_EVENT_DEFAULT_COLOR } from '@/services/data/calendarService';
+import { taskService } from '@/services/data/taskService';
+import { IPCChannels } from '@shared/ipc/channels';
+import { CalendarEventDetails } from './components/event-details';
+import { CalendarEventForm } from './components/event-form';
+import type { EventFormData, EventFormSubmitPayload, TaskFormState } from './types';
 
 // Initialize calendar
 const locales = {
@@ -66,6 +70,22 @@ interface DatabaseAPI {
 }
 
 // Using DragDropInfo imported from @/types
+
+const toTaskDueDateString = (date: Date): string => {
+  return format(date, 'yyyy-MM-dd');
+};
+
+const toEventFormData = (event: CalendarRBCEvent): EventFormData => ({
+  id: event.id,
+  title: event.title,
+  start: new Date(event.start),
+  end: new Date(event.end),
+  allDay: event.allDay,
+  description: event.description,
+  color_code: event.color_code,
+  event_type: event.event_type,
+  recurrence_rule: event.recurrence_rule,
+});
 
 const getRecurrenceText = (rule: RecurrenceRule | string | null | undefined): string => {
   // If rule is null or undefined, return empty string
@@ -110,6 +130,27 @@ const getRecurrenceText = (rule: RecurrenceRule | string | null | undefined): st
   return text;
 };
 
+const darkenColor = (hex: string, percent: number): string => {
+  try {
+    const normalized = hex.replace(/^#/, "");
+    const fullHex = normalized.length === 3 ? normalized.split("").map((char) => char + char).join("") : normalized;
+
+    let r = parseInt(fullHex.substring(0, 2), 16);
+    let g = parseInt(fullHex.substring(2, 4), 16);
+    let b = parseInt(fullHex.substring(4, 6), 16);
+
+    const factor = 1 - percent / 100;
+    r = Math.max(0, Math.min(255, Math.floor(r * factor)));
+    g = Math.max(0, Math.min(255, Math.floor(g * factor)));
+    b = Math.max(0, Math.min(255, Math.floor(b * factor)));
+
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  } catch (error) {
+    console.error('Failed to darken color:', hex, error);
+    return hex;
+  }
+};
+
 const CustomEvent: React.FC<EventProps<CalendarRBCEvent>> = ({ event }) => {
   return (
     <TooltipProvider>
@@ -144,7 +185,8 @@ export default function CalendarPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [newEventInfo, setNewEventInfo] = useState<Omit<CalendarRBCEvent, 'id'> | null>(null);
+  const [eventFormData, setEventFormData] = useState<EventFormData | null>(null);
+  const [formTaskData, setFormTaskData] = useState<TaskFormState | null>(null);
   const [currentView, setCurrentView] = useState<View>(Views.MONTH); // Initialize with a default view
 
   useEffect(() => {
@@ -173,6 +215,28 @@ export default function CalendarPage() {
   }, [currentView]);
 
   const [currentDate, setCurrentDate] = useState(new Date());
+  const { date: searchDate } = useSearch({ from: "/calendar" as const });
+
+  useEffect(() => {
+    if (!searchDate) return;
+
+    const [yearString, monthString, dayString] = searchDate.split("-");
+    const year = Number(yearString);
+    const month = Number(monthString);
+    const day = Number(dayString);
+
+    if ([year, month, day].some((value) => Number.isNaN(value))) {
+      return;
+    }
+
+    const targetDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    if (Number.isNaN(targetDate.getTime())) {
+      return;
+    }
+
+    setCurrentDate(targetDate);
+    setCurrentView(Views.DAY);
+  }, [searchDate]);
 
   // Using the DatabaseAPI interface defined above
 
@@ -187,7 +251,9 @@ export default function CalendarPage() {
           // Throwing an error might be appropriate if the API is essential.
           throw new Error("Electron API not found. Cannot fetch calendar events.");
         }
-        return await window.electronAPI.invoke('db:getCalendarEvents');
+        return await window.electronAPI.invoke<typeof IPCChannels.Calendar.GetCalendarEvents>(
+          IPCChannels.Calendar.GetCalendarEvents
+        );
       } catch (error) {
         console.error('Error fetching calendar events:', error);
         toast({
@@ -228,7 +294,10 @@ export default function CalendarPage() {
 
         console.log('Converted SQLite-compatible event:', JSON.stringify(sqliteCompatibleEvent, null, 2));
 
-        const result = await window.electronAPI.invoke('db:addCalendarEvent', sqliteCompatibleEvent);
+        const result = await window.electronAPI.invoke<typeof IPCChannels.Calendar.AddCalendarEvent>(
+          IPCChannels.Calendar.AddCalendarEvent,
+          sqliteCompatibleEvent
+        );
         return result;
       } catch (error) {
         console.error('Error adding calendar event:', error);
@@ -265,7 +334,10 @@ export default function CalendarPage() {
 
         console.log('Converted SQLite-compatible event for update:', JSON.stringify(sqliteCompatibleEvent, null, 2));
 
-        await window.electronAPI.invoke('db:updateCalendarEvent', sqliteCompatibleEvent);
+        await window.electronAPI.invoke<typeof IPCChannels.Calendar.UpdateCalendarEvent>(
+          IPCChannels.Calendar.UpdateCalendarEvent,
+          sqliteCompatibleEvent
+        );
       } catch (error) {
         console.error('Error updating calendar event:', error);
         throw error;
@@ -273,7 +345,10 @@ export default function CalendarPage() {
     },
     deleteCalendarEvent: async (id) => {
       try {
-        await window.electronAPI.invoke('db:deleteCalendarEvent', id);
+        await window.electronAPI.invoke<typeof IPCChannels.Calendar.DeleteCalendarEvent>(
+          IPCChannels.Calendar.DeleteCalendarEvent,
+          id
+        );
       } catch (error) {
         console.error('Error deleting calendar event:', error);
         throw error;
@@ -313,7 +388,8 @@ export default function CalendarPage() {
             start: new Date(event.start_date),
             end: new Date(event.end_date),
             allDay: event.all_day,
-            recurrence_rule: parsedRule
+            recurrence_rule: parsedRule,
+            task_id: event.task_id ?? null,
           };
         });
         setEvents(rbcEvents);
@@ -400,7 +476,7 @@ export default function CalendarPage() {
         adjustedEnd.setHours(0, 0, 0, 0);
       }
 
-      const defaultEvent: Omit<CalendarRBCEvent, 'id'> = {
+      const defaultEvent: EventFormData = {
         title: '',
         start: adjustedStart,
         end: adjustedEnd,
@@ -408,7 +484,8 @@ export default function CalendarPage() {
         description: '',
         color_code: '#3174ad'
       };
-      setNewEventInfo(defaultEvent);
+      setEventFormData(defaultEvent);
+      setFormTaskData(null);
       setIsAddModalOpen(true);
     }
   }, [currentView]);
@@ -481,7 +558,7 @@ export default function CalendarPage() {
         variant: "destructive",
       });
     }
-  }, [dbApi, toast]);
+  }, [dbApi, calendarService, toast]);
 
   const handleEventResize = useCallback(
     ({ event, start, end, isAllDay }: OnEventResizeArgs) => {
@@ -505,7 +582,8 @@ export default function CalendarPage() {
     [handleMoveEvent]
   );
 
-  const handleAddEvent = useCallback(async (newEventData: Omit<CalendarRBCEvent, 'id'>) => {
+  const handleAddEvent = useCallback(async ({ event: newEventData, task }: EventFormSubmitPayload) => {
+    let createdTaskId: number | null = null;
     try {
       if (!newEventData.title || !newEventData.start || !newEventData.end) {
         toast({ title: "Fehler", description: "Titel, Start und Ende sind erforderlich.", variant: "destructive" });
@@ -518,6 +596,31 @@ export default function CalendarPage() {
         }
       }
 
+      if (task && (!task.customer_id || task.customer_id <= 0)) {
+        toast({ title: "Fehler", description: "Bitte wählen Sie einen Kunden für die Aufgabe aus.", variant: "destructive" });
+        return;
+      }
+
+      const taskDueDate = toTaskDueDateString(newEventData.start);
+
+      if (task) {
+        const taskCreateResult = await taskService.createTask({
+          customer_id: task.customer_id,
+          title: newEventData.title,
+          description: task.description ?? newEventData.description ?? '',
+          due_date: taskDueDate,
+          priority: task.priority,
+          completed: task.completed ?? false,
+          calendar_event_id: null,
+        });
+
+        if (!taskCreateResult.success || typeof taskCreateResult.id !== 'number') {
+          throw new Error(taskCreateResult.error || 'Aufgabe konnte nicht erstellt werden.');
+        }
+
+        createdTaskId = taskCreateResult.id;
+      }
+
       // Convert from React Big Calendar event format to database format
       const dbEvent = {
         title: newEventData.title,
@@ -527,16 +630,18 @@ export default function CalendarPage() {
         all_day: newEventData.allDay || false,
         color_code: newEventData.color_code,
         event_type: newEventData.event_type,
-        recurrence_rule: newEventData.recurrence_rule ? JSON.stringify(newEventData.recurrence_rule) : null
+        recurrence_rule: newEventData.recurrence_rule ? JSON.stringify(newEventData.recurrence_rule) : null,
+        task_id: createdTaskId,
       };
 
       console.log('Adding new calendar event to DB:', dbEvent);
       
       const data = await dbApi.addCalendarEvent(dbEvent);
+      const insertedEventId = data.id || data.lastInsertRowid || Date.now();
       
       // Convert the returned data to RBC format
       const newEvent: CalendarRBCEvent = {
-        id: data.id || data.lastInsertRowid || Date.now(),
+        id: insertedEventId,
         title: newEventData.title,
         start: newEventData.start,
         end: newEventData.end,
@@ -547,12 +652,31 @@ export default function CalendarPage() {
         recurrence_rule: newEventData.recurrence_rule,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        task_id: createdTaskId,
       };
 
       setEvents(prev => [...prev, newEvent]);
+
+      if (createdTaskId) {
+        try {
+          await taskService.updateTask(createdTaskId, { calendar_event_id: Number(insertedEventId) }, { syncCalendar: false });
+          await calendarService.updateTaskEvent(Number(insertedEventId), {
+            title: newEventData.title,
+            description: newEventData.description,
+            dueDate: taskDueDate,
+            customerName: task?.customer_name ?? undefined,
+            completed: task?.completed ?? false,
+            colorCode: newEventData.color_code,
+          });
+        } catch (linkError) {
+          console.error('Failed to finalize task/calendar linkage:', linkError);
+        }
+      }
+
       toast({ title: "Erfolg", description: "Ereignis wurde erstellt" });
       setIsAddModalOpen(false);
-      setNewEventInfo(null);
+      setEventFormData(null);
+      setFormTaskData(null);
     } catch (error) {
       console.error('Error adding event:', error);
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
@@ -561,10 +685,23 @@ export default function CalendarPage() {
         description: `Ereignis konnte nicht erstellt werden: ${errorMessage}`,
         variant: "destructive",
       });
+
+      if (createdTaskId) {
+        try {
+          await taskService.deleteTask(createdTaskId);
+        } catch (cleanupError) {
+          console.error('Failed to roll back task creation after calendar failure:', cleanupError);
+        }
+      }
     }
   }, [dbApi, toast]);
 
-  const handleUpdateEvent = useCallback(async (updatedEventData: CalendarRBCEvent) => {
+  const handleUpdateEvent = useCallback(async ({ event: updatedEventData, task }: EventFormSubmitPayload) => {
+    if (!selectedEvent) return;
+
+    let linkedTaskId = selectedEvent.task_id ?? null;
+    let createdTaskId: number | null = null;
+
     try {
       if (!updatedEventData.title || !updatedEventData.start || !updatedEventData.end) {
         toast({ title: "Fehler", description: "Titel, Start und Ende sind erforderlich.", variant: "destructive" });
@@ -577,9 +714,61 @@ export default function CalendarPage() {
         }
       }
 
+      if (task && (!task.customer_id || task.customer_id <= 0)) {
+        toast({ title: "Fehler", description: "Bitte wählen Sie einen Kunden für die Aufgabe aus.", variant: "destructive" });
+        return;
+      }
+
+      const numericEventId = typeof (updatedEventData.id ?? selectedEvent.id) === 'string'
+        ? parseInt(String(updatedEventData.id ?? selectedEvent.id))
+        : Number(updatedEventData.id ?? selectedEvent.id);
+
+      const taskDueDate = toTaskDueDateString(updatedEventData.start);
+
+      if (task) {
+        if (task.id) {
+          try {
+            await taskService.updateTask(task.id, {
+              title: updatedEventData.title,
+              description: task.description ?? updatedEventData.description ?? '',
+              due_date: taskDueDate,
+              priority: task.priority,
+              completed: task.completed ?? false,
+            }, { syncCalendar: false });
+          } catch (taskUpdateError) {
+            throw new Error(taskUpdateError instanceof Error ? taskUpdateError.message : String(taskUpdateError));
+          }
+          linkedTaskId = task.id;
+        } else {
+          const taskCreateResult = await taskService.createTask({
+            customer_id: task.customer_id,
+            title: updatedEventData.title,
+            description: task.description ?? updatedEventData.description ?? '',
+            due_date: taskDueDate,
+            priority: task.priority,
+            completed: task.completed ?? false,
+            calendar_event_id: null,
+          });
+
+          if (!taskCreateResult.success || typeof taskCreateResult.id !== 'number') {
+            throw new Error(taskCreateResult.error || 'Aufgabe konnte nicht erstellt werden.');
+          }
+
+          linkedTaskId = taskCreateResult.id;
+          createdTaskId = taskCreateResult.id;
+        }
+      } else if (selectedEvent.task_id) {
+        try {
+          await taskService.updateTask(selectedEvent.task_id, { calendar_event_id: null }, { syncCalendar: false });
+        } catch (unlinkError) {
+          console.error('Failed to unlink task from calendar event:', unlinkError);
+        }
+        linkedTaskId = null;
+      }
+
       // Convert from RBC format to database format
       const dbEvent = {
-        id: typeof updatedEventData.id === 'string' ? parseInt(updatedEventData.id) : updatedEventData.id,
+        id: numericEventId,
         title: updatedEventData.title,
         description: updatedEventData.description || '',
         start_date: updatedEventData.start.toISOString(),
@@ -588,6 +777,7 @@ export default function CalendarPage() {
         color_code: updatedEventData.color_code || '#3174ad',
         event_type: updatedEventData.event_type || '',
         recurrence_rule: updatedEventData.recurrence_rule ? JSON.stringify(updatedEventData.recurrence_rule) : null,
+        task_id: linkedTaskId,
         updated_at: new Date().toISOString()
       };
 
@@ -596,11 +786,39 @@ export default function CalendarPage() {
       await dbApi.updateCalendarEvent(dbEvent);
 
       setEvents(prev => prev.map(event =>
-        event.id === updatedEventData.id ? updatedEventData : event
+        event.id === selectedEvent.id ? {
+          ...event,
+          ...updatedEventData,
+          id: event.id,
+          task_id: linkedTaskId,
+        } : event
       ));
 
-      toast({ title: "Erfolg", description: "Ereignis wurde aktualisiert" });
+      if (linkedTaskId) {
+        try {
+          await taskService.updateTask(linkedTaskId, { calendar_event_id: numericEventId }, { syncCalendar: false });
+          await calendarService.updateTaskEvent(numericEventId, {
+            title: updatedEventData.title,
+            description: updatedEventData.description,
+            dueDate: taskDueDate,
+            customerName: task?.customer_name ?? undefined,
+            completed: task?.completed ?? false,
+            colorCode: updatedEventData.color_code,
+          });
+        } catch (linkError) {
+          console.error('Failed to synchronize task after event update:', linkError);
+        }
+      }
+
+      if (!task && selectedEvent.task_id) {
+        toast({ title: "Hinweis", description: "Die Aufgabe bleibt bestehen, ist aber nicht mehr mit dem Termin verknüpft." });
+      } else {
+        toast({ title: "Erfolg", description: "Ereignis wurde aktualisiert" });
+      }
+
       setIsEditModalOpen(false);
+      setEventFormData(null);
+      setFormTaskData(null);
     } catch (error) {
       console.error('Error updating event:', error);
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
@@ -609,13 +827,31 @@ export default function CalendarPage() {
         description: `Ereignis konnte nicht aktualisiert werden: ${errorMessage}`,
         variant: "destructive",
       });
+
+      if (createdTaskId) {
+        try {
+          await taskService.deleteTask(createdTaskId);
+        } catch (cleanupError) {
+          console.error('Failed to clean up newly created task after event update failure:', cleanupError);
+        }
+      }
     }
-  }, [dbApi, toast]);
+  }, [calendarService, dbApi, selectedEvent, toast]);
 
   const handleDeleteEvent = useCallback(async (id: number | string) => {
     try {
       console.log('Deleting calendar event with ID:', id);
       const numericId = typeof id === 'string' ? parseInt(id) : id;
+
+      const eventToDelete = events.find(event => String(event.id) === String(id));
+      if (eventToDelete?.task_id) {
+        try {
+          await taskService.updateTask(eventToDelete.task_id, { calendar_event_id: null }, { syncCalendar: false });
+        } catch (unlinkError) {
+          console.error('Failed to unlink task before deleting event:', unlinkError);
+        }
+      }
+
       await dbApi.deleteCalendarEvent(numericId);
       
       console.log('Event successfully deleted');
@@ -632,12 +868,41 @@ export default function CalendarPage() {
         variant: "destructive",
       });
     }
-  }, [dbApi, toast]);
+  }, [dbApi, events, toast]);
 
   const handleEditEvent = useCallback(() => {
-    if (selectedEvent) {
-      setNewEventInfo(selectedEvent);
-      setIsModalOpen(false);
+    if (!selectedEvent) return;
+
+    setIsModalOpen(false);
+
+    const eventData = toEventFormData(selectedEvent);
+    setEventFormData(eventData);
+
+    if (selectedEvent.task_id) {
+      taskService.getTaskById(selectedEvent.task_id)
+        .then((task) => {
+          if (task) {
+            setFormTaskData({
+              id: Number(task.id),
+              customer_id: Number(task.customer_id),
+              customer_name: task.customer_name ?? null,
+              priority: (task.priority as 'High' | 'Medium' | 'Low') ?? 'Medium',
+              description: task.description ?? '',
+              completed: Boolean(task.completed),
+            });
+          } else {
+            setFormTaskData(null);
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to load linked task for editing:', error);
+          setFormTaskData(null);
+        })
+        .finally(() => {
+          setIsEditModalOpen(true);
+        });
+    } else {
+      setFormTaskData(null);
       setIsEditModalOpen(true);
     }
   }, [selectedEvent]);
@@ -686,14 +951,15 @@ export default function CalendarPage() {
                   const now = new Date();
                   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
                   const end = new Date(start.getTime() + 60 * 60 * 1000);
-                  setNewEventInfo({
+                  setEventFormData({
                     title: "",
-                    start: start,
-                    end: end,
+                    start,
+                    end,
                     allDay: false,
                     description: "",
                     color_code: "#3174ad",
                   });
+                  setFormTaskData(null);
                   setIsAddModalOpen(true);
                 }}
               >
@@ -735,18 +1001,22 @@ export default function CalendarPage() {
               defaultView={Views.MONTH}
               step={30}
               timeslots={2}
-              eventPropGetter={(event: CalendarRBCEvent) => ({
-                className: 'cursor-pointer rbc-event',
-                style: {
-                  backgroundColor: event.color_code || '#3174ad',
-                  borderColor: event.color_code ? darkenColor(event.color_code, 15) : '#255e8d',
-                  color: '#ffffff',
-                  opacity: 0.9,
-                  borderRadius: '4px',
-                  borderWidth: '1px',
-                  display: 'block',
+              eventPropGetter={(event: CalendarRBCEvent) => {
+                const backgroundColor = event.color_code || TASK_EVENT_DEFAULT_COLOR;
+                const isCompleted = backgroundColor.toLowerCase() === TASK_EVENT_COMPLETED_COLOR.toLowerCase();
+                return {
+                  className: 'cursor-pointer rbc-event',
+                  style: {
+                    backgroundColor,
+                    borderColor: darkenColor(backgroundColor, isCompleted ? 5 : 15),
+                    color: isCompleted ? '#1f2937' : '#ffffff',
+                    opacity: isCompleted ? 0.7 : 0.9,
+                    borderRadius: '4px',
+                    borderWidth: '1px',
+                    display: 'block',
+                  }
                 }
-              })}
+              }}
               dayPropGetter={(date: Date) => ({
                 className: `rbc-day ${date.getDay() === 0 || date.getDay() === 6 ? 'rbc-weekend' : ''}`,
               })}
@@ -775,72 +1045,33 @@ export default function CalendarPage() {
           </section>
 
           {selectedEvent && (
-            <Dialog open={isModalOpen} onOpenChange={(isOpen) => {
-              setIsModalOpen(isOpen);
-              if (!isOpen) setSelectedEvent(null);
-            }}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Ereignisdetails</DialogTitle>
-                  <DialogDescription>
-                    Details für "{selectedEvent.title}"
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-4 w-4 rounded"
-                      style={{ backgroundColor: selectedEvent.color_code || '#3174ad' }}
-                    />
-                    <p className="font-medium">{selectedEvent.title}</p>
-                  </div>
-                  <div className="grid gap-2">
-                    <p><strong>Zeitraum:</strong></p>
-                    <div className="pl-4 space-y-1">
-                      <p>Von: {selectedEvent.start.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                      <p>Bis: {selectedEvent.end.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                      {selectedEvent.allDay && <p>(Ganztägig)</p>}
-                    </div>
-                  </div>
-                  {selectedEvent.event_type && (
-                    <p><strong>Typ:</strong> {selectedEvent.event_type}</p>
-                  )}
-                  {selectedEvent.description && (
-                    <div>
-                      <p><strong>Beschreibung:</strong></p>
-                      <p className="pl-4 whitespace-pre-wrap">{selectedEvent.description}</p>
-                    </div>
-                  )}
-                  {selectedEvent.recurrence_rule && (
-                    <div>
-                      <p><strong>Wiederholung:</strong></p>
-                      <p className="pl-4">{getRecurrenceText(selectedEvent.recurrence_rule)}</p>
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => { setIsModalOpen(false); setSelectedEvent(null); }}>Schließen</Button>
-                  <Button
-                    variant="default"
-                    onClick={handleEditEvent}
-                  >
-                    Bearbeiten
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => selectedEvent.id && handleDeleteEvent(selectedEvent.id)}
-                  >
-                    Löschen
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
+            <Dialog
+              open={isModalOpen}
+              onOpenChange={(isOpen) => {
+                setIsModalOpen(isOpen);
+                if (!isOpen) setSelectedEvent(null);
+              }}
+            >
+              <CalendarEventDetails
+                event={selectedEvent}
+                recurrenceText={selectedEvent.recurrence_rule ? getRecurrenceText(selectedEvent.recurrence_rule) : undefined}
+                onClose={() => {
+                  setIsModalOpen(false);
+                  setSelectedEvent(null);
+                }}
+                onEdit={handleEditEvent}
+                onDelete={() => selectedEvent.id && handleDeleteEvent(selectedEvent.id)}
+              />
             </Dialog>
           )}
 
-          {newEventInfo && (
+          {isAddModalOpen && eventFormData && (
             <Dialog open={isAddModalOpen} onOpenChange={(isOpen) => {
               setIsAddModalOpen(isOpen);
-              if (!isOpen) setNewEventInfo(null);
+              if (!isOpen) {
+                setEventFormData(null);
+                setFormTaskData(null);
+              }
             }}>
               <DialogContent>
                 <DialogHeader>
@@ -849,23 +1080,27 @@ export default function CalendarPage() {
                     Füllen Sie die Details für das neue Ereignis aus.
                   </DialogDescription>
                 </DialogHeader>
-                <EventForm
-                  initialData={newEventInfo}
+                <CalendarEventForm
+                  key={`add-${eventFormData.start.getTime()}`}
+                  initialData={eventFormData}
+                  initialTaskData={formTaskData}
                   onSubmit={handleAddEvent}
                   onCancel={() => {
                     setIsAddModalOpen(false);
-                    setNewEventInfo(null);
+                    setEventFormData(null);
+                    setFormTaskData(null);
                   }}
                 />
               </DialogContent>
             </Dialog>
           )}
 
-          {selectedEvent && newEventInfo && (
+          {isEditModalOpen && eventFormData && selectedEvent && (
             <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
               setIsEditModalOpen(isOpen);
               if (!isOpen) {
-                setNewEventInfo(null);
+                setEventFormData(null);
+                setFormTaskData(null);
               }
             }}>
               <DialogContent>
@@ -875,19 +1110,15 @@ export default function CalendarPage() {
                     Details für "{selectedEvent.title}" bearbeiten
                   </DialogDescription>
                 </DialogHeader>
-                <EventForm
-                  initialData={newEventInfo}
-                  onSubmit={(eventData) => {
-                    if (selectedEvent) {
-                      handleUpdateEvent({
-                        ...eventData,
-                        id: selectedEvent.id
-                      });
-                    }
-                  }}
+                <CalendarEventForm
+                  key={`edit-${eventFormData.id ?? selectedEvent.id}`}
+                  initialData={eventFormData}
+                  initialTaskData={formTaskData}
+                  onSubmit={handleUpdateEvent}
                   onCancel={() => {
                     setIsEditModalOpen(false);
-                    setNewEventInfo(null);
+                    setEventFormData(null);
+                    setFormTaskData(null);
                   }}
                   isEditMode={true}
                 />
@@ -898,367 +1129,4 @@ export default function CalendarPage() {
       </main>
     </div>
   );
-}
-
-interface EventFormProps {
-  initialData: Omit<CalendarRBCEvent, 'id'>;
-  onSubmit: (data: Omit<CalendarRBCEvent, 'id'>) => void;
-  onCancel: () => void;
-  isEditMode?: boolean;
-}
-
-function EventForm({ initialData, onSubmit, onCancel, isEditMode = false }: EventFormProps) {
-  const [title, setTitle] = useState(initialData.title);
-  const [start, setStart] = useState(initialData.start);
-  const [end, setEnd] = useState(initialData.end);
-  const [description, setDescription] = useState(initialData.description || '');
-  const [allDay, setAllDay] = useState(initialData.allDay || false);
-  const [color, setColor] = useState(initialData.color_code || '#3174ad');
-  const [eventType, setEventType] = useState(initialData.event_type || '');
-  const [showRecurrence, setShowRecurrence] = useState(!!initialData.recurrence_rule);
-  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceRule['frequency']>(
-    (initialData.recurrence_rule && typeof initialData.recurrence_rule !== 'string' ? initialData.recurrence_rule.frequency : null) || 'daily'
-  );
-  const [recurrenceInterval, setRecurrenceInterval] = useState(
-    (initialData.recurrence_rule && typeof initialData.recurrence_rule !== 'string' ? initialData.recurrence_rule.interval : null) || 1
-  );
-  const [recurrenceEndDate, setRecurrenceEndDate] = useState(
-    (initialData.recurrence_rule && typeof initialData.recurrence_rule !== 'string' ? initialData.recurrence_rule.endDate : null) || ''
-  );
-  const [recurrenceOccurrences, setRecurrenceOccurrences] = useState(
-    (initialData.recurrence_rule && typeof initialData.recurrence_rule !== 'string' ? initialData.recurrence_rule.occurrences : null) || 0
-  );
-  const [recurrenceEndType, setRecurrenceEndType] = useState(
-    initialData.recurrence_rule && typeof initialData.recurrence_rule !== 'string' ? 
-      (initialData.recurrence_rule.endDate ? 'date' : (initialData.recurrence_rule.occurrences ? 'occurrences' : 'never')) 
-      : 'never'
-  );
-  
-  const { toast } = useToast();
-
-  const formatDateTimeLocal = (date: Date | null): string => {
-    if (!date) return '';
-    try {
-      const adjustedDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
-      return adjustedDate.toISOString().slice(0, 16);
-    } catch (e) {
-      console.error("Error formatting date:", date, e);
-      return '';
-    }
-  };
-
-  const formatDate = (date: Date | null): string => {
-    if (!date) return '';
-    try {
-      return format(date, "yyyy-MM-dd");
-    } catch (e) {
-      console.error("Error formatting date:", date, e);
-      return '';
-    }
-  };
-
-  const parseInputDate = (value: string, isAllDay: boolean): Date | null => {
-    try {
-      if (!value) return null;
-      if (isAllDay) {
-        // For all-day events, parse as YYYY-MM-DD and treat as local date
-        const [year, month, day] = value.split('-').map(Number);
-        // Important: Create date in local time, not UTC, to avoid timezone shifts
-        return new Date(year, month - 1, day);
-      } else {
-        // For timed events, parse as ISO 8601 local time
-        return new Date(value);
-      }
-    } catch (e) {
-      console.error("Error parsing date string:", value, e);
-      return null;
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const finalStart = start;
-    let finalEnd = end;
-
-    if (!title) {
-      toast({ title: "Fehler", description: "Titel ist erforderlich.", variant: "destructive" });
-      return;
-    }
-    if (!finalStart || !finalEnd) {
-      toast({ title: "Fehler", description: "Start- und Enddatum sind erforderlich.", variant: "destructive" });
-      return;
-    }
-
-    if (allDay) {
-      finalStart.setHours(0, 0, 0, 0);
-      finalEnd = new Date(finalEnd);
-      finalEnd.setHours(0, 0, 0, 0);
-      if (finalEnd <= finalStart) {
-        finalEnd = new Date(finalStart);
-        finalEnd.setDate(finalStart.getDate() + 1);
-      }
-    } else if (finalStart >= finalEnd) {
-      toast({ title: "Fehler", description: "Das Enddatum muss nach dem Startdatum liegen.", variant: "destructive" });
-      return;
-    }
-
-    let recurrenceRule: RecurrenceRule | undefined = undefined;
-    
-    if (showRecurrence) {
-      recurrenceRule = {
-        frequency: recurrenceFrequency,
-        interval: recurrenceInterval
-      };
-      
-      if (recurrenceEndType === 'date' && recurrenceEndDate) {
-        recurrenceRule.endDate = recurrenceEndDate;
-      } else if (recurrenceEndType === 'occurrences' && recurrenceOccurrences > 0) {
-        recurrenceRule.occurrences = recurrenceOccurrences;
-      }
-    }
-
-    onSubmit({
-      title,
-      start: finalStart,
-      end: finalEnd,
-      description,
-      allDay,
-      color_code: color,
-      event_type: eventType,
-      recurrence_rule: recurrenceRule
-    });
-  };
-
-  useEffect(() => {
-    if (!allDay && start && end && start >= end) {
-      const newEnd = new Date(start.getTime() + 60 * 60 * 1000);
-      setEnd(newEnd);
-    }
-  }, [start, end, allDay]);
-
-  const handleAllDayChange = (checked: boolean) => {
-    setAllDay(checked);
-    const currentStartDate = start || new Date();
-
-    if (checked) {
-      const startOfDay = new Date(currentStartDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(startOfDay);
-      endOfDay.setDate(startOfDay.getDate() + 1);
-      setStart(startOfDay);
-      setEnd(endOfDay);
-    } else {
-      const defaultStart = new Date(currentStartDate);
-      if (defaultStart.getHours() === 0 && defaultStart.getMinutes() === 0) {
-        defaultStart.setHours(9, 0, 0, 0);
-      }
-      const defaultEnd = new Date(defaultStart.getTime() + 60 * 60 * 1000);
-      setStart(defaultStart);
-      setEnd(defaultEnd);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div className="grid gap-4 py-4">
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="title" className="text-right">Titel*</Label>
-          <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} className="col-span-3" required />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="eventType" className="text-right">Ereignistyp</Label>
-          <Input 
-            id="eventType" 
-            value={eventType} 
-            onChange={(e) => setEventType(e.target.value)} 
-            className="col-span-3" 
-            placeholder="z.B. Meeting, Termin, Urlaub..."
-          />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="allDay" className="text-right">Ganztägig</Label>
-          <input
-            id="allDay"
-            type="checkbox"
-            checked={allDay}
-            onChange={(e) => handleAllDayChange(e.target.checked)}
-            className="col-span-3 justify-self-start h-4 w-4 accent-primary"
-          />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="start" className="text-right">Start*</Label>
-          <Input
-            id="start"
-            type={allDay ? "date" : "datetime-local"}
-            value={allDay ? formatDate(start) : formatDateTimeLocal(start)}
-            onChange={(e) => setStart(parseInputDate(e.target.value, allDay) || start)}
-            className="col-span-3"
-            required
-          />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="end" className="text-right">Ende*</Label>
-          <Input
-            id="end"
-            type={allDay ? "date" : "datetime-local"}
-            value={allDay ? formatDate(end) : formatDateTimeLocal(end)}
-            onChange={(e) => setEnd(parseInputDate(e.target.value, allDay) || end)}
-            className="col-span-3"
-            required
-            min={allDay ? formatDate(start) : formatDateTimeLocal(start)}
-          />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="color" className="text-right">Farbe</Label>
-          <Input 
-            id="color" 
-            type="color" 
-            value={color} 
-            onChange={(e) => setColor(e.target.value)} 
-            className="col-span-3 p-1 h-10 w-14 border rounded-md" 
-          />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="description" className="text-right">Beschreibung</Label>
-          <Textarea 
-            id="description" 
-            value={description} 
-            onChange={(e) => setDescription(e.target.value)} 
-            className="col-span-3" 
-          />
-        </div>
-        
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label htmlFor="showRecurrence" className="text-right">Wiederholung</Label>
-          <input
-            id="showRecurrence"
-            type="checkbox"
-            checked={showRecurrence}
-            onChange={(e) => setShowRecurrence(e.target.checked)}
-            className="col-span-3 justify-self-start h-4 w-4 accent-primary"
-          />
-        </div>
-        
-        {showRecurrence && (
-          <>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="recurrenceFrequency" className="text-right">Frequenz</Label>
-              <select
-                id="recurrenceFrequency"
-                value={recurrenceFrequency}
-                onChange={(e) => setRecurrenceFrequency(e.target.value as RecurrenceRule['frequency'])}
-                className="col-span-3 h-10 w-full rounded-md border border-input bg-background px-3 py-2"
-              >
-                <option value="daily">Täglich</option>
-                <option value="weekly">Wöchentlich</option>
-                <option value="monthly">Monatlich</option>
-                <option value="yearly">Jährlich</option>
-              </select>
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="recurrenceInterval" className="text-right">Intervall</Label>
-              <div className="col-span-3 flex items-center gap-2">
-                <span>Alle</span>
-                <Input
-                  id="recurrenceInterval"
-                  type="number"
-                  min={1}
-                  value={recurrenceInterval}
-                  onChange={(e) => setRecurrenceInterval(parseInt(e.target.value) || 1)}
-                  className="w-20"
-                />
-                <span>
-                  {recurrenceFrequency === 'daily' && 'Tage'}
-                  {recurrenceFrequency === 'weekly' && 'Wochen'}
-                  {recurrenceFrequency === 'monthly' && 'Monate'}
-                  {recurrenceFrequency === 'yearly' && 'Jahre'}
-                </span>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="recurrenceEndType" className="text-right">Endet</Label>
-              <select
-                id="recurrenceEndType"
-                value={recurrenceEndType}
-                onChange={(e) => setRecurrenceEndType(e.target.value as 'never' | 'date' | 'occurrences')}
-                className="col-span-3 h-10 w-full rounded-md border border-input bg-background px-3 py-2"
-              >
-                <option value="never">Niemals</option>
-                <option value="date">Am Datum</option>
-                <option value="occurrences">Nach Anzahl</option>
-              </select>
-            </div>
-            
-            {recurrenceEndType === 'date' && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="recurrenceEndDate" className="text-right">Enddatum</Label>
-                <Input
-                  id="recurrenceEndDate"
-                  type="date"
-                  value={recurrenceEndDate}
-                  onChange={(e) => setRecurrenceEndDate(e.target.value)}
-                  className="col-span-3"
-                  min={formatDate(start)}
-                />
-              </div>
-            )}
-            
-            {recurrenceEndType === 'occurrences' && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="recurrenceOccurrences" className="text-right">Wiederholungen</Label>
-                <Input
-                  id="recurrenceOccurrences"
-                  type="number"
-                  min={1}
-                  value={recurrenceOccurrences}
-                  onChange={(e) => setRecurrenceOccurrences(parseInt(e.target.value) || 0)}
-                  className="col-span-3"
-                />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-      
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Abbrechen
-        </Button>
-        <Button type="submit">
-          {isEditMode ? 'Aktualisieren' : 'Speichern'}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
-function darkenColor(hex: string, percent: number): string {
-  try {
-    hex = hex.replace(/^#/, '');
-    if (hex.length === 3) {
-      hex = hex.split('').map(char => char + char).join('');
-    }
-
-    let r = parseInt(hex.substring(0, 2), 16);
-    let g = parseInt(hex.substring(2, 4), 16);
-    let b = parseInt(hex.substring(4, 6), 16);
-
-    const factor = 1 - percent / 100;
-    r = Math.max(0, Math.min(255, Math.floor(r * factor)));
-    g = Math.max(0, Math.min(255, Math.floor(g * factor)));
-    b = Math.max(0, Math.min(255, Math.floor(b * factor)));
-
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  } catch (e) {
-    console.error("Error darkening color:", hex, e);
-    return hex;
-  }
 }

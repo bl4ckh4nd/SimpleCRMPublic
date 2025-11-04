@@ -1,4 +1,7 @@
 import { Customer } from './types';
+import { IPCChannels } from '@shared/ipc/channels';
+
+const isDevelopment = import.meta.env.DEV;
 
 /**
  * Customer Service - Handles communication with the SQLite database through Electron IPC
@@ -9,11 +12,17 @@ export const customerService = {
    */
   async getAllCustomers(includeCustomFields: boolean = false): Promise<Customer[]> {
     try {
-      console.log(`🔍 [Frontend] customerService.getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
-      console.log(`🔍 [Frontend] CustomerService call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+      if (isDevelopment) {
+        console.debug(`🔍 [Frontend] customerService.getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
+      }
       
-      const customers = await window.electronAPI.invoke('db:get-customers', includeCustomFields) as any[];
-      console.log(`🔍 [Frontend] customerService received ${customers.length} customers`);
+      const customers = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomers>(
+        IPCChannels.Db.GetCustomers,
+        includeCustomFields
+      ) as any[];
+      if (isDevelopment) {
+        console.debug(`🔍 [Frontend] customerService received ${customers.length} customers`);
+      }
       
       const result = customers.map((customer: any) => ({
         ...customer,
@@ -21,7 +30,9 @@ export const customerService = {
         zip: customer.zip || '' // Ensure zip is present and defaults to empty string
       }));
       
-      console.log(`🔍 [Frontend] customerService returning ${result.length} formatted customers`);
+      if (isDevelopment) {
+        console.debug(`🔍 [Frontend] customerService returning ${result.length} formatted customers`);
+      }
       return result;
     } catch (error) {
       console.error('Failed to fetch customers:', error);
@@ -34,13 +45,14 @@ export const customerService = {
    */
   async getCustomerById(customerId: number | string): Promise<Customer | null> {
     try {
-      const customer = await window.electronAPI.invoke('db:get-customer', Number(customerId));
-      console.log('[CS] Raw customer from IPC:', JSON.stringify(customer)); // Log raw data
+      const customer = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomer>(
+        IPCChannels.Db.GetCustomer,
+        Number(customerId)
+      );
       if (!customer) return null;
       
       // Use type assertion to tell TypeScript about the expected structure
       const customerData = customer as Partial<Customer>;
-      console.log('[CS] Customer data after cast:', JSON.stringify(customerData)); // Log cast data
       
       return {
         ...customerData,

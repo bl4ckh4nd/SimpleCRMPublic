@@ -1,4 +1,5 @@
 import type { Customer, Task } from './types';
+import { IPCChannels } from '@shared/ipc/channels';
 
 export interface DashboardStats {
   totalCustomers: number;
@@ -25,7 +26,9 @@ export const dashboardService = {
       if (!window.electronAPI) {
         throw new Error("Electron API not available for 'dashboard:get-stats'");
       }
-      const stats = await window.electronAPI.invoke('dashboard:get-stats');
+      const stats = await window.electronAPI.invoke<typeof IPCChannels.Dashboard.GetStats>(
+        IPCChannels.Dashboard.GetStats
+      );
       // Add any necessary mapping or default values here
       return stats as DashboardStats;
     } catch (error) {
@@ -48,7 +51,10 @@ export const dashboardService = {
       if (!window.electronAPI) {
         throw new Error("Electron API not available for 'dashboard:get-recent-customers'");
       }
-      const rawCustomers = await window.electronAPI.invoke('dashboard:get-recent-customers', limit) as any[];
+      const rawCustomers = await window.electronAPI.invoke<typeof IPCChannels.Dashboard.GetRecentCustomers>(
+        IPCChannels.Dashboard.GetRecentCustomers,
+        limit
+      ) as any[];
       // Add any necessary mapping here
       const customers: RecentCustomer[] = rawCustomers.map((c: any) => ({
         id: c.id,
@@ -68,7 +74,10 @@ export const dashboardService = {
       if (!window.electronAPI) {
         throw new Error("Electron API not available for 'dashboard:get-upcoming-tasks'");
       }
-      const rawTasks = await window.electronAPI.invoke('dashboard:get-upcoming-tasks', limit) as any[];
+      const rawTasks = await window.electronAPI.invoke<typeof IPCChannels.Dashboard.GetUpcomingTasks>(
+        IPCChannels.Dashboard.GetUpcomingTasks,
+        limit
+      ) as any[];
       // Add any necessary mapping here, e.g., fetching customer names
       const tasks: UpcomingTask[] = rawTasks.map((t: any) => ({
         id: t.id,

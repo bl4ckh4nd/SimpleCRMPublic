@@ -10,6 +10,7 @@ import { ProductCombobox } from "@/components/product-combobox";
 import { Trash2, PlusCircle } from "lucide-react";
 import { Deal, DealStage } from "@/types/deal";
 import { Product } from "@/types";
+import { IPCChannels } from '@shared/ipc/channels';
 
 interface DealProductLink extends Product {
   deal_product_id: number;
@@ -46,7 +47,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
-  const [priceAtTime, setPriceAtTime] = useState<number>(0);
+  const [price, setPrice] = useState<number>(0);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,7 +59,10 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
     setIsLoading(true);
     setError(null);
     try {
-      const fetched = await window.electronAPI.invoke<FetchedDealProduct[]>('deals:get-products', dealId);
+      const fetched = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetProducts>(
+        IPCChannels.Deals.GetProducts,
+        dealId
+      );
       const linkedProducts: DealProductLink[] = fetched.map((p: FetchedDealProduct) => ({
           ...p,
       }));
@@ -82,7 +86,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
       fetchDealProducts(deal.id);
       setSelectedProductId(null);
       setQuantity(1);
-      setPriceAtTime(0);
+      setPrice(0);
     } else {
       setDealProducts([]);
       setInitialDealProducts([]);
@@ -94,9 +98,12 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
       // Fetch product details to set price
       const fetchProductPrice = async () => {
         try {
-          const product = await window.electronAPI.invoke('products:get-by-id', Number(selectedProductId)) as Product;
+          const product = await window.electronAPI.invoke<typeof IPCChannels.Products.GetById>(
+            IPCChannels.Products.GetById,
+            Number(selectedProductId)
+          ) as Product;
           if (product) {
-            setPriceAtTime(product.price);
+            setPrice(product.price);
           }
         } catch (error) {
           console.error("Error fetching product details:", error);
@@ -104,7 +111,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
       };
       fetchProductPrice();
     } else {
-      setPriceAtTime(0);
+      setPrice(0);
     }
   }, [selectedProductId]);
 
@@ -115,7 +122,10 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
     }
     
     try {
-      const productToAdd = await window.electronAPI.invoke('products:get-by-id', Number(selectedProductId)) as Product;
+      const productToAdd = await window.electronAPI.invoke<typeof IPCChannels.Products.GetById>(
+        IPCChannels.Products.GetById,
+        Number(selectedProductId)
+      ) as Product;
       if (!productToAdd) {
         alert("Produkt konnte nicht gefunden werden.");
         return;
@@ -126,28 +136,29 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
     if (existingIndex !== -1) {
         const updatedProducts = [...dealProducts];
         updatedProducts[existingIndex].quantity += quantity;
+        updatedProducts[existingIndex].price_at_time_of_adding = price;
         setDealProducts(updatedProducts);
     } else {
         const newLink: DealProductLink = {
             ...productToAdd,
             deal_product_id: Date.now(),
             quantity: quantity,
-            price_at_time_of_adding: priceAtTime
+            price_at_time_of_adding: price
         };
         setDealProducts([...dealProducts, newLink]);
     }
 
       setSelectedProductId(null);
       setQuantity(1);
-      setPriceAtTime(0);
+      setPrice(0);
     } catch (error) {
       console.error("Error adding product:", error);
       alert("Fehler beim Hinzufügen des Produkts.");
     }
   };
 
-  const handleRemoveProduct = (productIdToRemove: number) => {
-    setDealProducts(dealProducts.filter(p => p.id !== productIdToRemove));
+  const handleRemoveProduct = (link: DealProductLink) => {
+    setDealProducts(dealProducts.filter(p => p.deal_product_id !== link.deal_product_id));
   };
 
   const handleSave = async () => {
@@ -172,37 +183,48 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
         throw new Error("Fehler beim Speichern der Deal-Details.");
       }
 
-      const productsToAdd = dealProducts.filter(dp => !initialDealProducts.some(idp => idp.id === dp.id));
-      const productsToRemove = initialDealProducts.filter(idp => !dealProducts.some(dp => dp.id === idp.id));
+      const productsToAdd = dealProducts.filter(dp => !initialDealProducts.some(idp => idp.deal_product_id === dp.deal_product_id));
+      const productsToRemove = initialDealProducts.filter(idp => !dealProducts.some(dp => dp.deal_product_id === idp.deal_product_id));
       const productsToUpdate = dealProducts.filter(dp => {
-          const initial = initialDealProducts.find(idp => idp.id === dp.id);
-          return initial && initial.quantity !== dp.quantity;
+          const initial = initialDealProducts.find(idp => idp.deal_product_id === dp.deal_product_id);
+          return initial && (initial.quantity !== dp.quantity || initial.price_at_time_of_adding !== dp.price_at_time_of_adding);
       });
 
       const promises: Promise<{ success: boolean; error?: string; [key: string]: any }>[] = [];
 
       productsToAdd.forEach(p => {
         console.log(`Adding product ${p.id} to deal ${deal.id}`);
-        promises.push(window.electronAPI.invoke('deals:add-product', {
+        promises.push(window.electronAPI.invoke<typeof IPCChannels.Deals.AddProduct>(
+          IPCChannels.Deals.AddProduct,
+          {
             dealId: deal.id,
             productId: p.id,
             quantity: p.quantity,
-            priceAtTime: p.price_at_time_of_adding
-        }));
+            price: p.price_at_time_of_adding
+          }
+        ));
       });
 
       productsToRemove.forEach(p => {
           console.log(`Removing product ${p.id} from deal ${deal.id}`);
-          promises.push(window.electronAPI.invoke('deals:remove-product', { dealId: deal.id, productId: p.id }));
+          promises.push(window.electronAPI.invoke<typeof IPCChannels.Deals.RemoveProduct>(
+            IPCChannels.Deals.RemoveProduct,
+            { dealProductId: p.deal_product_id, dealId: deal.id, productId: p.id }
+          ));
       });
 
        productsToUpdate.forEach(p => {
-          console.log(`Updating quantity for product ${p.id} in deal ${deal.id} to ${p.quantity}`);
-          promises.push(window.electronAPI.invoke('deals:update-product-quantity', {
+          console.log(`Updating quantity for product link ${p.deal_product_id} in deal ${deal.id} to ${p.quantity}`);
+          promises.push(window.electronAPI.invoke<typeof IPCChannels.Deals.UpdateProduct>(
+            IPCChannels.Deals.UpdateProduct,
+            {
+              dealProductId: p.deal_product_id,
+              quantity: p.quantity,
+              price: p.price_at_time_of_adding,
               dealId: deal.id,
-              productId: p.id,
-              newQuantity: p.quantity
-          }));
+              productId: p.id
+            }
+          ));
       });
 
       const results = await Promise.all(promises);
@@ -316,7 +338,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
                  </div>
                   <div className="grid gap-1.5 w-28">
                      <Label htmlFor="product-price">Preis (€)</Label>
-                     <Input id="product-price" type="number" step="0.01" value={priceAtTime} onChange={(e) => setPriceAtTime(Number(e.target.value) || 0)} disabled={isSaving || !selectedProductId}/>
+                     <Input id="product-price" type="number" step="0.01" value={price} onChange={(e) => setPrice(Number(e.target.value) || 0)} disabled={isSaving || !selectedProductId}/>
                  </div>
                  <Button onClick={handleAddProduct} disabled={isSaving || !selectedProductId} size="icon" variant="outline">
                      <PlusCircle className="h-4 w-4" />
@@ -344,7 +366,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
                                     <TableCell className="text-right">{p.quantity}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(p.price_at_time_of_adding)}</TableCell>
                                     <TableCell>
-                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveProduct(p.id)} disabled={isSaving} className="text-muted-foreground hover:text-destructive h-8 w-8">
+                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveProduct(p)} disabled={isSaving} className="text-muted-foreground hover:text-destructive h-8 w-8">
                                             <Trash2 className="h-4 w-4" />
                                             <span className="sr-only">Produkt entfernen</span>
                                          </Button>

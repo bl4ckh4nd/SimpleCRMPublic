@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ProductTable } from '@/components/product/product-table';
 import { CreateProductDialog } from '@/components/product/create-product-dialog';
 import { Product } from '@/types'; // Assuming Product type will be defined in src/types/index.ts
+import { IPCChannels } from '@shared/ipc/channels';
 
 
 export default function ProductsPage() {
@@ -19,7 +20,9 @@ export default function ProductsPage() {
     setError(null);
     try {
       console.log('Invoking products:get-all');
-      const fetchedProducts = await window.electronAPI.invoke<Product[]>('products:get-all');
+      const fetchedProducts = await window.electronAPI.invoke<typeof IPCChannels.Products.GetAll>(
+        IPCChannels.Products.GetAll
+      ) as Product[];
       console.log('Fetched products:', fetchedProducts);
       // Ensure isActive is boolean (it comes as 0/1 from SQLite)
       const mappedProducts = fetchedProducts.map((p) => ({

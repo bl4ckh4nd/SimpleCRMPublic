@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Check, ChevronsUpDown, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { IPCChannels } from '@shared/ipc/channels';
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -22,6 +23,7 @@ interface Product {
   name: string
   price: number
   description?: string
+  sku?: string
   productNumber?: string
 }
 
@@ -62,19 +64,49 @@ export function ProductCombobox({
       setLoading(true)
       try {
         console.log(`🔍 [ProductCombobox] Calling products:search with query: "${searchQuery}", limit: 50`);
-        const results = await window.electronAPI.invoke('products:search', searchQuery, 50) as Product[]
+        const results = await window.electronAPI.invoke(
+          IPCChannels.Products.Search,
+          searchQuery,
+          50
+        ) as Product[]
         console.log(`🔍 [ProductCombobox] Received ${results.length} products in ${Date.now() - startTime}ms`);
-        setProducts(results.filter(p => (p as any).isActive !== false))
+        const normalizedResults: Product[] = results
+          .filter((p) => (p as any).isActive !== false)
+          .map((p) => ({
+            id: p.id,
+            name: p.name ?? 'Unbenanntes Produkt',
+            price: typeof p.price === 'number' ? p.price : Number(p.price) || 0,
+            description: p.description,
+            sku: p.sku ?? undefined,
+            productNumber: (p as any).productNumber ?? p.sku ?? undefined,
+          }))
+        setProducts(normalizedResults)
       } catch (error) {
         console.error('🚨 [ProductCombobox] Failed to search products:', error)
         // Fallback to get-all if search doesn't exist
         try {
           console.log(`🔍 [ProductCombobox] Falling back to products:get-all`);
-          const allProducts = await window.electronAPI.invoke('products:get-all') as Product[]
-          const filteredProducts = allProducts
+          const allProducts = await window.electronAPI.invoke(IPCChannels.Products.GetAll) as Product[]
+          const normalizedQuery = searchQuery.toLowerCase();
+          const filteredProducts: Product[] = allProducts
             .filter(p => (p as any).isActive !== false)
-            .filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+            .filter((p) => {
+              if (!searchQuery) {
+                return true
+              }
+              const lowerName = (p.name ?? '').toLowerCase()
+              const lowerSku = (p.sku ?? '').toLowerCase()
+              return lowerName.includes(normalizedQuery) || lowerSku.includes(normalizedQuery)
+            })
             .slice(0, 50)
+            .map((p) => ({
+              id: p.id,
+              name: p.name ?? 'Unbenanntes Produkt',
+              price: typeof p.price === 'number' ? p.price : Number(p.price) || 0,
+              description: p.description,
+              sku: p.sku ?? undefined,
+              productNumber: (p as any).productNumber ?? p.sku ?? undefined,
+            }))
           console.log(`🔍 [ProductCombobox] Fallback: Received ${filteredProducts.length} products`);
           setProducts(filteredProducts)
         } catch (fallbackError) {
@@ -107,7 +139,10 @@ export function ProductCombobox({
         const startTime = Date.now();
         try {
           console.log(`🔍 [ProductCombobox] Calling products:get-by-id for ID: ${value}`);
-          const product = await window.electronAPI.invoke('products:get-by-id', value) as any
+          const product = await window.electronAPI.invoke<typeof IPCChannels.Products.GetById>(
+            IPCChannels.Products.GetById,
+            value
+          ) as any
           console.log(`🔍 [ProductCombobox] Received product details in ${Date.now() - startTime}ms:`, product ? product.name : 'null');
           
           if (product) {
@@ -116,7 +151,8 @@ export function ProductCombobox({
               name: product.name,
               price: product.price || 0,
               description: product.description,
-              productNumber: product.productNumber
+              sku: product.sku ?? product.productNumber ?? undefined,
+              productNumber: product.productNumber ?? product.sku ?? undefined,
             })
           }
         } catch (error) {
@@ -191,7 +227,7 @@ export function ProductCombobox({
                       <div className="font-medium truncate">{product.name}</div>
                       <div className="text-xs text-muted-foreground truncate">
                         {formatCurrency(product.price)}
-                        {product.productNumber && ` • Nr: ${product.productNumber}`}
+                        {(product.sku ?? product.productNumber) && ` • Nr: ${product.sku ?? product.productNumber}`}
                       </div>
                     </div>
                   </CommandItem>

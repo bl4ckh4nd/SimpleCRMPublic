@@ -10,6 +10,7 @@ import {
   Phone,
   Building,
   Calendar,
+  CalendarDays,
   Clock,
   Loader2,
   Copy, // Added Copy
@@ -35,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea"; // Added Textarea
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Added Table components
 import type { Customer, Deal, Task } from "@/services/data/types" // Updated import
+import { TASK_EVENT_COMPLETED_COLOR, TASK_EVENT_DEFAULT_COLOR } from "@/services/data/calendarService"
 import { CustomFieldsForm } from "@/components/custom-fields-form";
 // Import the specific route definition
 import { customerDetailRoute } from "@/router"
@@ -649,7 +651,31 @@ export default function CustomerDetailPage() {
                                   {task.completed ? 'Completed' : 'Pending'}
                                 </Badge>
                               </TableCell>
-                              <TableCell>{task.due_date ? formatDate(task.due_date) : '-'}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span>{task.due_date ? formatDate(task.due_date) : '-'}</span>
+                                  {task.calendar_event_id && (
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8"
+                                      title="Im Kalender anzeigen"
+                                      aria-label="Im Kalender anzeigen"
+                                      disabled={!task.due_date}
+                                      onClick={() => {
+                                        if (!task.due_date) return
+                                        navigate({ to: "/calendar", search: { date: task.due_date } });
+                                      }}
+                                    >
+                                      <CalendarDays
+                                        className="h-4 w-4"
+                                        style={{ color: task.completed ? TASK_EVENT_COMPLETED_COLOR : TASK_EVENT_DEFAULT_COLOR }}
+                                      />
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell>{'-'}</TableCell>
                             </TableRow>
                           ))}

@@ -104,6 +104,7 @@ export interface Task {
     completed: boolean | number;
     created_date?: string;
     last_modified?: string;
+    calendar_event_id?: number | null;
 }
 
 // Define the DataService interface based on usage in localDataService

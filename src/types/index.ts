@@ -72,6 +72,7 @@ export interface CalendarEvent {
   recurrence_rule?: RecurrenceRule | string | null;
   created_at?: string;
   updated_at?: string;
+  task_id?: number | null;
 }
 
 export interface CalendarRBCEvent {
@@ -86,6 +87,7 @@ export interface CalendarRBCEvent {
   recurrence_rule?: RecurrenceRule | string | null;
   created_at?: string;
   updated_at?: string;
+  task_id?: number | null;
 }
 
 // Utility types for Calendar

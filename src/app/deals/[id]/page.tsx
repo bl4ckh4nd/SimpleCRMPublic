@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
+import { IPCChannels } from '@shared/ipc/channels';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added for CustomerDetails
 import { ProductCombobox } from "@/components/product-combobox";
@@ -93,10 +94,16 @@ export default function DealDetailPage() {
       setCustomerForOrder(null);
       try {
         if (window.electronAPI?.invoke) {
-          const dealData = await window.electronAPI.invoke<Deal | null>('deals:get-by-id', dealId);
+          const dealData = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetById>(
+            IPCChannels.Deals.GetById,
+            dealId
+          ) as Deal | null;
           setDeal(dealData);
           if (dealData?.customer_id) {
-            const customerData = await window.electronAPI.invoke<Customer | null>('db:get-customer', dealData.customer_id);
+            const customerData = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomer>(
+              IPCChannels.Db.GetCustomer,
+              dealData.customer_id
+            ) as Customer | null;
             setCustomerForOrder(customerData);
           }
         } else {
@@ -152,10 +159,10 @@ export default function DealDetailPage() {
       setIsLoadingJtlData(true);
       try {
         const [firmen, warenlager, zahlungsarten, versandarten] = await Promise.all([
-          window.electronAPI.invoke<JtlFirma[]>('jtl:get-firmen'),
-          window.electronAPI.invoke<JtlWarenlager[]>('jtl:get-warenlager'),
-          window.electronAPI.invoke<JtlZahlungsart[]>('jtl:get-zahlungsarten'),
-          window.electronAPI.invoke<JtlVersandart[]>('jtl:get-versandarten'),
+          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetFirmen>(IPCChannels.Jtl.GetFirmen) as Promise<JtlFirma[]>,
+          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetWarenlager>(IPCChannels.Jtl.GetWarenlager) as Promise<JtlWarenlager[]>,
+          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetZahlungsarten>(IPCChannels.Jtl.GetZahlungsarten) as Promise<JtlZahlungsart[]>,
+          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetVersandarten>(IPCChannels.Jtl.GetVersandarten) as Promise<JtlVersandart[]>,
         ]);
         setJtlFirmen(firmen || []);
         setJtlWarenlager(warenlager || []);
@@ -179,16 +186,19 @@ export default function DealDetailPage() {
       if (!window.electronAPI?.invoke) {
         throw new Error("API not available for saving.");
       }
-      const result = await window.electronAPI.invoke<{ success: boolean; error?: string }>(
-        'deals:update',
+      const result = await window.electronAPI.invoke<typeof IPCChannels.Deals.Update>(
+        IPCChannels.Deals.Update,
         { id: dealId, dealData: updatedDealData }
-      );
+      ) as { success: boolean; error?: string };
       if (result.success) {
         // Define type for service response; Deal is imported from "@/types/deal"
         // This type represents the object structure returned by 'deals:get-by-id'
         type DealResponseFromService = Omit<Deal, 'customer'> & { customer_name: string };
 
-        const response = await window.electronAPI.invoke<DealResponseFromService | null>('deals:get-by-id', dealId);
+        const response = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetById>(
+          IPCChannels.Deals.GetById,
+          dealId
+        ) as DealResponseFromService | null;
         if (response) {
           const { customer_name, ...baseDealData } = response;
           // Construct the deal object for state:
@@ -321,7 +331,10 @@ export default function DealDetailPage() {
     try {
       if (!window.electronAPI?.invoke) throw new Error("Electron API not available");
       // Explicitly type the result of the invoke call
-      const result = await window.electronAPI.invoke<JtlOrderCreationResponse>('jtl:create-order', orderInput);
+      const result = await window.electronAPI.invoke<typeof IPCChannels.Jtl.CreateOrder>(
+        IPCChannels.Jtl.CreateOrder,
+        orderInput
+      ) as JtlOrderCreationResponse;
 
       if (result.success) {
         toast({ title: "Erfolg", description: `JTL Auftrag ${result.jtlOrderNumber ? result.jtlOrderNumber : ''} erfolgreich erstellt.` });
@@ -856,4 +869,3 @@ export default function DealDetailPage() {
       </Dialog>
     );
   }
-

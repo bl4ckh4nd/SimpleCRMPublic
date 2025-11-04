@@ -1,4 +1,5 @@
 import { CustomField, CustomFieldValue, CustomFieldOption } from './types';
+import { IPCChannels } from '@shared/ipc/channels';
 
 // Define interfaces for IPC responses
 interface SuccessResponse {
@@ -19,7 +20,9 @@ export const customFieldService = {
    */
   async getAllCustomFields(): Promise<CustomField[]> {
     try {
-      const fields = await window.electronAPI.invoke('custom-fields:get-all') as CustomField[];
+      const fields = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.GetAll>(
+        IPCChannels.CustomFields.GetAll
+      ) as CustomField[];
       return fields.map(field => ({
         ...field,
         required: Boolean(field.required),
@@ -39,7 +42,9 @@ export const customFieldService = {
       console.log(`🔍 [Frontend] customFieldService.getActiveCustomFields() called`);
       console.log(`🔍 [Frontend] CustomFieldService call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
       
-      const fields = await window.electronAPI.invoke('custom-fields:get-active') as CustomField[];
+      const fields = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.GetActive>(
+        IPCChannels.CustomFields.GetActive
+      ) as CustomField[];
       console.log(`🔍 [Frontend] customFieldService received ${fields.length} active fields`);
       
       const result = fields.map(field => ({
@@ -61,7 +66,10 @@ export const customFieldService = {
    */
   async getCustomFieldById(fieldId: number): Promise<CustomField | null> {
     try {
-      const field = await window.electronAPI.invoke('custom-fields:get-by-id', fieldId) as CustomField;
+      const field = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.GetById>(
+        IPCChannels.CustomFields.GetById,
+        fieldId
+      ) as CustomField;
       if (!field) return null;
 
       return {
@@ -80,7 +88,10 @@ export const customFieldService = {
    */
   async createCustomField(fieldData: Omit<CustomField, 'id' | 'created_at' | 'updated_at'>): Promise<CustomField | null> {
     try {
-      const result = await window.electronAPI.invoke('custom-fields:create', fieldData) as CustomFieldResponse;
+      const result = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.Create>(
+        IPCChannels.CustomFields.Create,
+        fieldData
+      ) as CustomFieldResponse;
       if (result.success) {
         return result.field;
       }
@@ -96,7 +107,10 @@ export const customFieldService = {
    */
   async updateCustomField(fieldId: number, fieldData: Partial<CustomField>): Promise<CustomField | null> {
     try {
-      const result = await window.electronAPI.invoke('custom-fields:update', { id: fieldId, fieldData }) as CustomFieldResponse;
+      const result = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.Update>(
+        IPCChannels.CustomFields.Update,
+        { id: fieldId, fieldData }
+      ) as CustomFieldResponse;
       if (result.success) {
         return result.field;
       }
@@ -112,7 +126,10 @@ export const customFieldService = {
    */
   async deleteCustomField(fieldId: number): Promise<boolean> {
     try {
-      const result = await window.electronAPI.invoke('custom-fields:delete', fieldId) as SuccessResponse;
+      const result = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.Delete>(
+        IPCChannels.CustomFields.Delete,
+        fieldId
+      ) as SuccessResponse;
       return result.success;
     } catch (error) {
       console.error(`Failed to delete custom field with ID ${fieldId}:`, error);
@@ -125,7 +142,10 @@ export const customFieldService = {
    */
   async getCustomFieldValuesForCustomer(customerId: number): Promise<CustomFieldValue[]> {
     try {
-      const values = await window.electronAPI.invoke('custom-fields:get-values-for-customer', customerId) as CustomFieldValue[];
+      const values = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.GetValuesForCustomer>(
+        IPCChannels.CustomFields.GetValuesForCustomer,
+        customerId
+      ) as CustomFieldValue[];
       return values;
     } catch (error) {
       console.error(`Failed to fetch custom field values for customer ${customerId}:`, error);
@@ -138,7 +158,10 @@ export const customFieldService = {
    */
   async setCustomFieldValue(customerId: number, fieldId: number, value: any): Promise<boolean> {
     try {
-      const result = await window.electronAPI.invoke('custom-fields:set-value', { customerId, fieldId, value }) as SuccessResponse;
+      const result = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.SetValue>(
+        IPCChannels.CustomFields.SetValue,
+        { customerId, fieldId, value }
+      ) as SuccessResponse;
       return result.success;
     } catch (error) {
       console.error(`Failed to set custom field value for customer ${customerId}, field ${fieldId}:`, error);
@@ -151,7 +174,10 @@ export const customFieldService = {
    */
   async deleteCustomFieldValue(customerId: number, fieldId: number): Promise<boolean> {
     try {
-      const result = await window.electronAPI.invoke('custom-fields:delete-value', { customerId, fieldId }) as SuccessResponse;
+      const result = await window.electronAPI.invoke<typeof IPCChannels.CustomFields.DeleteValue>(
+        IPCChannels.CustomFields.DeleteValue,
+        { customerId, fieldId }
+      ) as SuccessResponse;
       return result.success;
     } catch (error) {
       console.error(`Failed to delete custom field value for customer ${customerId}, field ${fieldId}:`, error);

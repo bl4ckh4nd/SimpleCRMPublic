@@ -1,8 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, Fragment } from "react"
-import { ChevronDown, Plus, Search, SlidersHorizontal } from "lucide-react"
-import { Link } from "@tanstack/react-router"
+import { CalendarDays, ChevronDown, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react"
+import { Link, useNavigate } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,9 +23,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
+import { ToastAction } from "@/components/ui/toast"
 import ExportButton from "@/components/export-button"
-import { CustomerCombobox } from "@/components/customer-combobox"
+import { CustomerCombobox, type CustomerOption } from "@/components/customer-combobox"
 import { taskService } from "@/services/data/taskService"
+import { calendarService, TASK_EVENT_DEFAULT_COLOR, TASK_EVENT_COMPLETED_COLOR } from "@/services/data/calendarService"
 import { useToast } from "@/components/ui/use-toast"
 import { Task } from "@/services/data/types"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
@@ -39,6 +42,7 @@ interface TaskData {
   due_date: string;
   priority: string;
   completed: boolean;
+  calendar_event_id: number | null;
 }
 
 // Front-end display object with customer name
@@ -47,12 +51,24 @@ interface TaskDisplay extends TaskData {
   customer_name: string;
 }
 
+const createEmptyTask = (): Omit<TaskData, 'id'> => ({
+  customer_id: 0,
+  title: "",
+  description: "",
+  due_date: "",
+  priority: "Medium",
+  completed: false,
+  calendar_event_id: null,
+});
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<TaskDisplay[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -65,14 +81,49 @@ export default function TasksPage() {
   
   const { toast } = useToast()
 
-  const [newTask, setNewTask] = useState<Omit<TaskData, 'id'>>({
-    customer_id: 0,
-    title: "",
-    description: "",
-    due_date: "",
-    priority: "Medium",
-    completed: false
-  })
+  const [newTask, setNewTask] = useState<Omit<TaskData, 'id'>>(createEmptyTask())
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
+  const [addToCalendar, setAddToCalendar] = useState(false)
+  const [calendarToggleTouched, setCalendarToggleTouched] = useState(false)
+  const [selectedCustomerName, setSelectedCustomerName] = useState<string | null>(null)
+  const [taskMarkedForDelete, setTaskMarkedForDelete] = useState<TaskDisplay | null>(null)
+
+  const navigate = useNavigate()
+
+  const handleDueDateChange = (value: string) => {
+    setNewTask((prev) => ({ ...prev, due_date: value }))
+    if (!value) {
+      setAddToCalendar(false)
+      setCalendarToggleTouched(false)
+    } else if (!calendarToggleTouched) {
+      setAddToCalendar(true)
+    }
+  }
+
+  const handleCustomerValueChange = (value: string) => {
+    setNewTask((prev) => ({ ...prev, customer_id: Number(value) }))
+  }
+
+  const handleCustomerSelect = (customer: CustomerOption | null) => {
+    setSelectedCustomerName(customer?.name ?? null)
+  }
+
+  const formatDueDateForDisplay = (value: string) => {
+    if (!value) return "Kein Fälligkeitsdatum"
+
+    const [year, month, day] = value.split("-").map(Number)
+    let date: Date
+
+    if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+      date = new Date(year, month - 1, day)
+    } else {
+      date = new Date(value)
+    }
+
+    if (Number.isNaN(date.getTime())) return "Kein Fälligkeitsdatum"
+
+    return date.toLocaleDateString()
+  }
 
   // Load tasks from database
   useEffect(() => {
@@ -99,16 +150,27 @@ export default function TasksPage() {
       const result = await taskService.getAllTasks(limit, offset, filter)
       
       // Map backend data to frontend display format
-      const displayTasks = result.map(task => ({
-        id: Number(task.id),
-        customer_id: Number(task.customer_id),
-        title: task.title,
-        description: task.description || '',
-        due_date: task.due_date,
-        priority: task.priority,
-        completed: Boolean(task.completed),
-        customer_name: task.customer_name || 'Unknown Customer'
-      }))
+      const displayTasks = result.map(task => {
+        const calendarEventId =
+          task.calendar_event_id === null || task.calendar_event_id === undefined
+            ? null
+            : Number(task.calendar_event_id)
+
+        const normalizedCalendarEventId =
+          calendarEventId !== null && !Number.isNaN(calendarEventId) ? calendarEventId : null
+
+        return {
+          id: Number(task.id),
+          customer_id: Number(task.customer_id),
+          title: task.title,
+          description: task.description || '',
+          due_date: task.due_date || '',
+          priority: task.priority,
+          completed: Boolean(task.completed),
+          calendar_event_id: normalizedCalendarEventId,
+          customer_name: task.customer_name || 'Unknown Customer'
+        }
+      })
       
       setTasks(displayTasks)
       // TODO: In a real app, we would need a count endpoint to get the total
@@ -127,74 +189,190 @@ export default function TasksPage() {
   }
 
   const handleAddTask = async () => {
-    if (!newTask.title || !newTask.customer_id || !newTask.due_date) {
+    if (isSubmitting) return
+
+    const trimmedTitle = newTask.title.trim()
+    const trimmedDescription = newTask.description?.trim() ?? ""
+
+    if (!trimmedTitle) {
       toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
+        title: "Validierungsfehler",
+        description: "Bitte geben Sie einen Aufgabentitel ein.",
         variant: "destructive"
       })
       return
     }
 
+    if (!newTask.customer_id) {
+      toast({
+        title: "Validierungsfehler",
+        description: "Bitte wählen Sie einen Kunden aus.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (addToCalendar && !newTask.due_date) {
+      toast({
+        title: "Validierungsfehler",
+        description: "Um die Aufgabe in den Kalender zu übernehmen, muss ein Fälligkeitsdatum festgelegt werden.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    const payload = {
+      ...newTask,
+      title: trimmedTitle,
+      description: trimmedDescription,
+      calendar_event_id: null,
+    }
+
     try {
-      const result = await taskService.createTask(newTask)
-      
+      const result = await taskService.createTask(payload)
+
       if (result.success) {
-        toast({
-          title: "Success",
-          description: "Task created successfully",
-        })
+        const dueDateSnapshot = newTask.due_date
+        const customerNameSnapshot = selectedCustomerName
+        const taskId = typeof result.id === 'number' ? result.id : null
+        let calendarEventCreated = false
+        let calendarError: Error | null = null
+
+        if (addToCalendar && dueDateSnapshot) {
+          try {
+            const calendarResult = await calendarService.addTaskEvent({
+              title: trimmedTitle,
+              description: trimmedDescription || undefined,
+              dueDate: dueDateSnapshot,
+              customerName: customerNameSnapshot || undefined,
+            })
+            if (typeof calendarResult.id !== 'number') {
+              throw new Error("Kalenderereignis wurde erstellt, aber es wurde keine Ereignis-ID zurückgegeben.")
+            }
+
+            if (taskId !== null) {
+              const updateResponse = await taskService.updateTask(taskId, { calendar_event_id: calendarResult.id })
+              if (!updateResponse.success) {
+                throw new Error(updateResponse.error || "Kalender-ID konnte nicht der Aufgabe zugeordnet werden.")
+              }
+            }
+
+            calendarEventCreated = true
+          } catch (error) {
+            calendarError = error instanceof Error ? error : new Error("Kalendereintrag fehlgeschlagen")
+            console.error("Kalendereintrag konnte nicht erstellt werden:", error)
+          }
+        }
+
+        const actionButton = dueDateSnapshot
+          ? (
+            <ToastAction
+              altText="Kalender öffnen"
+              onClick={() => navigate({ to: "/calendar", search: { date: dueDateSnapshot } })}
+            >
+              Kalender öffnen
+            </ToastAction>
+          )
+          : undefined
+
+        if (calendarError) {
+          toast({
+            title: "Aufgabe gespeichert",
+            description: "Die Aufgabe wurde gespeichert, der Kalendereintrag konnte jedoch nicht erstellt werden.",
+            variant: "destructive",
+            action: actionButton,
+          })
+        } else {
+          toast({
+            title: calendarEventCreated ? "Aufgabe geplant" : "Aufgabe gespeichert",
+            description: calendarEventCreated
+              ? "Die Aufgabe wurde gespeichert und dem Kalender hinzugefügt."
+              : "Die Aufgabe wurde gespeichert.",
+            action: calendarEventCreated ? actionButton : undefined,
+          })
+        }
+
         setIsAddTaskOpen(false)
-        // Reset form
-        setNewTask({
-          customer_id: 0,
-          title: "",
-          description: "",
-          due_date: "",
-          priority: "Medium",
-          completed: false
-        })
-        // Refresh task list
+        setNewTask(createEmptyTask())
+        setAddToCalendar(false)
+        setCalendarToggleTouched(false)
+        setSelectedCustomerName(null)
         loadTasks()
       } else {
         toast({
-          title: "Error",
-          description: result.error || "Failed to create task",
+          title: "Fehler",
+          description: result.error || "Aufgabe konnte nicht erstellt werden.",
           variant: "destructive"
         })
       }
     } catch (error) {
+      console.error("Aufgabe konnte nicht erstellt werden:", error)
       toast({
-        title: "Error",
-        description: "An unexpected error occurred",
+        title: "Fehler",
+        description: "Es ist ein unerwarteter Fehler aufgetreten.",
         variant: "destructive"
       })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const toggleTaskCompletion = async (id: number) => {
+    const task = tasks.find(t => t.id === id)
+    if (!task) return
+
+    const nextCompleted = !task.completed
+
     try {
-      const task = tasks.find(t => t.id === id)
-      if (!task) return
-      
-      const result = await taskService.toggleTaskCompletion(id, !task.completed)
-      
-      if (result.success) {
-        // Update the local state to reflect the change
-        setTasks(tasks.map(task => 
-          task.id === id ? { ...task, completed: !task.completed } : task
-        ))
-      } else {
+      const result = await taskService.toggleTaskCompletion(id, nextCompleted)
+
+      if (!result.success) {
         toast({
-          title: "Error",
-          description: result.error || "Failed to update task",
+          title: "Fehler",
+          description: result.error || "Aufgabe konnte nicht aktualisiert werden.",
           variant: "destructive"
         })
+        return
+      }
+
+      setTasks(prev => prev.map(t =>
+        t.id === id ? { ...t, completed: nextCompleted } : t
+      ))
+
+      if (task.calendar_event_id) {
+        try {
+          await calendarService.updateTaskEvent(task.calendar_event_id, {
+            completed: nextCompleted,
+          })
+        } catch (calendarError) {
+          console.error("Kalenderereignis konnte nicht aktualisiert werden:", calendarError)
+          const message = calendarError instanceof Error ? calendarError.message : String(calendarError)
+          toast({
+            title: "Kalender nicht erreichbar",
+            description: "Der Kalendereintrag konnte nicht aktualisiert werden.",
+            variant: "destructive",
+          })
+
+          const shouldUnlink = /nicht gefunden|not found|no such/i.test(message)
+          if (shouldUnlink) {
+            try {
+              await taskService.updateTask(id, { calendar_event_id: null })
+              setTasks(prev => prev.map(t =>
+                t.id === id ? { ...t, calendar_event_id: null } : t
+              ))
+            } catch (unlinkError) {
+              console.error("Kalender-Verknüpfung konnte nicht entfernt werden:", unlinkError)
+            }
+          }
+        }
       }
     } catch (error) {
+      console.error("Aufgabe konnte nicht aktualisiert werden:", error)
       toast({
-        title: "Error",
-        description: "An unexpected error occurred",
+        title: "Fehler",
+        description: "Beim Aktualisieren der Aufgabe ist ein unerwarteter Fehler aufgetreten.",
         variant: "destructive"
       })
     }
@@ -305,8 +483,9 @@ export default function TasksPage() {
                   <div className="grid gap-2">
                     <Label htmlFor="customer_id">Kunde</Label>
                     <CustomerCombobox
-                      value={newTask.customer_id}
-                      onValueChange={(value) => setNewTask({ ...newTask, customer_id: Number(value) })}
+                      value={newTask.customer_id || undefined}
+                      onValueChange={handleCustomerValueChange}
+                      onCustomerSelect={handleCustomerSelect}
                       placeholder="Kunde auswählen..."
                     />
                   </div>
@@ -316,7 +495,27 @@ export default function TasksPage() {
                       id="due_date"
                       type="date"
                       value={newTask.due_date}
-                      onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                      onChange={(e) => handleDueDateChange(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Aufgaben mit Fälligkeitsdatum erscheinen als ganztägiger Eintrag im Kalender.
+                    </p>
+                  </div>
+                  <div className="flex items-start justify-between gap-4 rounded-md border border-input bg-muted/20 px-3 py-2">
+                    <div>
+                      <Label htmlFor="add-to-calendar" className="font-medium leading-none">In Kalender eintragen</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Aktivieren Sie diese Option, um die Aufgabe automatisch im Kalender zu planen.
+                      </p>
+                    </div>
+                    <Switch
+                      id="add-to-calendar"
+                      checked={addToCalendar}
+                      onCheckedChange={(checked) => {
+                        setAddToCalendar(checked)
+                        setCalendarToggleTouched(true)
+                      }}
+                      disabled={!newTask.due_date}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -337,10 +536,12 @@ export default function TasksPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddTaskOpen(false)}>
+                  <Button variant="outline" onClick={() => setIsAddTaskOpen(false)} disabled={isSubmitting}>
                     Abbrechen
                   </Button>
-                  <Button onClick={handleAddTask}>Aufgabe hinzufügen</Button>
+                  <Button onClick={handleAddTask} disabled={isSubmitting}>
+                    {isSubmitting ? "Speichere..." : "Aufgabe hinzufügen"}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -409,7 +610,31 @@ export default function TasksPage() {
                           </Link>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {new Date(task.due_date).toLocaleDateString()}
+                          <div className="flex items-center gap-2">
+                            <span>{formatDueDateForDisplay(task.due_date)}</span>
+                            {task.calendar_event_id && (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                title="Im Kalender anzeigen"
+                                aria-label="Im Kalender anzeigen"
+                                disabled={!task.due_date}
+                                onClick={() => {
+                                  const search = task.due_date
+                                    ? { date: task.due_date }
+                                    : {};
+                                  navigate({ to: "/calendar", search });
+                                }}
+                              >
+                                <CalendarDays
+                                  className="h-4 w-4"
+                                  style={{ color: task.completed ? TASK_EVENT_COMPLETED_COLOR : TASK_EVENT_DEFAULT_COLOR }}
+                                />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -486,5 +711,3 @@ export default function TasksPage() {
     </main>
   )
 }
-
-

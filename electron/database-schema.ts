@@ -93,9 +93,10 @@ export const createCalendarEventsTable = `
     color_code TEXT,
     event_type TEXT,
     recurrence_rule TEXT,     -- Storing recurrence as JSON string
+    task_id INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    -- user_id TEXT -- Removed user_id as it's local now
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES ${TASKS_TABLE}(id) ON DELETE SET NULL
   );
 `;
 
@@ -123,12 +124,14 @@ export const createTasksTable = `
     customer_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    due_date TEXT NOT NULL,
+    due_date TEXT,
     priority TEXT NOT NULL,
     completed INTEGER NOT NULL DEFAULT 0,
+    calendar_event_id INTEGER,
     created_date TEXT DEFAULT CURRENT_TIMESTAMP,
     last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE,
+    FOREIGN KEY (calendar_event_id) REFERENCES ${CALENDAR_EVENTS_TABLE}(id) ON DELETE SET NULL
   );
 `;
 

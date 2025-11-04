@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { ProductForm } from "./product-form"
 import { Product } from "@/types"
+import { IPCChannels } from '@shared/ipc/channels';
 
 interface EditProductDialogProps {
   product: Product | null;
@@ -37,7 +38,10 @@ export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpda
         sku: values.sku || null,
         description: values.description || null,
       };
-      const result = await window.electronAPI.invoke('products:update', { id: product.id, productData: dataToSend }) as { success: boolean, error?: string };
+      const result = await window.electronAPI.invoke<typeof IPCChannels.Products.Update>(
+        IPCChannels.Products.Update,
+        { id: product.id, productData: dataToSend }
+      ) as { success: boolean, error?: string };
       console.log('Update result:', result);
       if (result.success) {
         onProductUpdated(); // Call callback to refetch

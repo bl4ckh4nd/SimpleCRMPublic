@@ -5,6 +5,7 @@ import { Product } from "@/types"
 import { DataTable } from "@/components/ui/data-table" // Assuming generic DataTable exists
 import { columns } from "./product-columns"
 import { EditProductDialog } from "./edit-product-dialog" // Import Edit dialog
+import { IPCChannels } from '@shared/ipc/channels';
 
 interface ProductTableProps {
   data: Product[];
@@ -26,7 +27,10 @@ export function ProductTable({ data, onProductUpdated, onProductDeleted }: Produ
   const handleDelete = async (productId: number) => {
     try {
       console.log(`Invoking products:delete for ID: ${productId}`);
-      const result = await window.electronAPI.invoke('products:delete', productId) as { success: boolean, error?: string };
+      const result = await window.electronAPI.invoke<typeof IPCChannels.Products.Delete>(
+        IPCChannels.Products.Delete,
+        productId
+      ) as { success: boolean, error?: string };
       console.log('Delete result:', result);
       if (result.success) {
         onProductDeleted(); // Trigger refetch via callback
@@ -49,7 +53,13 @@ export function ProductTable({ data, onProductUpdated, onProductDeleted }: Produ
 
   return (
     <div className="space-y-4">
-      <DataTable columns={columns} data={data} meta={meta} /> 
+      <DataTable
+        columns={columns}
+        data={data}
+        meta={meta}
+        searchKeys={['name', 'sku', 'description']}
+        searchPlaceholder='Suche nach Name, Artikel-Nr. oder Beschreibung...'
+      />
       {/* Render Edit Dialog */} 
       {selectedProduct && (
         <EditProductDialog
