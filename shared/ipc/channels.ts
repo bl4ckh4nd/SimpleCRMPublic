@@ -4,6 +4,12 @@ const WindowChannels = literal({
   GetState: 'window:get-state',
 });
 
+const UpdateChannels = literal({
+  CheckForUpdates: 'app:check-for-updates',
+  InstallUpdate: 'app:install-update',
+  GetStatus: 'app:get-update-status',
+});
+
 // DB related invoke channels
 const DbChannels = literal({
   GetCustomers: 'db:get-customers',
@@ -97,6 +103,7 @@ const CustomFieldChannels = literal({
 
 export const IPCChannels = {
   Window: WindowChannels,
+  Update: UpdateChannels,
   Db: DbChannels,
   Calendar: CalendarChannels,
   Products: ProductChannels,
@@ -112,6 +119,7 @@ export const IPCChannels = {
 // Flattened invoke list for preload allow-listing
 export const AllowedInvokeChannels = tuple(
   ...Object.values(IPCChannels.Window),
+  ...Object.values(IPCChannels.Update),
   ...Object.values(IPCChannels.Db),
   ...Object.values(IPCChannels.Calendar),
   ...Object.values(IPCChannels.Products),

@@ -20,6 +20,12 @@ interface WindowState {
   isFullScreen: boolean;
 }
 
+interface UpdateStatus {
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  info?: unknown;
+  error?: string;
+}
+
 // Augment the Window interface
 declare global {
     interface Window {
@@ -30,6 +36,13 @@ declare global {
             close: () => void;
             getWindowState?: () => Promise<WindowState>;
             onWindowStateChange?: (callback: (state: WindowState) => void) => () => void;
+            updates?: {
+              checkForUpdates: () => Promise<unknown>;
+              getStatus: () => Promise<UpdateStatus>;
+              installUpdate: () => Promise<unknown>;
+              onStatusChange: (callback: (status: UpdateStatus) => void) => () => void;
+              onDownloadProgress: (callback: (progress: unknown) => void) => () => void;
+            };
         };
     }
 }

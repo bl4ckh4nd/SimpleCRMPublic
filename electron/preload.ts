@@ -27,7 +27,26 @@ contextBridge.exposeInMainWorld('electron', {
       }
       console.error(`IPC invoke blocked for channel: ${channel}`);
       return Promise.reject(new Error(`IPC invoke blocked for channel: ${channel}`));
-    }
+    },
+  },
+  updates: {
+    checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
+    getStatus: () => ipcRenderer.invoke('app:get-update-status'),
+    installUpdate: () => ipcRenderer.invoke('app:install-update'),
+    onStatusChange: (callback: (status: any) => void) => {
+      const listener = (_event: IpcRendererEvent, status: any) => callback(status);
+      ipcRenderer.on('update:status', listener);
+      return () => {
+        ipcRenderer.removeListener('update:status', listener);
+      };
+    },
+    onDownloadProgress: (callback: (progress: any) => void) => {
+      const listener = (_event: IpcRendererEvent, progress: any) => callback(progress);
+      ipcRenderer.on('update:download-progress', listener);
+      return () => {
+        ipcRenderer.removeListener('update:download-progress', listener);
+      };
+    },
   }
 });
 
@@ -62,6 +81,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         'load-data-reply',
         'sync:status-update', // Add sync status channel
         'window-state-changed',
+        'update:status',
+        'update:download-progress',
     ];
     if (validChannels.includes(channel)) {
       const listener = (event: IpcRendererEvent, ...args: any[]) => func(...args);

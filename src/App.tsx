@@ -6,6 +6,7 @@ import { Outlet } from '@tanstack/react-router';
 import { ThemeProvider } from "next-themes"; // Import from next-themes
 import Titlebar from '@/components/ui/titlebar'; // Import Titlebar
 import { MainNav } from '@/components/main-nav'; // Import MainNav
+import { UpdateStatusDisplay } from '@/components/update-status-display';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
       {/* Render the Titlebar first */}
       <Titlebar />
       <MainNav /> {/* Added MainNav here */}
+      <UpdateStatusDisplay />
 
       {/* Main content area with padding-top to account for the fixed titlebar */}
       {/* The h-8 class on Titlebar corresponds to 2rem, so pt-8 is appropriate */}

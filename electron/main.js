@@ -4,6 +4,10 @@ const path = require('path');
 const windowStateKeeper = require('electron-window-state');
 const log = require('electron-log');
 const { registerAllIpcHandlers } = require('../dist-electron/electron/ipc/router');
+const {
+  initializeAutoUpdater,
+  checkForUpdatesAndNotify,
+} = require('../dist-electron/electron/update-service');
 
 // Configure electron-log
 log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs/main.log');
@@ -250,6 +254,23 @@ initializeApp()
         isDevelopment,
         getMainWindow: () => mainWindow,
       });
+
+      if (!isDevelopment) {
+        try {
+          initializeAutoUpdater({
+            logger: log,
+            getMainWindow: () => mainWindow,
+          });
+
+          // Perform a background update check without blocking window creation
+          checkForUpdatesAndNotify().catch((error) => {
+            log.error('[Electron Main] Auto-update check failed:', error);
+          });
+        } catch (error) {
+          log.error('[Electron Main] Failed to initialize auto-updater:', error);
+        }
+      }
+
       await createMainWindow(); // Create the main window
 
       app.on('activate', () => {

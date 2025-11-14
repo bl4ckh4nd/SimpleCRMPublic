@@ -42,3 +42,5 @@ conversation_summary_jtl_feature.md
 *.md
 src/.DS_Store
 .DS_Store
+AGENTS.md
+GEMINI.md
