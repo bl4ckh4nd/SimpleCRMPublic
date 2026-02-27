@@ -34,13 +34,10 @@ next-env.d.ts
 # Generated type artifacts
 src/types/index.js
 src/types/index.js.map
-conversation_summary_jtl_feature_v2.md
-conversation_summary_jtl_feature_v3.md
-plan_order_creation.md
-Tables.md
-conversation_summary_jtl_feature.md
-*.md
 src/.DS_Store
 .DS_Store
-AGENTS.md
-GEMINI.md
+
+# Markdown files (except README and CHANGELOG)
+*.md
+!README.md
+!CHANGELOG.md
