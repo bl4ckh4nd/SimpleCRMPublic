@@ -1,13 +1,14 @@
 // Main Electron process
-const { app, BrowserWindow, dialog, protocol, globalShortcut, screen } = require('electron'); // Added 'protocol'
-const path = require('path');
-const windowStateKeeper = require('electron-window-state');
-const log = require('electron-log');
-const { registerAllIpcHandlers } = require('../dist-electron/electron/ipc/router');
-const {
+import { app, BrowserWindow, dialog, globalShortcut, screen } from 'electron';
+import fs from 'node:fs';
+import path from 'node:path';
+import log from 'electron-log';
+import windowStateKeeper from 'electron-window-state';
+import { registerAllIpcHandlers } from './ipc/router';
+import {
   initializeAutoUpdater,
   checkForUpdatesAndNotify,
-} = require('../dist-electron/electron/update-service');
+} from './update-service';
 
 // Configure electron-log
 log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs/main.log');
@@ -15,28 +16,37 @@ log.catchErrors(); // Catch unhandled errors
 Object.assign(console, log.functions); // Override console functions
 
 const isDevelopment = process.env.NODE_ENV === 'development';
-// Reduce log noise and protect secrets by defaulting to warn in production
-log.transports.file.level = isDevelopment ? 'debug' : 'warn';
+// Keep production startup diagnosable without enabling full debug logging.
+log.transports.file.level = isDevelopment ? 'debug' : 'info';
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB rotation cap
 log.transports.file.maxLogFiles = 3;
 
 // Secret masking and port parsing moved into dedicated IPC modules.
 
-const { initializeDatabase, closeDatabase } = require('../dist-electron/electron/sqlite-service');
-const { initializeSyncService } = require('../dist-electron/electron/sync-service');
-const {
+import { initializeDatabase, closeDatabase } from './sqlite-service';
+import { initializeSyncService } from './sync-service';
+import {
   initializeMssqlService,
   closeMssqlPool,
-} = require('../dist-electron/electron/mssql-keytar-service');
+} from './mssql-keytar-service';
 
 // Keep a global reference of the mainWindow object
-let mainWindow;
-let devToolsWindow = null;
+let mainWindow: BrowserWindow | null;
+let devToolsWindow: BrowserWindow | null = null;
 
 // This will hold the function to load the content into the BrowserWindow
 let loadURLFunction;
 
 let cleanupIpcHandlers = () => {};
+
+const getWindowUrl = (windowInstance: BrowserWindow) => {
+  try {
+    return windowInstance.webContents.getURL() || '<empty>';
+  } catch (error) {
+    log.warn('[Electron Main] Failed to read current window URL:', error);
+    return '<unavailable>';
+  }
+};
 
 const ensureDevToolsWindow = () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -78,25 +88,14 @@ log.info(`\[Electron Main\] Initial check: process.env.NODE_ENV = ${process.env.
 if (isDevelopment) {
   log.info('[Electron Main] Development mode: Setting up Vite dev server loader.');
   loadURLFunction = async (windowInstance) => {
-    const viteDevServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
-    let targetUrl = viteDevServerUrl;
+    const viteDevServerUrl = new URL(process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173').toString();
+    log.info(`\[Electron Main\] Development mode: Attempting to load URL: ${viteDevServerUrl}`);
     try {
-      const parsedUrl = new URL(viteDevServerUrl);
-      // Router uses createHashHistory, so ensure we land on "#/" in dev too.
-      if (!parsedUrl.hash) {
-        parsedUrl.hash = '/';
-      }
-      targetUrl = parsedUrl.toString();
-    } catch (error) {
-      log.warn(`[Electron Main] Could not normalize Vite dev URL "${viteDevServerUrl}":`, error);
-    }
-    log.info(`\[Electron Main\] Development mode: Attempting to load URL: ${targetUrl}`);
-    try {
-      await windowInstance.loadURL(targetUrl);
+      await windowInstance.loadURL(viteDevServerUrl);
       log.info('[Electron Main] Development URL loaded successfully.');
     } catch (error) {
-      log.error(`\[Electron Main\] Failed to load Vite dev server URL ${targetUrl}:`, error);
-      dialog.showErrorBox("Dev Server Load Error", `Could not connect to Vite dev server at ${targetUrl}. Please ensure it's running. Error: ${error.message}`);
+      log.error(`\[Electron Main\] Failed to load Vite dev server URL ${viteDevServerUrl}:`, error);
+      dialog.showErrorBox("Dev Server Load Error", `Could not connect to Vite dev server at ${viteDevServerUrl}. Please ensure it's running. Error: ${error.message}`);
     }
   };
 } else {
@@ -108,24 +107,18 @@ if (isDevelopment) {
       : (electronServeModule.default || null);
 
     if (typeof electronServeFunc === 'function') {
-      const loadURL = electronServeFunc({ directory: path.join(__dirname, '../dist') });
+      const loadAppUrl = electronServeFunc({ directory: path.join(__dirname, '../dist') });
       loadURLFunction = async (windowInstance) => {
-        log.info('[Electron Main] Production mode: Loading with electron-serve');
-        await loadURL(windowInstance);
-        log.info('[Electron Main] Content loaded successfully with electron-serve');
+        log.info('[Electron Main] Production mode: Loading renderer with electron-serve.');
+        await loadAppUrl(windowInstance);
+        log.info(`[Electron Main] Content loaded successfully with electron-serve: ${getWindowUrl(windowInstance)}`);
       };
     } else {
       throw new Error('electron-serve did not provide a usable function');
     }
   } catch (error) {
-    // Fallback to direct file loading if electron-serve setup fails.
-    log.error('[Electron Main] electron-serve setup failed, falling back to loadFile:', error);
-    loadURLFunction = async (windowInstance) => {
-      const indexPath = path.join(__dirname, '../dist/index.html');
-      log.info(`[Electron Main] Production mode: Loading file directly: ${indexPath}`);
-      await windowInstance.loadFile(indexPath, { hash: '/' });
-      log.info('[Electron Main] Content loaded successfully with loadFile');
-    };
+    log.error('[Electron Main] electron-serve setup failed:', error);
+    throw error;
   }
 }
 
@@ -162,7 +155,6 @@ async function createMainWindow() {
   });
 
   const preloadPath = path.join(__dirname, 'electron/preload.js');
-  const fs = require('fs');
   if (!fs.existsSync(preloadPath)) {
     log.error(`[Electron Main] CRITICAL: Preload script not found at: ${preloadPath}`);
   } else {
@@ -222,9 +214,25 @@ async function createMainWindow() {
     log.info(`[Preload/Console] Level ${level}: ${message} (${sourceId}:${line})`);
   });
 
+  mainWindow.webContents.on('dom-ready', () => {
+    log.info(`[Electron Main] dom-ready: ${getWindowUrl(mainWindow!)}`);
+  });
+
+  mainWindow.webContents.on('did-navigate', (_event, url) => {
+    log.info(`[Electron Main] did-navigate: ${url}`);
+  });
+
+  mainWindow.webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
+    log.info(`[Electron Main] did-navigate-in-page: url=${url} isMainFrame=${isMainFrame}`);
+  });
+
   // Catch preload errors specifically
   mainWindow.webContents.on('crashed', () => {
     log.error('[Preload/Renderer] Renderer process crashed');
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    log.error(`[Preload/Renderer] Render process gone: reason=${details.reason} exitCode=${details.exitCode}`);
   });
 
   mainWindow.webContents.on('unresponsive', () => {
@@ -275,7 +283,7 @@ async function createMainWindow() {
   });
 
   mainWindow.webContents.once('did-finish-load', () => {
-    log.debug('[Electron Main] Renderer finished loading, sending initial window state.');
+    log.debug(`[Electron Main] Renderer finished loading at ${getWindowUrl(mainWindow!)}, sending initial window state.`);
     emitWindowState();
     openDevToolsBar();
     setTimeout(openDevToolsBar, 1000);
@@ -291,7 +299,7 @@ async function createMainWindow() {
   try {
     log.info('[Electron Main] Attempting to load content into mainWindow...');
     await loadURLFunction(mainWindow);
-    log.info('[Electron Main] Content loaded into mainWindow successfully.');
+    log.info(`[Electron Main] Content loaded into mainWindow successfully at ${getWindowUrl(mainWindow)}.`);
   } catch (error) {
     log.error('[Electron Main] Failed to load URL using loadURLFunction:', error);
     const errorMsg = `Failed to load application content. Error: ${error.message}\nURL: ${error.url || (isDevelopment ? 'http://localhost:5173' : 'app://- (electron-serve)') }`;
