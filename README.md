@@ -17,7 +17,7 @@ SimpleCRM is a desktop-based Customer Relationship Management (CRM) application 
 
 SimpleCRM leverages the Electron framework to deliver a web-powered experience on your desktop:
 
-1. **Main Process (`electron/main.js`):** Handles window management, background logic, database interactions (SQLite & MSSQL), and inter-process communication (IPC). Manages essential services including `sqlite-service`, `mssql-keytar-service`, and `sync-service`.
+1. **Main Process (`electron/main.ts`):** Handles window management, background logic, database interactions (SQLite & MSSQL), and inter-process communication (IPC). Manages essential services including `sqlite-service`, `mssql-keytar-service`, and `sync-service`.
 2. **Renderer Process (`src/`):** The user interface built with React and Vite. Communicates with the Main process using secure IPC calls (defined in `electron/preload.ts`) to fetch and update data.
 3. **Database (`electron/sqlite-service.ts`, `electron/database-schema.ts`):** Manages the SQLite database (`database.sqlite` in your app data folder), defining the schema and handling all data operations (Create, Read, Update, Delete).
 4. **MSSQL & Sync (`electron/mssql-keytar-service.ts`, `electron/sync-service.ts`):** Connects securely to your JTL MSSQL database, fetches customer and product data, and updates your local SQLite database.
@@ -59,10 +59,11 @@ SimpleCRM leverages the Electron framework to deliver a web-powered experience o
 ## Running the Application
 
 * **Development Mode:**
-  Starts the Vite dev server for instant UI updates and the Electron app.
+  Starts one unified dev pipeline (renderer HMR + Electron main hot restart + preload hot reload).
   ```bash
   npm run electron:dev
   ```
+  While this command is running, you should not need to manually rebuild after code changes.
 * **Production Mode:**
   Runs the app as it would be packaged. Build it first with `npm run build` and `npm run build:electron`.
   ```bash
