@@ -34,6 +34,7 @@ interface DataTableProps<TData, TValue> {
   searchKey?: string;
   searchKeys?: string[];
   searchPlaceholder?: string;
+  actions?: React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
@@ -43,6 +44,7 @@ export function DataTable<TData, TValue>({
   searchKey = "name",
   searchKeys,
   searchPlaceholder,
+  actions,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -117,7 +119,10 @@ export function DataTable<TData, TValue>({
           onChange={handleSearchChange}
           className="max-w-sm"
         />
-        <DataTableViewOptions table={table} />
+        <div className="flex items-center gap-2">
+          {actions}
+          <DataTableViewOptions table={table} />
+        </div>
       </div>
       <div className="rounded-md border">
         <Table>
