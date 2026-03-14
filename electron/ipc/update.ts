@@ -1,4 +1,4 @@
-import { IPCChannels } from '@shared/ipc/channels';
+import { IPCChannels } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   checkForUpdates,
@@ -71,4 +71,3 @@ export function registerUpdateHandlers(options: UpdateHandlersOptions) {
     disposers.forEach((dispose) => dispose());
   };
 }
-

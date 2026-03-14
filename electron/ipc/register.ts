@@ -1,7 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { ZodTypeAny, ZodFirstPartyTypeKind } from 'zod';
-import { InvokeChannel } from '@shared/ipc/channels';
-import { getPayloadSchema, getResultSchema, isDeprecatedChannel } from '@shared/ipc/schemas';
+import { InvokeChannel } from '../../shared/ipc/channels';
+import { getPayloadSchema, getResultSchema, isDeprecatedChannel } from '../../shared/ipc/schemas';
 
 export interface RegisterIpcOptions {
   logger?: Pick<typeof console, 'debug' | 'info' | 'warn' | 'error'>;

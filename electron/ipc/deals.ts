@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron';
-import { IPCChannels } from '@shared/ipc/channels';
+import { IPCChannels } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getProductsForDeal,

@@ -1,5 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron';
-import { IPCChannels } from '@shared/ipc/channels';
+import { IPCChannels } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getAllCustomers,
@@ -59,9 +59,8 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.SearchCustomers, async (_event, args: any[] = []) => {
+    registerIpcHandler(IPCChannels.Db.SearchCustomers, async (_event: IpcMainInvokeEvent, query: string, limit: number = 20) => {
       try {
-        const [query, limit = 20] = Array.isArray(args) ? args : [args];
         if (isDevelopment) {
           logger.debug('[IPC] db:search-customers', { query, limit });
         }
@@ -160,9 +159,8 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.Search, async (_event, args: any = []) => {
+    registerIpcHandler(IPCChannels.Products.Search, async (_event: IpcMainInvokeEvent, query: string = '', limit: number = 20) => {
       try {
-        const [query = '', limit = 20] = Array.isArray(args) ? args : [args];
         return searchProducts(query, limit);
       } catch (error) {
         logger.error('IPC Error searching products:', error);

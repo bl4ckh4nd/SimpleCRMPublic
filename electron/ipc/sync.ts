@@ -1,4 +1,4 @@
-import { IPCChannels } from '@shared/ipc/channels';
+import { IPCChannels } from '../../shared/ipc/channels';
 import { BrowserWindow } from 'electron';
 import { registerIpcHandler } from './register';
 import { runSync, getLastSyncStatus } from '../sync-service';
