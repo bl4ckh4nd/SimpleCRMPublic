@@ -29,7 +29,11 @@ import {
     createJtlFirmenTable,
     createJtlWarenlagerTable,
     createJtlZahlungsartenTable,
-    createJtlVersandartenTable
+    createJtlVersandartenTable,
+    ACTIVITY_LOG_TABLE,
+    SAVED_VIEWS_TABLE,
+    createActivityLogTable,
+    createSavedViewsTable
 } from './database-schema';
 import { Product, DealProduct } from './types';
 // Optional: import Knex from 'knex';
@@ -66,6 +70,8 @@ export function initializeDatabase() {
             db.exec(createCalendarEventsTable);
             db.exec(createCustomerCustomFieldsTable);
             db.exec(createCustomerCustomFieldValuesTable);
+            db.exec(createActivityLogTable);
+            db.exec(createSavedViewsTable);
             db.exec(createJtlFirmenTable);
             db.exec(createJtlWarenlagerTable);
             db.exec(createJtlZahlungsartenTable);
@@ -156,6 +162,15 @@ export function initializeDatabase() {
             `CREATE INDEX IF NOT EXISTS idx_cfv_customer_field_composite ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id, field_id);`
         ]);
 
+        ensureTableExists(ACTIVITY_LOG_TABLE, createActivityLogTable, [
+            `CREATE INDEX IF NOT EXISTS idx_activity_log_customer_id ON ${ACTIVITY_LOG_TABLE}(customer_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_activity_log_deal_id ON ${ACTIVITY_LOG_TABLE}(deal_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON ${ACTIVITY_LOG_TABLE}(created_at);`,
+            `CREATE INDEX IF NOT EXISTS idx_activity_log_customer_created ON ${ACTIVITY_LOG_TABLE}(customer_id, created_at);`
+        ]);
+
+        ensureTableExists(SAVED_VIEWS_TABLE, createSavedViewsTable, []);
+
         // Run migrations for schema updates
         runMigrations();
     }
@@ -230,7 +245,16 @@ function runMigrations() {
             console.log('Migration completed: Added customerNumber column to customers table');
         }
 
-        // Add more migrations here as needed
+        // Migration: Add snoozed_until column to tasks table if it doesn't exist
+        const taskColsForSnooze = db.prepare(`PRAGMA table_info(${TASKS_TABLE})`).all();
+        const hasSnoozedUntil = taskColsForSnooze.some((col: any) => col.name === 'snoozed_until');
+
+        if (!hasSnoozedUntil) {
+            console.log('Adding snoozed_until column to tasks table...');
+            db.exec(`ALTER TABLE ${TASKS_TABLE} ADD COLUMN snoozed_until TEXT`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_snoozed_until ON ${TASKS_TABLE}(snoozed_until);`);
+            console.log('Migration completed: Added snoozed_until column to tasks table');
+        }
 
     } catch (error) {
         console.error('Error running migrations:', error);
@@ -1311,6 +1335,7 @@ interface CalendarEventData {
     color_code?: string;
     event_type?: string;
     recurrence_rule?: string; // Store as JSON string
+    task_id?: number | null; // Optional link to a task row
 }
 
 export function getAllCalendarEvents(startDate?: string, endDate?: string): any[] { // Return type matches structure from DB
@@ -1525,7 +1550,20 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
       last_modified: now
     });
 
-    return { success: true, id: result.lastInsertRowid as number };
+    const newDealId = result.lastInsertRowid as number;
+
+    try {
+      createActivityLog({
+        customer_id: dealData.customer_id,
+        deal_id: newDealId,
+        activity_type: 'deal_created',
+        title: `Deal erstellt: ${dealData.name}`,
+      });
+    } catch (e) {
+      console.error('Failed to log deal creation activity:', e);
+    }
+
+    return { success: true, id: newDealId };
   } catch (error) {
     console.error('Error creating deal:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -1568,6 +1606,10 @@ export function updateDeal(dealId: number, dealData: any): { success: boolean; e
 
 export function updateDealStage(dealId: number, newStage: string): { success: boolean; error?: string } {
   try {
+    // Get old stage for activity log
+    const deal = getDb().prepare(`SELECT stage, customer_id FROM ${DEALS_TABLE} WHERE id = ?`).get(dealId) as any;
+    const oldStage = deal?.stage;
+
     const now = new Date().toISOString();
 
     const stmt = getDb().prepare(`
@@ -1577,6 +1619,20 @@ export function updateDealStage(dealId: number, newStage: string): { success: bo
     `);
 
     const result = stmt.run(newStage, now, dealId);
+
+    if (result.changes > 0 && deal) {
+      try {
+        createActivityLog({
+          customer_id: deal.customer_id,
+          deal_id: dealId,
+          activity_type: 'stage_change',
+          title: `Deal-Phase geändert: ${oldStage} → ${newStage}`,
+          metadata: JSON.stringify({ old_stage: oldStage, new_stage: newStage }),
+        });
+      } catch (e) {
+        console.error('Failed to log stage change activity:', e);
+      }
+    }
 
     return { success: result.changes > 0, error: result.changes === 0 ? 'Deal not found' : undefined };
   } catch (error) {
@@ -1675,7 +1731,20 @@ export function createTask(taskData: any): { success: boolean; id?: number; erro
       last_modified: now
     });
 
-    return { success: true, id: result.lastInsertRowid as number };
+    const newTaskId = result.lastInsertRowid as number;
+
+    try {
+      createActivityLog({
+        customer_id: taskData.customer_id,
+        task_id: newTaskId,
+        activity_type: 'task_created',
+        title: `Aufgabe erstellt: ${taskData.title}`,
+      });
+    } catch (e) {
+      console.error('Failed to log task creation activity:', e);
+    }
+
+    return { success: true, id: newTaskId };
   } catch (error) {
     console.error('Error creating task:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -1722,6 +1791,7 @@ export function updateTask(taskId: number, taskData: any): { success: boolean; e
 
 export function updateTaskCompletion(taskId: number, completed: boolean): { success: boolean; error?: string } {
   try {
+    const task = getDb().prepare(`SELECT customer_id, title FROM ${TASKS_TABLE} WHERE id = ?`).get(taskId) as any;
     const now = new Date().toISOString();
 
     const stmt = getDb().prepare(`
@@ -1731,6 +1801,19 @@ export function updateTaskCompletion(taskId: number, completed: boolean): { succ
     `);
 
     const result = stmt.run(completed ? 1 : 0, now, taskId);
+
+    if (result.changes > 0 && task && completed) {
+      try {
+        createActivityLog({
+          customer_id: task.customer_id,
+          task_id: taskId,
+          activity_type: 'task_completed',
+          title: `Aufgabe erledigt: ${task.title}`,
+        });
+      } catch (e) {
+        console.error('Failed to log task completion activity:', e);
+      }
+    }
 
     return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
   } catch (error) {
@@ -1958,6 +2041,341 @@ export function getUpcomingTasks(limit: number = 5): any[] {
     } catch (error) {
         console.error('Error getting upcoming tasks:', error);
         return [];
+    }
+}
+
+// --- Activity Log ---
+
+export function createActivityLog(data: {
+    customer_id?: number;
+    deal_id?: number;
+    task_id?: number;
+    activity_type: string;
+    title?: string;
+    description?: string;
+    metadata?: string;
+}): { success: boolean; id?: number; error?: string } {
+    try {
+        const stmt = getDb().prepare(`
+            INSERT INTO ${ACTIVITY_LOG_TABLE} (customer_id, deal_id, task_id, activity_type, title, description, metadata, created_at)
+            VALUES (@customer_id, @deal_id, @task_id, @activity_type, @title, @description, @metadata, @created_at)
+        `);
+        const result = stmt.run({
+            customer_id: data.customer_id ?? null,
+            deal_id: data.deal_id ?? null,
+            task_id: data.task_id ?? null,
+            activity_type: data.activity_type,
+            title: data.title ?? null,
+            description: data.description ?? null,
+            metadata: data.metadata ?? null,
+            created_at: new Date().toISOString(),
+        });
+        return { success: true, id: result.lastInsertRowid as number };
+    } catch (error) {
+        console.error('Error creating activity log:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+export function getActivityLogForCustomer(customerId: number, limit: number = 50, offset: number = 0): any[] {
+    const stmt = getDb().prepare(`
+        SELECT * FROM ${ACTIVITY_LOG_TABLE}
+        WHERE customer_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `);
+    return stmt.all(customerId, limit, offset);
+}
+
+export function getActivityLogForDeal(dealId: number, limit: number = 50, offset: number = 0): any[] {
+    const stmt = getDb().prepare(`
+        SELECT * FROM ${ACTIVITY_LOG_TABLE}
+        WHERE deal_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `);
+    return stmt.all(dealId, limit, offset);
+}
+
+export function getTimeline(customerId: number, filter?: string, limit: number = 50, offset: number = 0): any[] {
+    let sql = `
+        SELECT * FROM ${ACTIVITY_LOG_TABLE}
+        WHERE customer_id = ?
+    `;
+    const params: any[] = [customerId];
+
+    if (filter === 'tasks') {
+        sql += ` AND activity_type IN ('task_created', 'task_completed')`;
+    } else if (filter === 'deals') {
+        sql += ` AND activity_type IN ('stage_change', 'deal_created')`;
+    } else if (filter === 'communication') {
+        sql += ` AND activity_type IN ('call', 'email', 'note')`;
+    }
+
+    sql += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const stmt = getDb().prepare(sql);
+    return stmt.all(...params);
+}
+
+// --- Follow-up Queue ---
+
+export function getFollowUpQueueCounts(): {
+    heute: number;
+    ueberfaellig: number;
+    dieseWoche: number;
+    stagnierend: number;
+    highValueRisk: number;
+} {
+    const today = new Date().toISOString().slice(0, 10);
+    const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const nowISO = new Date().toISOString();
+
+    const stmt = getDb().prepare(`
+        SELECT
+            (SELECT COUNT(*) FROM ${TASKS_TABLE} WHERE completed = 0
+                AND due_date IS NOT NULL AND due_date != ''
+                AND substr(due_date, 1, 10) = ?
+                AND (snoozed_until IS NULL OR snoozed_until <= ?)) as heute,
+            (SELECT COUNT(*) FROM ${TASKS_TABLE} WHERE completed = 0
+                AND due_date IS NOT NULL AND due_date != ''
+                AND substr(due_date, 1, 10) < ?
+                AND (snoozed_until IS NULL OR snoozed_until <= ?)) as ueberfaellig,
+            (SELECT COUNT(*) FROM ${TASKS_TABLE} WHERE completed = 0
+                AND due_date IS NOT NULL AND due_date != ''
+                AND substr(due_date, 1, 10) >= ? AND substr(due_date, 1, 10) <= ?
+                AND (snoozed_until IS NULL OR snoozed_until <= ?)) as dieseWoche,
+            (SELECT COUNT(*) FROM ${DEALS_TABLE} WHERE
+                stage NOT IN ('Gewonnen', 'Verloren', 'Closed Won', 'Closed Lost')
+                AND last_modified < ?) as stagnierend,
+            (SELECT COUNT(*) FROM ${DEALS_TABLE} WHERE
+                stage NOT IN ('Gewonnen', 'Verloren', 'Closed Won', 'Closed Lost')
+                AND value > 1000
+                AND (
+                    (expected_close_date IS NOT NULL AND expected_close_date != '' AND substr(expected_close_date, 1, 10) <= ?)
+                    OR last_modified < ?
+                )) as highValueRisk
+    `);
+
+    const row = stmt.get(
+        today, nowISO,
+        today, nowISO,
+        today, weekFromNow, nowISO,
+        fourteenDaysAgo,
+        weekFromNow, sevenDaysAgo
+    ) as any;
+
+    return {
+        heute: row.heute ?? 0,
+        ueberfaellig: row.ueberfaellig ?? 0,
+        dieseWoche: row.dieseWoche ?? 0,
+        stagnierend: row.stagnierend ?? 0,
+        highValueRisk: row.highValueRisk ?? 0,
+    };
+}
+
+export function getFollowUpItems(
+    queue: string,
+    filters: { query?: string; priority?: string } = {},
+    limit: number = 100,
+    offset: number = 0
+): any[] {
+    const today = new Date().toISOString().slice(0, 10);
+    const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const nowISO = new Date().toISOString();
+
+    let sql = '';
+    const params: any[] = [];
+
+    if (queue === 'stagnierende_deals' || queue === 'high_value_risk') {
+        // Deal-based queues
+        sql = `
+            SELECT
+                d.id as item_id,
+                'deal' as source_type,
+                d.customer_id,
+                c.name as customer_name,
+                d.id as deal_id,
+                d.name as deal_name,
+                d.value as deal_value,
+                d.stage as deal_stage,
+                d.name as title,
+                NULL as due_date,
+                'Medium' as priority,
+                d.last_modified as snoozed_until,
+                0 as completed,
+                (CAST(d.value AS REAL) / 1000.0 + MAX(0, julianday('now') - julianday(d.last_modified)) * 2) as priority_score,
+                (SELECT MAX(al.created_at) FROM ${ACTIVITY_LOG_TABLE} al WHERE al.customer_id = d.customer_id) as last_contact_date
+            FROM ${DEALS_TABLE} d
+            LEFT JOIN ${CUSTOMERS_TABLE} c ON d.customer_id = c.id
+            WHERE d.stage NOT IN ('Gewonnen', 'Verloren', 'Closed Won', 'Closed Lost')
+        `;
+
+        if (queue === 'stagnierende_deals') {
+            sql += ` AND d.last_modified < ?`;
+            params.push(fourteenDaysAgo);
+        } else {
+            // high_value_risk
+            sql += ` AND d.value > 1000 AND (
+                (d.expected_close_date IS NOT NULL AND d.expected_close_date != '' AND substr(d.expected_close_date, 1, 10) <= ?)
+                OR d.last_modified < ?
+            )`;
+            params.push(weekFromNow, sevenDaysAgo);
+        }
+
+        if (filters.query && filters.query.trim()) {
+            sql += ` AND (d.name LIKE ? OR c.name LIKE ?)`;
+            const term = `%${filters.query}%`;
+            params.push(term, term);
+        }
+
+        sql += ` ORDER BY priority_score DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+    } else {
+        // Task-based queues
+        sql = `
+            SELECT
+                t.id as item_id,
+                'task' as source_type,
+                t.customer_id,
+                c.name as customer_name,
+                d.id as deal_id,
+                d.name as deal_name,
+                d.value as deal_value,
+                d.stage as deal_stage,
+                t.title,
+                t.due_date,
+                t.priority,
+                t.snoozed_until,
+                t.completed,
+                (CASE t.priority WHEN 'High' THEN 30 WHEN 'Medium' THEN 15 ELSE 5 END
+                 + CASE WHEN t.due_date IS NOT NULL AND t.due_date != '' THEN MAX(0, julianday('now') - julianday(t.due_date)) * 5 ELSE 0 END) as priority_score,
+                (SELECT MAX(al.created_at) FROM ${ACTIVITY_LOG_TABLE} al WHERE al.customer_id = t.customer_id) as last_contact_date
+            FROM ${TASKS_TABLE} t
+            LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
+            LEFT JOIN ${DEALS_TABLE} d ON d.customer_id = t.customer_id AND d.stage NOT IN ('Gewonnen', 'Verloren', 'Closed Won', 'Closed Lost')
+            WHERE t.completed = 0
+        `;
+
+        // Queue-specific filters
+        if (queue === 'heute') {
+            sql += ` AND t.due_date IS NOT NULL AND t.due_date != '' AND substr(t.due_date, 1, 10) = ?`;
+            params.push(today);
+            sql += ` AND (t.snoozed_until IS NULL OR t.snoozed_until <= ?)`;
+            params.push(nowISO);
+        } else if (queue === 'ueberfaellig') {
+            sql += ` AND t.due_date IS NOT NULL AND t.due_date != '' AND substr(t.due_date, 1, 10) < ?`;
+            params.push(today);
+            sql += ` AND (t.snoozed_until IS NULL OR t.snoozed_until <= ?)`;
+            params.push(nowISO);
+        } else if (queue === 'diese_woche') {
+            sql += ` AND t.due_date IS NOT NULL AND t.due_date != '' AND substr(t.due_date, 1, 10) >= ? AND substr(t.due_date, 1, 10) <= ?`;
+            params.push(today, weekFromNow);
+            sql += ` AND (t.snoozed_until IS NULL OR t.snoozed_until <= ?)`;
+            params.push(nowISO);
+        }
+
+        // Additional filters
+        if (filters.priority) {
+            sql += ` AND t.priority = ?`;
+            params.push(filters.priority);
+        }
+
+        if (filters.query && filters.query.trim()) {
+            sql += ` AND (t.title LIKE ? OR c.name LIKE ? OR t.description LIKE ?)`;
+            const term = `%${filters.query}%`;
+            params.push(term, term, term);
+        }
+
+        sql += ` GROUP BY t.id ORDER BY priority_score DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+    }
+
+    const stmt = getDb().prepare(sql);
+    // Add reason field after query
+    const items = stmt.all(...params);
+    return (items as any[]).map(item => ({
+        ...item,
+        reason: getQueueReason(queue, item),
+    }));
+}
+
+function getQueueReason(queue: string, item: any): string {
+    if (queue === 'heute') return 'Heute fällig';
+    if (queue === 'ueberfaellig') {
+        const daysOverdue = item.due_date
+            ? Math.floor((Date.now() - new Date(item.due_date).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+        return daysOverdue > 1 ? `${daysOverdue} Tage überfällig` : '1 Tag überfällig';
+    }
+    if (queue === 'diese_woche') return 'Diese Woche fällig';
+    if (queue === 'stagnierende_deals') {
+        const daysSince = item.snoozed_until
+            ? Math.floor((Date.now() - new Date(item.snoozed_until).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+        return `Deal stagniert (${daysSince} Tage)`;
+    }
+    if (queue === 'high_value_risk') return 'Hoher Wert, Abschluss gefährdet';
+    return '';
+}
+
+export function snoozeTask(taskId: number, snoozedUntil: string): { success: boolean; error?: string } {
+    try {
+        const now = new Date().toISOString();
+        const stmt = getDb().prepare(`
+            UPDATE ${TASKS_TABLE}
+            SET snoozed_until = ?, last_modified = ?
+            WHERE id = ?
+        `);
+        const result = stmt.run(snoozedUntil, now, taskId);
+        return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
+    } catch (error) {
+        console.error(`Error snoozing task ${taskId}:`, error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+// --- Saved Views ---
+
+export function getSavedViews(): any[] {
+    const stmt = getDb().prepare(`
+        SELECT * FROM ${SAVED_VIEWS_TABLE}
+        ORDER BY display_order ASC, created_at ASC
+    `);
+    return stmt.all();
+}
+
+export function createSavedView(data: { name: string; filters: string }): { success: boolean; id?: number; error?: string } {
+    try {
+        const stmt = getDb().prepare(`
+            INSERT INTO ${SAVED_VIEWS_TABLE} (name, filters, created_at)
+            VALUES (@name, @filters, @created_at)
+        `);
+        const result = stmt.run({
+            name: data.name,
+            filters: data.filters,
+            created_at: new Date().toISOString(),
+        });
+        return { success: true, id: result.lastInsertRowid as number };
+    } catch (error) {
+        console.error('Error creating saved view:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+}
+
+export function deleteSavedView(id: number): { success: boolean; error?: string } {
+    try {
+        const stmt = getDb().prepare(`DELETE FROM ${SAVED_VIEWS_TABLE} WHERE id = ?`);
+        const result = stmt.run(id);
+        return { success: result.changes > 0, error: result.changes === 0 ? 'View not found' : undefined };
+    } catch (error) {
+        console.error(`Error deleting saved view ${id}:`, error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 }
 

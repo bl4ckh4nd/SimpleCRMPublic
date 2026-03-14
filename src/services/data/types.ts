@@ -107,6 +107,54 @@ export interface Task {
     calendar_event_id?: number | null;
 }
 
+// Follow-up types
+export interface FollowUpItem {
+    item_id: number;
+    source_type: 'task' | 'deal';
+    customer_id: number;
+    customer_name: string;
+    deal_id?: number;
+    deal_name?: string;
+    deal_value?: number;
+    deal_stage?: string;
+    title: string;
+    reason: string;
+    due_date?: string;
+    priority: string;
+    priority_score: number;
+    last_contact_date?: string;
+    snoozed_until?: string;
+    completed?: boolean | number;
+}
+
+export interface ActivityLogEntry {
+    id: number;
+    customer_id?: number;
+    deal_id?: number;
+    task_id?: number;
+    activity_type: string;
+    title?: string;
+    description?: string;
+    metadata?: string;
+    created_at: string;
+}
+
+export interface QueueCounts {
+    heute: number;
+    ueberfaellig: number;
+    dieseWoche: number;
+    stagnierend: number;
+    highValueRisk: number;
+}
+
+export interface SavedView {
+    id: number;
+    name: string;
+    filters: string;
+    display_order: number;
+    created_at?: string;
+}
+
 // Define the DataService interface based on usage in localDataService
 export interface DataService {
     getCustomers(): Promise<Customer[]>;

@@ -12,7 +12,11 @@ declare global {
   interface Window {
     electronAPI: {
       // Typed invoke method derived from shared IPC contract
-      invoke: <C extends InvokeChannel>(channel: C, ...args: InvokeArgs<C>) => Promise<InferResult<C>>;
+      // Also supports flexible argument passing for backward compatibility
+      invoke: {
+        <C extends InvokeChannel>(channel: C, ...args: InvokeArgs<C>): Promise<InferResult<C>>;
+        (channel: InvokeChannel, ...args: any[]): Promise<any>;
+      };
       // Define send and receive if needed, mirroring preload.js
       send: (channel: string, data?: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => (() => void) | undefined; // Return type for cleanup

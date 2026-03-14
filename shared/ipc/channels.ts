@@ -83,6 +83,17 @@ const JtlChannels = literal({
   CreateOrder: 'jtl:create-order',
 });
 
+const FollowUpChannels = literal({
+  GetItems: 'followup:get-items',
+  GetQueueCounts: 'followup:get-queue-counts',
+  SnoozeTask: 'followup:snooze-task',
+  LogActivity: 'followup:log-activity',
+  GetTimeline: 'followup:get-timeline',
+  GetSavedViews: 'followup:get-saved-views',
+  CreateSavedView: 'followup:create-saved-view',
+  DeleteSavedView: 'followup:delete-saved-view',
+});
+
 const DashboardChannels = literal({
   GetStats: 'dashboard:get-stats',
   GetRecentCustomers: 'dashboard:get-recent-customers',
@@ -114,6 +125,7 @@ export const IPCChannels = {
   Jtl: JtlChannels,
   Dashboard: DashboardChannels,
   CustomFields: CustomFieldChannels,
+  FollowUp: FollowUpChannels,
 } as const;
 
 // Flattened invoke list for preload allow-listing
@@ -130,6 +142,7 @@ export const AllowedInvokeChannels = tuple(
   ...Object.values(IPCChannels.Jtl),
   ...Object.values(IPCChannels.Dashboard),
   ...Object.values(IPCChannels.CustomFields),
+  ...Object.values(IPCChannels.FollowUp),
 );
 
 export type InvokeChannel = typeof AllowedInvokeChannels[number];
