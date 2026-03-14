@@ -1,6 +1,6 @@
 "use client";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BarChart3, Clock, Users, Loader2 } from "lucide-react";
+import { ArrowRight, BarChart3, Clock, Users, Loader2, Rocket } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,12 @@ export default function Home() {
     fetchData();
   }, []);
 
+  const isOnboarding =
+    !loadingStats && !loadingCustomers && !loadingTasks &&
+    (stats?.totalCustomers ?? 0) === 0 &&
+    (stats?.activeDealsCount ?? 0) === 0 &&
+    (stats?.pendingTasksCount ?? 0) === 0
+
   const getInitials = (name?: string) => {
     if (!name) return "";
     return name
@@ -58,8 +64,8 @@ export default function Home() {
 
   if (error) {
     return (
-      <main className="flex-1 mt-0">
-        <div className="container mx-auto max-w-7xl py-6">
+      <main className="flex-1">
+        <div className="px-6 py-4">
           <div className="flex items-center justify-center h-64">
             <p className="text-red-500">{error}</p>
           </div>
@@ -69,17 +75,8 @@ export default function Home() {
   }
 
   return (
-    <main className="flex-1 mt-0">
-      <div className="container mx-auto max-w-7xl py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <Button size="sm" asChild>
-            <Link to="/customers/new">
-              <span>Neuer Kunde</span>
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
+    <main className="flex-1">
+      <div className="px-6 py-4">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -118,10 +115,41 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.conversionRate ?? 0}%</div>}
-              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground"> {/* Placeholder for change, as this is hard to get from current data */}</p>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">Anteil gewonnener Deals</p>}
             </CardContent>
           </Card>
         </div>
+
+        {isOnboarding && (
+          <Card className="mt-6 border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Rocket className="h-5 w-5 text-primary" />
+                Willkommen bei SimpleCRM
+              </CardTitle>
+              <CardDescription>Folgen Sie diesen Schritten, um loszulegen.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ol className="space-y-3">
+                {([
+                  { label: "Datenbankverbindung einrichten", href: "/settings" as const, description: "Verbinden Sie SimpleCRM mit Ihrer MSSQL-Datenbank." },
+                  { label: "JTL-Daten synchronisieren", href: "/settings" as const, description: "Importieren Sie Kunden aus Ihrem JTL-System." },
+                  { label: "Kunden anlegen", href: "/customers" as const, description: "Verwalten Sie Ihren Kundenstamm." },
+                  { label: "Ersten Deal erstellen", href: "/deals" as const, description: "Starten Sie Ihre Verkaufspipeline." },
+                ] as const).map((step, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <Link to={step.href} className="text-sm font-medium hover:underline">{step.label}</Link>
+                      <p className="text-xs text-muted-foreground">{step.description}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="mt-6 grid gap-6 md:grid-cols-2">
           <Card>
