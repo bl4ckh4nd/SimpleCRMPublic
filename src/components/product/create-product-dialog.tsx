@@ -35,7 +35,7 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
         sku: values.sku || null, 
         description: values.description || null,
       };
-      const result = await window.electronAPI.invoke<typeof IPCChannels.Products.Create>(
+      const result = await window.electronAPI.invoke(
         IPCChannels.Products.Create,
         dataToSend
       ) as { success: boolean, error?: string };

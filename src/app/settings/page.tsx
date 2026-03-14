@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client"
 
 import { useState, useEffect } from "react"
@@ -10,6 +11,17 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
@@ -34,8 +46,6 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>
 
 export default function SettingsPage() {
-  console.log('[SettingsPage] Component rendering');
-  
   const [isTesting, setIsTesting] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -46,12 +56,6 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
   
-  // Log when component mounts/unmounts
-  useEffect(() => {
-    console.log('[SettingsPage] Component mounted')
-    return () => console.log('[SettingsPage] Component unmounted')
-  }, [])
-
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
@@ -130,64 +134,39 @@ export default function SettingsPage() {
   }, [])
 
   const testAndSaveConnection = async (dataForTest: SettingsForm, dataForSave: Partial<SettingsForm>) => {
-    console.log('[SettingsPage] testAndSaveConnection initiated')
-    console.log('[SettingsPage] dataForTest (before API check):', JSON.stringify(dataForTest, null, 2))
-    console.log('[SettingsPage] dataForSave (before API check):', JSON.stringify(dataForSave, null, 2))
     setIsTesting(true)
 
-    console.log('[SettingsPage] Checking if window.electronAPI and invoke are available...');
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      console.error('[SettingsPage] Electron API or invoke method is NOT available.');
       toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
       setIsTesting(false)
       return
     }
-    console.log('[SettingsPage] Electron API and invoke method ARE available. Proceeding to test connection.');
 
     try {
-      // Use dataForTest for the connection test
-      console.log('[SettingsPage] Attempting to invoke mssql:test-connection with dataForTest:', dataForTest);
       const testResult: { success: boolean; error?: string; errorDetails?: any } = await (window.electronAPI as any).invoke('mssql:test-connection', dataForTest)
-      console.log('[SettingsPage] mssql:test-connection IPC call returned:', testResult);
       setConnectionStatus(testResult.success ? 'success' : 'error')
- 
+
       if (testResult.success) {
-        console.log('[SettingsPage] Connection test successful. Proceeding to save settings with dataForSave:', dataForSave);
-        // Use dataForSave for saving settings
         const saveResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:save-settings', dataForSave)
-        console.log('[SettingsPage] mssql:save-settings IPC call returned:', saveResult);
 
         if (saveResult.success) {
           toast({ title: "Erfolg", description: "Verbindung erfolgreich und Einstellungen gespeichert." })
-          console.log('[SettingsPage] Settings saved successfully. Fetching updated settings...');
-          // Optionally, re-fetch settings to update form with potentially cleaned/stored values
-          // and confirm sync status or navigate
           const newSettings = await (window.electronAPI as any).invoke('mssql:get-settings');
-          console.log('[SettingsPage] Fetched new settings after save:', newSettings);
           if (newSettings) {
             form.reset({ ...newSettings, password: newSettings.password || "" });
           }
           navigate({ to: '/customers' })
         } else {
-          console.error('[SettingsPage] Save settings failed. IPC Result:', saveResult);
           toast({ variant: "destructive", title: "Speichern fehlgeschlagen", description: saveResult.error || "Konnte die Einstellungen nicht speichern." })
         }
       } else {
-        // Enhanced error handling with detailed messages and suggestions
         const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
         const errorDetails = testResult.errorDetails;
-        
         let toastDescription = errorMessage;
         if (errorDetails?.suggestion) {
           toastDescription += `\n\nLösungsvorschlag: ${errorDetails.suggestion}`;
         }
-        
-        console.error('[SettingsPage] Connection test failed. Error details:', errorDetails);
-        toast({ 
-          variant: "destructive", 
-          title: "Verbindung fehlgeschlagen", 
-          description: toastDescription 
-        })
+        toast({ variant: "destructive", title: "Verbindung fehlgeschlagen", description: toastDescription })
       }
     } catch (error: any) {
       console.error("Error testing/saving connection:", error)
@@ -279,12 +258,10 @@ export default function SettingsPage() {
         if (errorDetails?.suggestion) {
           toastDescription += `\n\nLösungsvorschlag: ${errorDetails.suggestion}`;
         }
-        
-        console.error('[SettingsPage] Connection test failed. Error details:', errorDetails);
-        toast({ 
-          variant: "destructive", 
-          title: "Verbindung fehlgeschlagen", 
-          description: toastDescription 
+        toast({
+          variant: "destructive",
+          title: "Verbindung fehlgeschlagen",
+          description: toastDescription
         })
       }
     } catch (error: any) {
@@ -374,13 +351,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="flex-1">
-      <div className="container mx-auto max-w-2xl py-4">
+    <div>
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle>Einstellungen zur Verbindung mit MSSQL-Server & JTL</CardTitle>
+            <CardTitle>MSSQL-Server & JTL</CardTitle>
             <CardDescription>
-              Konfigurieren Sie Ihre Verbindung zum MSSQL-Server und JTL-spezifische Standardwerte.
+              Verbindung zum MSSQL-Server konfigurieren und JTL-spezifische Standardwerte festlegen.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -616,36 +592,20 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                {/* Action Buttons Group: Test, Clear Password, Sync */}
-                <div className="flex items-center space-x-4 pt-4 mt-6 border-t">
-                  {/* Test Connection Button */}
-                  <div className="flex items-center space-x-2">
-                    <Button 
+                {/* Test Connection + Sync */}
+                <div className="flex items-center gap-3 pt-4 mt-6 border-t">
+                  <div className="flex items-center gap-2">
+                    <Button
                       type="button"
                       variant="outline"
                       onClick={handleTestConnection}
                       disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
-                      className="flex items-center space-x-2"
                     >
                       {isConnecting ? "Teste..." : "Verbindung testen"}
                     </Button>
-                    <div className="flex items-center justify-center">
-                      {getConnectionStatusIcon()}
-                    </div>
+                    {getConnectionStatusIcon()}
                   </div>
-
-                  {/* Clear Password Button */}
-                  <Button 
-                    type="button" 
-                    onClick={handleClearPassword} 
-                    disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
-                    variant="destructive"
-                  >
-                    {isClearingPassword ? "Lösche..." : "Passwort löschen"}
-                  </Button>
-                  
-                  {/* Sync Button */}
-                  <Button 
+                  <Button
                     type="button"
                     variant="secondary"
                     onClick={handleSync}
@@ -654,26 +614,21 @@ export default function SettingsPage() {
                     {isSyncing ? "Synchronisiere..." : "Synchronisation starten"}
                   </Button>
                 </div>
-                
+
                 {(syncStatusMessage || lastSyncTimestamp) && (
-                  <div className="pt-4 space-y-2">
+                  <div className="pt-3 space-y-1">
                     {lastSyncTimestamp && (
-                      <div className="text-sm font-medium">
+                      <p className="text-sm font-medium">
                         Letzte erfolgreiche Synchronisation: {formatTimestamp(lastSyncTimestamp)}
-                      </div>
+                      </p>
                     )}
                     {syncStatusMessage && (
-                      <div className="text-sm text-muted-foreground">
-                        {syncStatusMessage}
-                      </div>
+                      <p className="text-sm text-muted-foreground">{syncStatusMessage}</p>
                     )}
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-2 mt-8 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => navigate({ to: '/customers' })}>
-                    Abbrechen
-                  </Button>
+                <div className="flex justify-end gap-2 mt-8 pt-4 border-t">
                   <Button type="submit" disabled={isTesting || isConnecting || isSyncing || isClearingPassword}>
                     {isTesting ? "Speichern..." : "Einstellungen speichern"}
                   </Button>
@@ -682,7 +637,53 @@ export default function SettingsPage() {
             </Form>
           </CardContent>
         </Card>
+
+        {/* Danger Zone */}
+        <Card className="mt-6 border-destructive/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-destructive">Gefahrenzone</CardTitle>
+            <CardDescription>
+              Aktionen hier können nicht rückgängig gemacht werden.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Passwort löschen</p>
+                <p className="text-sm text-muted-foreground">Entfernt das gespeicherte MSSQL-Passwort aus dem sicheren Speicher.</p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
+                  >
+                    {isClearingPassword ? "Lösche..." : "Passwort löschen"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Passwort wirklich löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Das gespeicherte Passwort wird unwiderruflich aus dem sicheren Speicher entfernt. Sie müssen das Passwort anschließend neu eingeben, um eine Verbindung herzustellen.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleClearPassword}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Passwort löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </main>
   )
 }

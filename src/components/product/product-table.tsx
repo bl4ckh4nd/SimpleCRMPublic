@@ -9,11 +9,12 @@ import { IPCChannels } from '@shared/ipc/channels';
 
 interface ProductTableProps {
   data: Product[];
+  actions?: React.ReactNode;
   onProductUpdated: () => void; // Callback after successful update
   onProductDeleted: () => void; // Callback after successful deletion
 }
 
-export function ProductTable({ data, onProductUpdated, onProductDeleted }: ProductTableProps) {
+export function ProductTable({ data, actions, onProductUpdated, onProductDeleted }: ProductTableProps) {
   const [isEditDialogOpen, setEditDialogOpen] = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
 
@@ -27,7 +28,7 @@ export function ProductTable({ data, onProductUpdated, onProductDeleted }: Produ
   const handleDelete = async (productId: number) => {
     try {
       console.log(`Invoking products:delete for ID: ${productId}`);
-      const result = await window.electronAPI.invoke<typeof IPCChannels.Products.Delete>(
+      const result = await window.electronAPI.invoke(
         IPCChannels.Products.Delete,
         productId
       ) as { success: boolean, error?: string };
@@ -57,6 +58,7 @@ export function ProductTable({ data, onProductUpdated, onProductDeleted }: Produ
         columns={columns}
         data={data}
         meta={meta}
+        actions={actions}
         searchKeys={['name', 'sku', 'description']}
         searchPlaceholder='Suche nach Name, Artikel-Nr. oder Beschreibung...'
       />

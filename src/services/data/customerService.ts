@@ -16,7 +16,7 @@ export const customerService = {
         console.debug(`🔍 [Frontend] customerService.getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
       }
       
-      const customers = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomers>(
+      const customers = await window.electronAPI.invoke(
         IPCChannels.Db.GetCustomers,
         includeCustomFields
       ) as any[];
@@ -45,7 +45,7 @@ export const customerService = {
    */
   async getCustomerById(customerId: number | string): Promise<Customer | null> {
     try {
-      const customer = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomer>(
+      const customer = await window.electronAPI.invoke(
         IPCChannels.Db.GetCustomer,
         Number(customerId)
       );

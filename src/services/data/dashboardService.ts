@@ -26,7 +26,7 @@ export const dashboardService = {
       if (!window.electronAPI) {
         throw new Error("Electron API not available for 'dashboard:get-stats'");
       }
-      const stats = await window.electronAPI.invoke<typeof IPCChannels.Dashboard.GetStats>(
+      const stats = await window.electronAPI.invoke(
         IPCChannels.Dashboard.GetStats
       );
       // Add any necessary mapping or default values here
@@ -51,7 +51,7 @@ export const dashboardService = {
       if (!window.electronAPI) {
         throw new Error("Electron API not available for 'dashboard:get-recent-customers'");
       }
-      const rawCustomers = await window.electronAPI.invoke<typeof IPCChannels.Dashboard.GetRecentCustomers>(
+      const rawCustomers = await window.electronAPI.invoke(
         IPCChannels.Dashboard.GetRecentCustomers,
         limit
       ) as any[];
@@ -74,7 +74,7 @@ export const dashboardService = {
       if (!window.electronAPI) {
         throw new Error("Electron API not available for 'dashboard:get-upcoming-tasks'");
       }
-      const rawTasks = await window.electronAPI.invoke<typeof IPCChannels.Dashboard.GetUpcomingTasks>(
+      const rawTasks = await window.electronAPI.invoke(
         IPCChannels.Dashboard.GetUpcomingTasks,
         limit
       ) as any[];

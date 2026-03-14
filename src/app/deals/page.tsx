@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Link } from "@tanstack/react-router"
-import { ChevronDown, Plus, Search, SlidersHorizontal, LayoutGrid, List, Calendar as CalendarIcon, Loader2 } from "lucide-react"
+import { ChevronDown, Plus, Search, SlidersHorizontal, LayoutGrid, List, Calendar as CalendarIcon, Loader2, FileBox } from "lucide-react"
 import ExportButton from "@/components/export-button"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core'
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
@@ -42,6 +42,8 @@ import { GroupSelector, GroupOption } from "@/components/grouping/group-selector
 import { GroupedList } from "@/components/grouping/grouped-list"
 import { dealGroupingFields, groupItemsByField } from "@/lib/grouping"
 import { IPCChannels } from '@shared/ipc/channels';
+
+import { EmptyState } from "@/components/empty-state"
 
 // Define the Deal type for better type safety
 type Deal = {
@@ -89,8 +91,6 @@ function formatDealForUI(apiDeal: DealFromApi): Deal {
 }
 
 export default function DealsPage() {
-  console.log(`🔍 [DealsPage] Component initialized at ${Date.now()}`);
-  
   const { toast } = useToast()
   const [deals, setDeals] = useState<Deal[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -119,26 +119,19 @@ export default function DealsPage() {
 
   // Load deals with filtering and pagination
   const loadDeals = useCallback(async () => {
-    console.log(`🔍 [DealsPage] loadDeals() called at ${Date.now()}`, { activeFilter, page, searchQuery });
-    const startTime = Date.now();
-    
     setIsLoading(true)
     try {
       const filter: { stage?: string; query?: string } = {}
 
-      // Apply stage filter if active
       if (activeFilter) {
         filter.stage = activeFilter
       }
 
-      // Apply search query
       if (searchQuery.trim() !== '') {
         filter.query = searchQuery
       }
 
-      console.log(`🔍 [DealsPage] Calling deals:get-all IPC with`, { limit, offset: (page - 1) * limit, filter });
-      
-      const apiDeals = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetAll>(
+      const apiDeals = await window.electronAPI.invoke(
         IPCChannels.Deals.GetAll,
         {
           limit,
@@ -147,18 +140,11 @@ export default function DealsPage() {
         }
       )
 
-      console.log(`🔍 [DealsPage] Received ${Array.isArray(apiDeals) ? apiDeals.length : 0} deals from IPC in ${Date.now() - startTime}ms`);
-
-      // Convert API deals to UI format
       const formattedDeals = Array.isArray(apiDeals)
         ? apiDeals.map(formatDealForUI)
         : []
 
-      console.log(`🔍 [DealsPage] Formatted ${formattedDeals.length} deals for UI`);
       setDeals(formattedDeals)
-
-      // Calculate total pages based on results (this is an approximation)
-      // In a real implementation, the backend would return a count
       setTotalPages(Math.max(1, Math.ceil(formattedDeals.length / limit)))
     } catch (error) {
       console.error('Failed to load deals:', error)
@@ -168,26 +154,19 @@ export default function DealsPage() {
         variant: "destructive"
       })
     } finally {
-      const totalTime = Date.now() - startTime;
-      console.log(`🔍 [DealsPage] loadDeals() completed in ${totalTime}ms`);
       setIsLoading(false)
     }
   }, [activeFilter, limit, page, searchQuery, toast])
 
-  // Load deals when component mounts and when dependencies change
   useEffect(() => {
-    console.log(`🔍 [DealsPage] useEffect[loadDeals] triggered at ${Date.now()}`);
     loadDeals()
   }, [loadDeals])
 
-  // Initialize grouping options from dealGroupingFields
   useEffect(() => {
-    console.log(`🔍 [DealsPage] useEffect[groupingOptions] triggered at ${Date.now()}`);
     const options = dealGroupingFields.map(field => ({
       value: field.value,
       label: field.label
     }))
-    console.log(`🔍 [DealsPage] Set ${options.length} grouping options`);
     setGroupingOptions(options)
   }, [])
 
@@ -228,7 +207,7 @@ export default function DealsPage() {
         expected_close_date: newDeal.expectedCloseDate || null
       }
 
-      const result = await window.electronAPI.invoke<typeof IPCChannels.Deals.Create>(
+      const result = await window.electronAPI.invoke(
         IPCChannels.Deals.Create,
         dealData
       ) as { success: boolean; id?: number; error?: string }
@@ -293,7 +272,7 @@ export default function DealsPage() {
 
       // Persist the change to the database
       try {
-        const result = await window.electronAPI.invoke<typeof IPCChannels.Deals.UpdateStage>(
+        const result = await window.electronAPI.invoke(
           IPCChannels.Deals.UpdateStage,
           {
             dealId,
@@ -343,13 +322,8 @@ export default function DealsPage() {
 
   return (
     <main className="flex-1">
-      <div className="container mx-auto max-w-7xl py-6">
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Deals</h1>
-            <p className="text-muted-foreground">Verwalten Sie Ihre Deals</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="px-6 py-4">
+        <div className="flex flex-wrap gap-2 items-center mb-4">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -366,6 +340,8 @@ export default function DealsPage() {
                 size="icon"
                 onClick={() => setViewMode("table")}
                 className="h-9 w-9"
+                aria-label="Tabellenansicht"
+                title="Tabellenansicht"
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -374,6 +350,8 @@ export default function DealsPage() {
                 size="icon"
                 onClick={() => setViewMode("kanban")}
                 className="h-9 w-9"
+                aria-label="Kanban-Ansicht"
+                title="Kanban-Ansicht"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
@@ -417,20 +395,12 @@ export default function DealsPage() {
             <ExportButton data={deals} fileName="deals.json">
               Exportieren
             </ExportButton>
-            <Dialog 
-              open={isAddDealOpen} 
-              onOpenChange={(open) => {
-                console.log(`🔍 [DealsPage] New Deal dialog ${open ? 'OPENED' : 'CLOSED'} at ${Date.now()}`);
-                if (open) {
-                  console.log(`🚨 [DealsPage] PERFORMANCE ALERT: New Deal dialog opening - CustomerCombobox will initialize!`);
-                }
-                setIsAddDealOpen(open);
-              }}
+            <Dialog
+              open={isAddDealOpen}
+              onOpenChange={setIsAddDealOpen}
             >
               <DialogTrigger asChild>
-                <Button onClick={() => {
-                  console.log(`🔍 [DealsPage] "Neuer Deal" button clicked at ${Date.now()}`);
-                }}>
+                <Button>
                   <Plus className="mr-2 h-4 w-4" />
                   Neuer Deal
                 </Button>
@@ -550,7 +520,6 @@ export default function DealsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </div>
         </div>
         <Card>
           <CardHeader className="pb-2">
@@ -622,8 +591,16 @@ export default function DealsPage() {
                     <TableBody>
                       {deals.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center">
-                            Keine Deals gefunden
+                          <TableCell colSpan={7} className="py-16">
+                            <div className="flex flex-col items-center justify-center gap-3 text-center">
+                              <FileBox className="h-10 w-10 text-muted-foreground/40" />
+                              <div>
+                                <p className="font-medium">Keine Deals gefunden</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {activeFilter ? `Keine Deals in Phase "${activeFilter}".` : 'Erstellen Sie Ihren ersten Deal, um Ihre Pipeline zu starten.'}
+                                </p>
+                              </div>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -663,8 +640,8 @@ export default function DealsPage() {
                   </Table>
                 )}
 
-                {/* Pagination - show only when not grouped */}
-                {!isGrouped && (
+                {/* Pagination - show only when not grouped and there are results */}
+                {!isGrouped && deals.length > 0 && (
                   <div className="mt-4 flex justify-center">
                     <Pagination>
                       <PaginationContent>

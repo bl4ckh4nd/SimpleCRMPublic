@@ -94,13 +94,13 @@ export default function DealDetailPage() {
       setCustomerForOrder(null);
       try {
         if (window.electronAPI?.invoke) {
-          const dealData = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetById>(
+          const dealData = await window.electronAPI.invoke(
             IPCChannels.Deals.GetById,
             dealId
           ) as Deal | null;
           setDeal(dealData);
           if (dealData?.customer_id) {
-            const customerData = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomer>(
+            const customerData = await window.electronAPI.invoke(
               IPCChannels.Db.GetCustomer,
               dealData.customer_id
             ) as Customer | null;
@@ -159,10 +159,10 @@ export default function DealDetailPage() {
       setIsLoadingJtlData(true);
       try {
         const [firmen, warenlager, zahlungsarten, versandarten] = await Promise.all([
-          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetFirmen>(IPCChannels.Jtl.GetFirmen) as Promise<JtlFirma[]>,
-          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetWarenlager>(IPCChannels.Jtl.GetWarenlager) as Promise<JtlWarenlager[]>,
-          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetZahlungsarten>(IPCChannels.Jtl.GetZahlungsarten) as Promise<JtlZahlungsart[]>,
-          window.electronAPI.invoke<typeof IPCChannels.Jtl.GetVersandarten>(IPCChannels.Jtl.GetVersandarten) as Promise<JtlVersandart[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetFirmen) as Promise<JtlFirma[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetWarenlager) as Promise<JtlWarenlager[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetZahlungsarten) as Promise<JtlZahlungsart[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetVersandarten) as Promise<JtlVersandart[]>,
         ]);
         setJtlFirmen(firmen || []);
         setJtlWarenlager(warenlager || []);
@@ -186,7 +186,7 @@ export default function DealDetailPage() {
       if (!window.electronAPI?.invoke) {
         throw new Error("API not available for saving.");
       }
-      const result = await window.electronAPI.invoke<typeof IPCChannels.Deals.Update>(
+      const result = await window.electronAPI.invoke(
         IPCChannels.Deals.Update,
         { id: dealId, dealData: updatedDealData }
       ) as { success: boolean; error?: string };
@@ -195,7 +195,7 @@ export default function DealDetailPage() {
         // This type represents the object structure returned by 'deals:get-by-id'
         type DealResponseFromService = Omit<Deal, 'customer'> & { customer_name: string };
 
-        const response = await window.electronAPI.invoke<typeof IPCChannels.Deals.GetById>(
+        const response = await window.electronAPI.invoke(
           IPCChannels.Deals.GetById,
           dealId
         ) as DealResponseFromService | null;
@@ -331,7 +331,7 @@ export default function DealDetailPage() {
     try {
       if (!window.electronAPI?.invoke) throw new Error("Electron API not available");
       // Explicitly type the result of the invoke call
-      const result = await window.electronAPI.invoke<typeof IPCChannels.Jtl.CreateOrder>(
+      const result = await window.electronAPI.invoke(
         IPCChannels.Jtl.CreateOrder,
         orderInput
       ) as JtlOrderCreationResponse;
@@ -354,9 +354,8 @@ export default function DealDetailPage() {
     // are now part of the useDealProducts hook and are destructured above.
 
     return (
-      <div className="flex min-h-screen flex-col">
         <main className="flex-1">
-        <div className="container mx-auto max-w-7xl py-6">
+        <div className="px-6 py-4">
           <div className="mb-6">
             <Button variant="ghost" asChild className="mb-6 gap-1">
               <Link to="/deals">
@@ -670,7 +669,6 @@ export default function DealDetailPage() {
           </div>
         </div>
       </main>
-    </div>
   )
   }
 

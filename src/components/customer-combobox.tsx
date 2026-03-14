@@ -60,7 +60,7 @@ export function CustomerCombobox({
       setLoading(true)
       try {
         console.log(`🔍 [CustomerCombobox] Calling db:search-customers with query: "${searchQuery}", limit: 50`);
-        const results = await window.electronAPI.invoke<typeof IPCChannels.Db.SearchCustomers>(
+        const results = await window.electronAPI.invoke(
           IPCChannels.Db.SearchCustomers,
           searchQuery,
           50
@@ -95,7 +95,7 @@ export function CustomerCombobox({
         const startTime = Date.now();
         try {
           console.log(`🔍 [CustomerCombobox] Calling db:get-customer for ID: ${value}`);
-          const customer = await window.electronAPI.invoke<typeof IPCChannels.Db.GetCustomer>(
+          const customer = await window.electronAPI.invoke(
             IPCChannels.Db.GetCustomer,
             value
           ) as any

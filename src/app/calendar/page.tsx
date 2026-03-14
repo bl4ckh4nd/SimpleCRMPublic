@@ -251,7 +251,7 @@ export default function CalendarPage() {
           // Throwing an error might be appropriate if the API is essential.
           throw new Error("Electron API not found. Cannot fetch calendar events.");
         }
-        return await window.electronAPI.invoke<typeof IPCChannels.Calendar.GetCalendarEvents>(
+        return await window.electronAPI.invoke(
           IPCChannels.Calendar.GetCalendarEvents
         );
       } catch (error) {
@@ -274,8 +274,8 @@ export default function CalendarPage() {
           title: event.title,
           description: event.description || '',
           // Ensure start and end are Dates before calling toISOString()
-          start_date: event.start instanceof Date ? event.start.toISOString() : event.start,
-          end_date: event.end instanceof Date ? event.end.toISOString() : event.end,
+          start_date: event.start_date ?? (event.start instanceof Date ? event.start.toISOString() : event.start),
+          end_date: event.end_date ?? (event.end instanceof Date ? event.end.toISOString() : event.end),
           all_day: event.allDay || false,
           color_code: event.color_code || '#3174ad',
           event_type: event.event_type || '',
@@ -294,7 +294,7 @@ export default function CalendarPage() {
 
         console.log('Converted SQLite-compatible event:', JSON.stringify(sqliteCompatibleEvent, null, 2));
 
-        const result = await window.electronAPI.invoke<typeof IPCChannels.Calendar.AddCalendarEvent>(
+        const result = await window.electronAPI.invoke(
           IPCChannels.Calendar.AddCalendarEvent,
           sqliteCompatibleEvent
         );
@@ -334,7 +334,7 @@ export default function CalendarPage() {
 
         console.log('Converted SQLite-compatible event for update:', JSON.stringify(sqliteCompatibleEvent, null, 2));
 
-        await window.electronAPI.invoke<typeof IPCChannels.Calendar.UpdateCalendarEvent>(
+        await window.electronAPI.invoke(
           IPCChannels.Calendar.UpdateCalendarEvent,
           sqliteCompatibleEvent
         );
@@ -345,7 +345,7 @@ export default function CalendarPage() {
     },
     deleteCalendarEvent: async (id) => {
       try {
-        await window.electronAPI.invoke<typeof IPCChannels.Calendar.DeleteCalendarEvent>(
+        await window.electronAPI.invoke(
           IPCChannels.Calendar.DeleteCalendarEvent,
           id
         );
@@ -909,63 +909,48 @@ export default function CalendarPage() {
 
   if (loading && fetchRetryCount.current === 0) {
     return (
-      <div className="flex min-h-screen flex-col">
-
-        <main className="flex flex-1 items-center justify-center">
-          <p>Lade Kalender...</p>
-        </main>
-      </div>
+      <main className="flex flex-1 items-center justify-center">
+        <p>Lade Kalender...</p>
+      </main>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
       <main className="flex-1">
-        <div className="container mx-auto max-w-7xl py-6">
-          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Terminplaner</h1>
-              <p className="text-muted-foreground">
-                {currentView === Views.MONTH && "Monatsansicht"}
-                {currentView === Views.WEEK && "Wochenansicht"}
-                {currentView === Views.DAY && "Tagesansicht"}
-                {currentView === Views.AGENDA && "Agenda"}
-                {" - "}
-                {currentDate.toLocaleDateString('de-DE', {
-                  year: 'numeric',
-                  month: currentView === Views.MONTH || currentView === Views.AGENDA ? 'long' : '2-digit',
-                  day: currentView !== Views.MONTH ? '2-digit' : undefined,
-                })}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentDate(new Date())}
-              >
-                Heute
-              </Button>
-              <Button
-                onClick={() => {
-                  const now = new Date();
-                  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
-                  const end = new Date(start.getTime() + 60 * 60 * 1000);
-                  setEventFormData({
-                    title: "",
-                    start,
-                    end,
-                    allDay: false,
-                    description: "",
-                    color_code: "#3174ad",
-                  });
-                  setFormTaskData(null);
-                  setIsAddModalOpen(true);
-                }}
-              >
-                Ereignis hinzufügen
-              </Button>
-            </div>
+        <div className="px-6 py-4">
+          <div className="flex flex-wrap gap-2 items-center mb-4">
+            <span className="text-sm text-muted-foreground">
+              {currentView === Views.MONTH && "Monatsansicht"}
+              {currentView === Views.WEEK && "Wochenansicht"}
+              {currentView === Views.DAY && "Tagesansicht"}
+              {currentView === Views.AGENDA && "Agenda"}
+              {" - "}
+              {currentDate.toLocaleDateString('de-DE', {
+                year: 'numeric',
+                month: currentView === Views.MONTH || currentView === Views.AGENDA ? 'long' : '2-digit',
+                day: currentView !== Views.MONTH ? '2-digit' : undefined,
+              })}
+            </span>
+            <div className="flex-1" />
+            <Button
+              onClick={() => {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
+                const end = new Date(start.getTime() + 60 * 60 * 1000);
+                setEventFormData({
+                  title: "",
+                  start,
+                  end,
+                  allDay: false,
+                  description: "",
+                  color_code: "#3174ad",
+                });
+                setFormTaskData(null);
+                setIsAddModalOpen(true);
+              }}
+            >
+              Ereignis hinzufügen
+            </Button>
           </div>
 
           {fetchError && !loading && (
@@ -1127,6 +1112,5 @@ export default function CalendarPage() {
           )}
         </div>
       </main>
-    </div>
   );
 }

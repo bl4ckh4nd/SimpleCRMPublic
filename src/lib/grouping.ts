@@ -355,24 +355,12 @@ export function getFieldAccessor<T>(fieldName: string): (item: T) => any {
 // Function to get grouping options from custom fields
 export async function getCustomFieldGroupingOptions(): Promise<GroupingField[]> {
   try {
-    console.log(`🔍 [Grouping] getCustomFieldGroupingOptions() called`);
-    console.log(`🔍 [Grouping] getCustomFieldGroupingOptions call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
-    
-    // Fetch active custom fields
     const customFields = await customFieldService.getActiveCustomFields();
-    console.log(`🔍 [Grouping] Retrieved ${customFields.length} custom fields for grouping`);
-
-    // Convert custom fields to grouping fields
-    const result = customFields.map(field => {
-      return {
-        value: `custom_${field.name}`, // Prefix to avoid collisions with standard fields
-        label: `${field.label} (Custom)`,
-        groupingFn: getGroupingFunctionForCustomField(field)
-      };
-    });
-    
-    console.log(`🔍 [Grouping] Returning ${result.length} custom field grouping options`);
-    return result;
+    return customFields.map(field => ({
+      value: `custom_${field.name}`,
+      label: `${field.label} (Custom)`,
+      groupingFn: getGroupingFunctionForCustomField(field)
+    }));
   } catch (error) {
     console.error('Failed to fetch custom field grouping options:', error);
     return [];

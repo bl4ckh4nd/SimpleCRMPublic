@@ -112,7 +112,11 @@ export function UpdateStatusDisplay() {
   const showBanner =
     typeof window !== "undefined" &&
     !!window.electron?.updates &&
-    (status !== null || isChecking);
+    (isChecking ||
+      status?.status === "available" ||
+      status?.status === "downloading" ||
+      status?.status === "downloaded" ||
+      status?.status === "error");
 
   if (!showBanner) {
     return null;

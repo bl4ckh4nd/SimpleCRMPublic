@@ -139,7 +139,7 @@ export function ProductCombobox({
         const startTime = Date.now();
         try {
           console.log(`🔍 [ProductCombobox] Calling products:get-by-id for ID: ${value}`);
-          const product = await window.electronAPI.invoke<typeof IPCChannels.Products.GetById>(
+          const product = await window.electronAPI.invoke(
             IPCChannels.Products.GetById,
             value
           ) as any

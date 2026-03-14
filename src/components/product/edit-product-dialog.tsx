@@ -38,7 +38,7 @@ export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpda
         sku: values.sku || null,
         description: values.description || null,
       };
-      const result = await window.electronAPI.invoke<typeof IPCChannels.Products.Update>(
+      const result = await window.electronAPI.invoke(
         IPCChannels.Products.Update,
         { id: product.id, productData: dataToSend }
       ) as { success: boolean, error?: string };

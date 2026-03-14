@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Package, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProductTable } from '@/components/product/product-table';
 import { CreateProductDialog } from '@/components/product/create-product-dialog';
 import { Product } from '@/types'; // Assuming Product type will be defined in src/types/index.ts
 import { IPCChannels } from '@shared/ipc/channels';
-
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -19,11 +19,12 @@ export default function ProductsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      console.log('Invoking products:get-all');
-      const fetchedProducts = await window.electronAPI.invoke<typeof IPCChannels.Products.GetAll>(
+      if (!window.electronAPI?.invoke) {
+        throw new Error('Electron API nicht verfügbar. Bitte starten Sie die Anwendung neu.');
+      }
+      const fetchedProducts = await window.electronAPI.invoke(
         IPCChannels.Products.GetAll
       ) as Product[];
-      console.log('Fetched products:', fetchedProducts);
       // Ensure isActive is boolean (it comes as 0/1 from SQLite)
       const mappedProducts = fetchedProducts.map((p) => ({
         ...p,
@@ -32,7 +33,7 @@ export default function ProductsPage() {
       setProducts(mappedProducts);
     } catch (err: any) {
       console.error('Error fetching products:', err);
-      setError(err.message || 'Failed to fetch products');
+      setError(err.message || 'Produkte konnten nicht geladen werden.');
     } finally {
       setIsLoading(false);
     }
@@ -50,33 +51,59 @@ export default function ProductsPage() {
     fetchProducts(); // Refetch products after update
   };
 
-   const handleProductDeleted = () => {
+  const handleProductDeleted = () => {
     fetchProducts(); // Refetch products after deletion
   };
 
 
   if (isLoading) {
-    // The router should handle showing the loading.tsx component,
-    // but we can keep a simple loader here as fallback or if needed.
-    return <div>Loading products...</div>;
+    return (
+      <main className="flex-1">
+        <div className="px-6 py-4">
+          <div className="flex justify-center items-center py-20">
+            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Produkte werden geladen...</span>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (error) {
-    return <div className="text-red-500 p-4">Error: {error}</div>;
+    return (
+      <main className="flex-1">
+        <div className="px-6 py-4">
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                Produkte konnten nicht geladen werden
+              </CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={fetchProducts}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Erneut versuchen
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold">Produktliste</h1>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Neues Produkt erstellen
-        </Button>
-      </div>
-
+    <main className="flex-1">
+    <div className="px-6 py-4">
       {/* Render ProductTable */}
-      <ProductTable 
-          data={products} 
+      <ProductTable
+          data={products}
+          actions={
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Neues Produkt
+            </Button>
+          }
           onProductUpdated={handleProductUpdated}
           onProductDeleted={handleProductDeleted}
       /> 
@@ -89,5 +116,6 @@ export default function ProductsPage() {
       /> 
 
     </div>
+    </main>
   );
-} 
+}

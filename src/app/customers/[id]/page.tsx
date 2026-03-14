@@ -230,10 +230,8 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-
       <main className="flex-1">
-        <div className="container mx-auto max-w-7xl py-6">
+        <div className="px-6 py-4">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link to="/customers" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
@@ -585,7 +583,7 @@ export default function CustomerDetailPage() {
                             <TableRow key={deal.id}>
                               <TableCell>
                                 {/* Assuming deal detail page exists at /deals/[id] */}
-                                <Link to="/deals/$id" params={{ id: deal.id.toString() }} className="hover:underline font-medium">
+                                <Link to="/deals/$dealId" params={{ dealId: deal.id.toString() }} className="hover:underline font-medium">
                                   {deal.name}
                                 </Link>
                               </TableCell>
@@ -611,7 +609,7 @@ export default function CustomerDetailPage() {
                     </Button>
                     <Button asChild>
                       {/* Link to new deal page, passing customerId */}
-                      <Link to="/deals/new" search={{ customerId: customer.id }}>Neuen Deal hinzufügen</Link>
+                      <Link to="/deals/$dealId" params={{ dealId: "new" }} search={{ customerId: customer.id }}>Neuen Deal hinzufügen</Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -641,8 +639,8 @@ export default function CustomerDetailPage() {
                           {tasks.map((task) => (
                             <TableRow key={task.id}>
                               <TableCell>
-                                {/* Assuming task detail page exists at /tasks/[id] */}
-                                <Link to="/tasks/$id" params={{ id: task.id.toString() }} className="hover:underline font-medium">
+                                {/* Link to tasks page - task detail route not yet implemented */}
+                                <Link to="/tasks" className="hover:underline font-medium">
                                   {task.title}
                                 </Link>
                               </TableCell>
@@ -691,8 +689,8 @@ export default function CustomerDetailPage() {
                       <Link to="/tasks" search={{ customerId: customer.id }}>Alle Aufgaben anzeigen</Link>
                     </Button>
                     <Button asChild>
-                      {/* Link to new task page, passing customerId */}
-                      <Link to="/tasks/new" search={{ customerId: customer.id }}>Neue Aufgabe hinzufügen</Link>
+                      {/* Link to tasks page with customerId filter */}
+                      <Link to="/tasks" search={{ customerId: customer.id }}>Neue Aufgabe hinzufügen</Link>
                     </Button>
                   </CardFooter>
                 </Card>
@@ -728,6 +726,5 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       </main>
-    </div>
   )
 }

@@ -95,7 +95,7 @@ const columns: ColumnDef<Customer>[] = [
       </Button>
     ),
     cell: ({ row }) => (
-      <Link to="/customers/$id" params={{ id: row.original.id.toString() }} className="hover:underline font-medium">
+      <Link to="/customers/$customerId" params={{ customerId: row.original.id.toString() }} className="hover:underline font-medium">
         {`${row.original.firstName || ''} ${row.original.name}`}
       </Link>
     ),
@@ -270,28 +270,13 @@ export default function CustomersPage() {
 
   useEffect(() => {
     const fetchCustomersWithCustomFields = async () => {
-      console.log(`🔍 [CustomersPage] Starting to fetch customers with custom fields`);
-      const startTime = Date.now();
-      
       setIsLoading(true)
       try {
-        // Fetch customers
-        console.log(`🔍 [CustomersPage] Fetching customers list...`);
-        const fetchStartTime = Date.now();
         const fetchedCustomers = await localDataService.getCustomers()
-        console.log(`🔍 [CustomersPage] Fetched ${fetchedCustomers.length} customers in ${Date.now() - fetchStartTime}ms`);
-
-        // PERFORMANCE CRITICAL: For each customer, fetch their custom field values
-        // This creates N+1 queries (1 for customers + N for each customer's custom fields)
-        console.log(`🔍 [CustomersPage] PERFORMANCE WARNING: About to fetch custom fields for ${fetchedCustomers.length} customers individually (N+1 query pattern)`);
-        const customFieldsStartTime = Date.now();
-        
         const customersWithFields = await Promise.all(
-          fetchedCustomers.map(async (customer, index) => {
+          fetchedCustomers.map(async (customer) => {
             try {
-              const customerStartTime = Date.now();
               const customFieldValues = await customFieldService.getCustomFieldValuesForCustomer(Number(customer.id));
-              console.log(`🔍 [CustomersPage] Customer ${index + 1}/${fetchedCustomers.length} (ID: ${customer.id}) custom fields fetched in ${Date.now() - customerStartTime}ms`);
 
               // Convert array of values to a key-value object
               const customFields = customFieldValues.reduce((acc, field) => {
@@ -315,9 +300,6 @@ export default function CustomersPage() {
           })
         );
 
-        console.log(`🔍 [CustomersPage] All custom fields fetched in ${Date.now() - customFieldsStartTime}ms`);
-        console.log(`🔍 [CustomersPage] Total time to load customers with custom fields: ${Date.now() - startTime}ms`);
-        
         setCustomers(customersWithFields);
       } catch (error) {
         console.error("Failed to fetch customers:", error)
@@ -398,20 +380,10 @@ export default function CustomersPage() {
   };
   return (
     <main className="flex-1">
-      <div className="container mx-auto max-w-7xl py-6">
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-3xl font-bold">Kunden</h1>
-              <p className="text-muted-foreground">Anzeige lokaler Kunden (synchronisiert mit JTL)</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <SyncStatusDisplay />
-            </div>
-          </div>
-
+      <div className="px-6 py-4">
           {/* Toolbar: Search, Filters, Actions */}
           <div className="flex flex-wrap gap-2 items-center mb-4">
+            <SyncStatusDisplay />
             {/* Global Search */}
             <div className="relative flex-1 min-w-[250px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -500,8 +472,6 @@ export default function CustomersPage() {
              </div>
            )}
 
-        </div>
-
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>Kundenliste</CardTitle>
@@ -526,7 +496,7 @@ export default function CustomersPage() {
                     <div className="border-b py-2 px-4 hover:bg-muted/50">
                       <div className="flex items-center justify-between">
                         <div>
-                          <Link to="/customers/$id" params={{ id: customer.id.toString() }} className="font-medium hover:underline">
+                          <Link to="/customers/$customerId" params={{ customerId: customer.id.toString() }} className="font-medium hover:underline">
                             {`${customer.firstName || ''} ${customer.name}`}
                           </Link>
                           <div className="text-sm text-muted-foreground">

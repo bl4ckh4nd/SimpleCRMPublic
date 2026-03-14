@@ -76,7 +76,7 @@ export const calendarService = {
       recurrence_rule: null,
     };
 
-    const result = await window.electronAPI.invoke<typeof IPCChannels.Calendar.AddCalendarEvent>(
+    const result = await window.electronAPI.invoke(
       IPCChannels.Calendar.AddCalendarEvent,
       sqliteCompatibleEvent,
     ) as { success?: boolean; id?: number; lastInsertRowid?: number };
@@ -146,7 +146,7 @@ export const calendarService = {
       return;
     }
 
-    await window.electronAPI.invoke<typeof IPCChannels.Calendar.UpdateCalendarEvent>(
+    await window.electronAPI.invoke(
       IPCChannels.Calendar.UpdateCalendarEvent,
       {
         id: eventId,
@@ -164,7 +164,7 @@ export const calendarService = {
       throw new Error('Ungültige Kalender-Ereignis-ID.');
     }
 
-    await window.electronAPI.invoke<typeof IPCChannels.Calendar.DeleteCalendarEvent>(
+    await window.electronAPI.invoke(
       IPCChannels.Calendar.DeleteCalendarEvent,
       eventId
     );
