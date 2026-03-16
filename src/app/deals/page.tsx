@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Link } from "@tanstack/react-router"
 import { ChevronDown, Plus, Search, SlidersHorizontal, LayoutGrid, List, Calendar as CalendarIcon, Loader2, FileBox } from "lucide-react"
 import ExportButton from "@/components/export-button"
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns"
 import { de } from "date-fns/locale"
 import { Calendar } from "@/components/ui/calendar"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from "sonner"
 import {
   Pagination,
   PaginationContent,
@@ -90,17 +91,33 @@ function formatDealForUI(apiDeal: DealFromApi): Deal {
   };
 }
 
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleDateString('de-DE')
+  } catch {
+    return dateString
+  }
+}
+
+const formatCurrency = (value: string | number | null | undefined): string => {
+  const num = Number(value)
+  if (isNaN(num)) return '-'
+  return num.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+}
+
+const PAGE_SIZE = 10
+
 export default function DealsPage() {
-  const { toast } = useToast()
-  const [deals, setDeals] = useState<Deal[]>([])
+  const [allDeals, setAllDeals] = useState<Deal[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isAddDealOpen, setIsAddDealOpen] = useState(false)
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table")
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [limit] = useState(10)
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [isGrouped, setIsGrouped] = useState(false)
   const [selectedGrouping, setSelectedGrouping] = useState<string | null>(null)
@@ -117,7 +134,11 @@ export default function DealsPage() {
   })
 
 
-  // Load deals with filtering and pagination
+  // Derived state for pagination
+  const totalPages = Math.max(1, Math.ceil(allDeals.length / PAGE_SIZE))
+  const deals = allDeals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Load all deals with optional filtering (pagination is client-side)
   const loadDeals = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -133,30 +154,22 @@ export default function DealsPage() {
 
       const apiDeals = await window.electronAPI.invoke(
         IPCChannels.Deals.GetAll,
-        {
-          limit,
-          offset: (page - 1) * limit,
-          filter
-        }
+        { limit: 10000, offset: 0, filter }
       )
 
       const formattedDeals = Array.isArray(apiDeals)
         ? apiDeals.map(formatDealForUI)
         : []
 
-      setDeals(formattedDeals)
-      setTotalPages(Math.max(1, Math.ceil(formattedDeals.length / limit)))
+      setAllDeals(formattedDeals)
+      setPage(1)
     } catch (error) {
       console.error('Failed to load deals:', error)
-      toast({
-        title: "Fehler",
-        description: "Deals konnten nicht geladen werden",
-        variant: "destructive"
-      })
+      toast.error("Fehler", { description: "Deals konnten nicht geladen werden" })
     } finally {
       setIsLoading(false)
     }
-  }, [activeFilter, limit, page, searchQuery, toast])
+  }, [activeFilter, searchQuery])
 
   useEffect(() => {
     loadDeals()
@@ -180,20 +193,16 @@ export default function DealsPage() {
     useSensor(KeyboardSensor)
   )
 
-  // Group deals by stage for Kanban view
+  // Group ALL deals by stage for Kanban view (unaffected by page slice)
   const dealStages = ["Interessent", "Qualifiziert", "Angebot", "Verhandlung", "Gewonnen", "Verloren"]
   const groupedDeals = dealStages.reduce((acc, stage) => {
-    acc[stage] = deals.filter(deal => deal.stage === stage)
+    acc[stage] = allDeals.filter(deal => deal.stage === stage)
     return acc
   }, {} as Record<string, Deal[]>)
 
   const handleAddDeal = async () => {
     if (!newDeal.name || !newDeal.customer_id || (newDeal.value_calculation_method === 'static' && !newDeal.value)) {
-      toast({
-        title: "Eingabefehler",
-        description: "Bitte füllen Sie alle Pflichtfelder aus",
-        variant: "destructive"
-      })
+      toast.error("Eingabefehler", { description: "Bitte füllen Sie alle Pflichtfelder aus" })
       return
     }
 
@@ -213,10 +222,7 @@ export default function DealsPage() {
       ) as { success: boolean; id?: number; error?: string }
 
       if (result.success && result.id) {
-        toast({
-          title: "Erfolg",
-          description: "Deal erfolgreich hinzugefügt"
-        })
+        toast.success("Deal erfolgreich hinzugefügt")
 
         // Refresh the deals list
         await loadDeals()
@@ -239,10 +245,8 @@ export default function DealsPage() {
       }
     } catch (error) {
       console.error('Failed to add deal:', error)
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Deal konnte nicht hinzugefügt werden",
-        variant: "destructive"
+      toast.error("Fehler", {
+        description: error instanceof Error ? error.message : "Deal konnte nicht hinzugefügt werden"
       })
     }
   }
@@ -250,7 +254,7 @@ export default function DealsPage() {
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const dealId = active.id as number;
-    const deal = deals.find(d => d.id === dealId);
+    const deal = allDeals.find(d => d.id === dealId);
     if (deal) {
       setActiveDeal(deal);
     }
@@ -264,7 +268,7 @@ export default function DealsPage() {
       const newStage = over.id as string;
 
       // Optimistically update the UI
-      setDeals(currentDeals =>
+      setAllDeals(currentDeals =>
         currentDeals.map(deal =>
           deal.id === dealId ? { ...deal, stage: newStage } : deal
         )
@@ -284,21 +288,14 @@ export default function DealsPage() {
           throw new Error(result.error || 'Failed to update deal stage')
         }
 
-        toast({
-          title: "Deal aktualisiert",
-          description: `Deal wurde auf "${newStage}" aktualisiert`
-        })
+        toast.success("Deal aktualisiert", { description: `Deal wurde auf "${newStage}" aktualisiert` })
       } catch (error) {
         console.error('Failed to update deal stage:', error)
 
         // Rollback the UI change if the API call fails
         await loadDeals()
 
-        toast({
-          title: "Fehler",
-          description: "Deal-Status konnte nicht aktualisiert werden",
-          variant: "destructive"
-        })
+        toast.error("Fehler", { description: "Deal-Status konnte nicht aktualisiert werden" })
       }
     }
 
@@ -306,23 +303,39 @@ export default function DealsPage() {
     setActiveDeal(null);
   };
 
-  // Handle search input with debounce
+  // Handle stage change from Kanban card dropdown (keyboard-accessible alternative to drag)
+  const handleKanbanStageChange = async (dealId: number, newStage: string) => {
+    setAllDeals(current => current.map(d => d.id === dealId ? { ...d, stage: newStage } : d));
+    try {
+      const result = await window.electronAPI.invoke(IPCChannels.Deals.UpdateStage, { dealId, newStage }) as { success: boolean; error?: string };
+      if (!result.success) throw new Error(result.error);
+      toast.success("Deal aktualisiert", { description: `Deal wurde auf "${newStage}" aktualisiert` });
+    } catch (error) {
+      await loadDeals();
+      toast.error("Fehler", { description: "Deal-Status konnte nicht aktualisiert werden" });
+    }
+  };
+
+  // Handle search input with 300ms debounce
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-    // Reset to page 1 when searching
-    setPage(1)
+    const value = e.target.value
+    setSearchInput(value)
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchQuery(value)
+    }, 300)
   }
 
   // Handle filter selection
   const handleFilterSelect = (stage: string | null) => {
     setActiveFilter(stage)
-    // Reset to page 1 when filtering
     setPage(1)
   }
 
   return (
     <main className="flex-1">
       <div className="px-6 py-4">
+        <h1 className="text-2xl font-bold mb-4">Deals</h1>
         <div className="flex flex-wrap gap-2 items-center mb-4">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -330,7 +343,7 @@ export default function DealsPage() {
                 type="search"
                 placeholder="Deals suchen..."
                 className="pl-8 md:w-[300px]"
-                value={searchQuery}
+                value={searchInput}
                 onChange={handleSearchChange}
               />
             </div>
@@ -527,7 +540,7 @@ export default function DealsPage() {
             <CardDescription>
               {isLoading
                 ? "Deals werden geladen..."
-                : `Sie haben ${deals.length} Deals in Ihrer Pipeline${activeFilter ? ` (gefiltert nach: ${activeFilter})` : ''}${isGrouped && selectedGrouping ? ` (gruppiert nach: ${dealGroupingFields.find(f => f.value === selectedGrouping)?.label || selectedGrouping})` : ''}`}
+                : `Sie haben ${allDeals.length} Deals in Ihrer Pipeline${activeFilter ? ` (gefiltert nach: ${activeFilter})` : ''}${isGrouped && selectedGrouping ? ` (gruppiert nach: ${dealGroupingFields.find(f => f.value === selectedGrouping)?.label || selectedGrouping})` : ''}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -541,7 +554,7 @@ export default function DealsPage() {
                   // Grouped view
                   <div className="mt-4">
                     <GroupedList
-                      groups={groupItemsByField(deals, selectedGrouping, dealGroupingFields)}
+                      groups={groupItemsByField(allDeals, selectedGrouping, dealGroupingFields)}
                       renderItem={(deal) => (
                         <div className="border-b py-2 px-4 hover:bg-muted/50">
                           <div className="flex items-center justify-between">
@@ -550,7 +563,7 @@ export default function DealsPage() {
                                 {deal.name}
                               </Link>
                               <div className="text-sm text-muted-foreground">
-                                {deal.customer} • {deal.value} €
+                                {deal.customer} • {formatCurrency(deal.value)}
                               </div>
                             </div>
                             <Badge
@@ -582,14 +595,26 @@ export default function DealsPage() {
                         <TableHead>Deal-Name</TableHead>
                         <TableHead>Kunde</TableHead>
                         <TableHead className="hidden md:table-cell">Wert</TableHead>
-                        <TableHead className="hidden md:table-cell">Berechnung</TableHead>
+                        <TableHead className="hidden md:table-cell">
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help underline decoration-dotted">Berechnung</span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[200px] text-xs">
+                                <p><strong>Statisch:</strong> Manuell eingegebener Wert.</p>
+                                <p><strong>Dynamisch:</strong> Wird automatisch aus verknüpften Produkten berechnet.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableHead>
                         <TableHead className="hidden md:table-cell">Erstellungsdatum</TableHead>
                         <TableHead className="hidden md:table-cell">Voraussichtlicher Abschluss</TableHead>
                         <TableHead>Phase</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {deals.length === 0 ? (
+                      {allDeals.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={7} className="py-16">
                             <div className="flex flex-col items-center justify-center gap-3 text-center">
@@ -612,12 +637,12 @@ export default function DealsPage() {
                               </Link>
                             </TableCell>
                             <TableCell>{deal.customer}</TableCell>
-                            <TableCell className="hidden md:table-cell">{deal.value} €</TableCell>
+                            <TableCell className="hidden md:table-cell">{formatCurrency(deal.value)}</TableCell>
                             <TableCell className="hidden md:table-cell">
                               {deal.value_calculation_method === 'dynamic' ? 'Dynamisch' : 'Statisch'}
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">{deal.createdDate}</TableCell>
-                            <TableCell className="hidden md:table-cell">{deal.expectedCloseDate}</TableCell>
+                            <TableCell className="hidden md:table-cell">{formatDate(deal.createdDate)}</TableCell>
+                            <TableCell className="hidden md:table-cell">{formatDate(deal.expectedCloseDate)}</TableCell>
                             <TableCell>
                               <Badge
                                 variant={
@@ -640,30 +665,27 @@ export default function DealsPage() {
                   </Table>
                 )}
 
-                {/* Pagination - show only when not grouped and there are results */}
-                {!isGrouped && deals.length > 0 && (
+                {/* Pagination - show only when not grouped and there are multiple pages */}
+                {!isGrouped && totalPages > 1 && (
                   <div className="mt-4 flex justify-center">
                     <Pagination>
                       <PaginationContent>
                         <PaginationItem>
-                          <div
-                            onClick={() => page > 1 && setPage(prev => Math.max(1, prev - 1))}
+                          <PaginationPrevious
+                            onClick={() => setPage(prev => Math.max(1, prev - 1))}
                             className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                          >
-                            <PaginationPrevious />
-                          </div>
+                          />
                         </PaginationItem>
                         <PaginationItem>
                           <span className="flex h-10 items-center justify-center px-4">
-                            Seite {page} von {totalPages || 1}
+                            Seite {page} von {totalPages}
                           </span>
-                        </PaginationItem>                        <PaginationItem>
-                          <div
-                            onClick={() => page < (totalPages || 1) && setPage(prev => Math.min(totalPages || 1, prev + 1))}
-                            className={page === (totalPages || 1) ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                          >
-                            <PaginationNext />
-                          </div>
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                            className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                          />
                         </PaginationItem>
                       </PaginationContent>
                     </Pagination>
@@ -684,6 +706,7 @@ export default function DealsPage() {
                       id={stage}
                       title={stage}
                       deals={groupedDeals[stage] || []}
+                      onStageChange={handleKanbanStageChange}
                     />
                   ))}
                 </div>

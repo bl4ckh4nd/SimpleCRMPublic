@@ -3,6 +3,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const DEAL_STAGES = ['Interessent', 'Qualifiziert', 'Angebot', 'Verhandlung', 'Gewonnen', 'Verloren'] as const;
 
 type Deal = {
   id: number;
@@ -17,9 +20,10 @@ type Deal = {
 
 interface KanbanCardProps {
   deal: Deal;
+  onStageChange?: (dealId: number, newStage: string) => void;
 }
 
-export function KanbanCard({ deal }: KanbanCardProps) {
+export function KanbanCard({ deal, onStageChange }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -76,8 +80,23 @@ export function KanbanCard({ deal }: KanbanCardProps) {
             </Badge>
           </div>
         </CardContent>
-        <CardFooter className="p-4 pt-0 text-xs text-muted-foreground">
-          Abschluss: {deal.expectedCloseDate}
+        <CardFooter className="p-4 pt-0 flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">Abschluss: {deal.expectedCloseDate || '—'}</span>
+          {onStageChange && (
+            // Stop pointer events from bubbling to drag listeners
+            <div onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+              <Select value={deal.stage} onValueChange={(stage) => onStageChange(deal.id, stage)}>
+                <SelectTrigger className="h-7 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEAL_STAGES.map(s => (
+                    <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardFooter>
       </Card>
     </div>
