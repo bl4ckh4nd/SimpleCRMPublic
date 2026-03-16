@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -145,19 +146,22 @@ const columns: ColumnDef<Customer>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <Badge variant={row.original.status === "Active" ? "default" : row.original.status === "Lead" ? "secondary" : "outline"}>
-        {row.original.status}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const statusLabels: Record<string, string> = { Active: "Aktiv", Lead: "Lead", Inactive: "Inaktiv" };
+      return (
+        <Badge variant={row.original.status === "Active" ? "default" : row.original.status === "Lead" ? "secondary" : "outline"}>
+          {statusLabels[row.original.status] ?? row.original.status}
+        </Badge>
+      );
+    },
     // Enable filtering on this column
     filterFn: 'equals', // Use built-in 'equals' or a custom function if needed
   },
   {
-    accessorKey: "customerNumber",
+    accessorKey: "jtl_kKunde",
     id: "jtlCustomerNumber",
     header: "JTL Kundennr.",
-    cell: ({ row }) => row.original.customerNumber || '-',
+    cell: ({ row }) => row.original.jtl_kKunde?.toString() || '-',
   },
   {
     id: "actions",
@@ -172,7 +176,7 @@ const columns: ColumnDef<Customer>[] = [
         }
       };
       return customer.affiliateLink ? (
-        <Button variant="ghost" size="icon" onClick={() => copyAffiliateLink(customer.affiliateLink)} title={customer.affiliateLink}>
+        <Button variant="ghost" size="icon" onClick={() => copyAffiliateLink(customer.affiliateLink)} title="Affiliate-Link kopieren" aria-label="Affiliate-Link kopieren">
           <Copy className="h-4 w-4" />
         </Button>
       ) : (
@@ -216,6 +220,7 @@ const globalFilterFn: FilterFn<Customer> = (row, columnId, filterValue) => {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const navigate = useNavigate()
 
   // Grouping state
@@ -303,7 +308,7 @@ export default function CustomersPage() {
         setCustomers(customersWithFields);
       } catch (error) {
         console.error("Failed to fetch customers:", error)
-        toast.error("Could not load customers from local database.")
+        toast.error("Kunden konnten nicht aus der lokalen Datenbank geladen werden.")
         setCustomers([])
       } finally {
         setIsLoading(false)
@@ -381,6 +386,7 @@ export default function CustomersPage() {
   return (
     <main className="flex-1">
       <div className="px-6 py-4">
+        <h1 className="text-2xl font-bold mb-4">Kunden</h1>
           {/* Toolbar: Search, Filters, Actions */}
           <div className="flex flex-wrap gap-2 items-center mb-4">
             <SyncStatusDisplay />
@@ -406,20 +412,26 @@ export default function CustomersPage() {
             />
 
             {/* Status Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                  Statusfilter {table.getColumn('status')?.getFilterValue() ? `(${table.getColumn('status')?.getFilterValue()})` : '(Alle)'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue(undefined)}>Alle</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue('Active')}>Active</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue('Lead')}>Lead</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue('Inactive')}>Inactive</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {(() => {
+              const statusLabels: Record<string, string> = { Active: 'Aktiv', Lead: 'Lead', Inactive: 'Inaktiv' }
+              const currentFilter = table.getColumn('status')?.getFilterValue() as string | undefined
+              return (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                      Statusfilter ({currentFilter ? (statusLabels[currentFilter] ?? currentFilter) : 'Alle'})
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue(undefined)}>Alle</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue('Active')}>Aktiv</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue('Lead')}>Lead</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => table.getColumn('status')?.setFilterValue('Inactive')}>Inaktiv</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )
+            })()}
 
              {/* Column Visibility Toggle */}
              <DropdownMenu>
@@ -463,14 +475,33 @@ export default function CustomersPage() {
                 <Button
                     variant="destructive"
                     size="sm"
-                    onClick={handleDeleteSelected}
-                    disabled={isLoading} // Disable while loading/deleting
+                    onClick={() => setIsDeleteConfirmOpen(true)}
+                    disabled={isLoading}
                 >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Ausgewählte löschen
                 </Button>
              </div>
            )}
+           <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+             <AlertDialogContent>
+               <AlertDialogHeader>
+                 <AlertDialogTitle>Kunden löschen?</AlertDialogTitle>
+                 <AlertDialogDescription>
+                   Sie sind dabei, {table.getFilteredSelectedRowModel().rows.length} Kunden zu löschen. Diese Aktion kann nicht rückgängig gemacht werden.
+                 </AlertDialogDescription>
+               </AlertDialogHeader>
+               <AlertDialogFooter>
+                 <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                 <AlertDialogAction
+                   onClick={handleDeleteSelected}
+                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                 >
+                   Löschen
+                 </AlertDialogAction>
+               </AlertDialogFooter>
+             </AlertDialogContent>
+           </AlertDialog>
 
         <Card>
           <CardHeader className="pb-2">

@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from "@tanstack/react-router"; // Using 
 import { useState, useEffect } from "react"; // Added useState, useEffect
 import { toast } from "sonner"; // Added toast
 import {
-  ArrowLeft,
   Edit,
   Trash2,
   Mail,
@@ -13,10 +12,12 @@ import {
   CalendarDays,
   Clock,
   Loader2,
-  Copy, // Added Copy
-  Link as LinkIcon, // Added LinkIcon for affiliate link
-  User // Added User icon for customer number
-} from "lucide-react"; // Corrected lucide-react import - removed duplicates
+  Copy,
+  Link as LinkIcon,
+  User,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,8 +30,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Added Select components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea"; // Added Textarea
@@ -59,9 +71,19 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [isLoading, setIsLoading] = useState(true) // Add loading state
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [deals, setDeals] = useState<Deal[]>([]) // Add state for deals
-  const [tasks, setTasks] = useState<Task[]>([]) // Add state for tasks
-  const [isLoadingRelated, setIsLoadingRelated] = useState(false) // Loading state for related items
+  const [deals, setDeals] = useState<Deal[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [isLoadingRelated, setIsLoadingRelated] = useState(false)
+  const [isAddDealOpen, setIsAddDealOpen] = useState(false)
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
+  const [newDealName, setNewDealName] = useState('')
+  const [newDealValue, setNewDealValue] = useState('')
+  const [newDealStage, setNewDealStage] = useState('Interessent')
+  const [isSubmittingDeal, setIsSubmittingDeal] = useState(false)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskDueDate, setNewTaskDueDate] = useState('')
+  const [newTaskPriority, setNewTaskPriority] = useState('Medium')
+  const [isSubmittingTask, setIsSubmittingTask] = useState(false)
   // Initialize with empty or default values based on the Customer type
   const [editedCustomer, setEditedCustomer] = useState<Partial<Customer>>({
     customerNumber: "", // JTL customer number (read-only)
@@ -219,6 +241,66 @@ export default function CustomerDetailPage() {
     }
   };
 
+  const handleAddDeal = async () => {
+    if (!newDealName.trim()) return;
+    setIsSubmittingDeal(true);
+    try {
+      const api = window.electronAPI as any;
+      const result = await api.invoke('deals:create', {
+        name: newDealName,
+        customer_id: customerId,
+        value: parseFloat(newDealValue) || 0,
+        stage: newDealStage,
+        value_calculation_method: 'static',
+      });
+      if (result.success) {
+        toast.success('Deal erstellt');
+        setIsAddDealOpen(false);
+        setNewDealName('');
+        setNewDealValue('');
+        setNewDealStage('Interessent');
+        const customerDeals = await api.invoke('db:get-deals-for-customer', customerId);
+        setDeals(customerDeals || []);
+      } else {
+        toast.error('Fehler beim Erstellen des Deals');
+      }
+    } catch (error) {
+      toast.error('Fehler beim Erstellen des Deals');
+    } finally {
+      setIsSubmittingDeal(false);
+    }
+  };
+
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) return;
+    setIsSubmittingTask(true);
+    try {
+      const api = window.electronAPI as any;
+      const result = await api.invoke('tasks:create', {
+        customer_id: customerId,
+        title: newTaskTitle,
+        due_date: newTaskDueDate || null,
+        priority: newTaskPriority,
+        completed: false,
+      });
+      if (result.success) {
+        toast.success('Aufgabe erstellt');
+        setIsAddTaskOpen(false);
+        setNewTaskTitle('');
+        setNewTaskDueDate('');
+        setNewTaskPriority('Medium');
+        const customerTasks = await api.invoke('db:get-tasks-for-customer', customerId);
+        setTasks(customerTasks || []);
+      } else {
+        toast.error('Fehler beim Erstellen der Aufgabe');
+      }
+    } catch (error) {
+      toast.error('Fehler beim Erstellen der Aufgabe');
+    } finally {
+      setIsSubmittingTask(false);
+    }
+  };
+
   // Helper to format date from DB if needed (assuming jtl_dateCreated is ISO string or similar)
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "N/A"
@@ -229,23 +311,21 @@ export default function CustomerDetailPage() {
     }
   }
 
+  const statusLabels: Record<string, string> = { Active: 'Aktiv', Lead: 'Lead', Inactive: 'Inaktiv' };
+
   return (
       <main className="flex-1">
         <div className="px-6 py-4">
+          <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
+            <Link to="/customers" className="hover:text-foreground transition-colors">Kunden</Link>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-foreground font-medium">{`${customer.firstName || ''} ${customer.name}`.trim()}</span>
+          </nav>
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/customers" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Zurück zu Kundenliste</span>
-              </Link>
-              {/* Display full name if available */}
-              <h1 className="text-3xl font-bold">{`${customer.firstName || ''} ${customer.name}`}</h1>
-              <Badge
-                variant={
-                  customer.status === "Active" ? "default" : customer.status === "Lead" ? "secondary" : "outline"
-                }
-              >
-                {customer.status}
+              <h1 className="text-3xl font-bold">{`${customer.firstName || ''} ${customer.name}`.trim()}</h1>
+              <Badge variant={customer.status === "Active" ? "default" : customer.status === "Lead" ? "secondary" : "outline"}>
+                {statusLabels[customer.status] ?? customer.status}
               </Badge>
             </div>
             <div className="flex gap-2">
@@ -426,28 +506,31 @@ export default function CustomerDetailPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              <Dialog>
-                <DialogTrigger asChild>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
                   <Button variant="destructive">
                     <Trash2 className="mr-2 h-4 w-4" />
                     Löschen
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Kunde löschen</DialogTitle>
-                    <DialogDescription>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Kunde löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
                       Sind Sie sicher, dass Sie diesen Kunden löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline">Abbrechen</Button>
-                    <Button variant="destructive" onClick={handleDeleteCustomer}>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteCustomer}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
                       Löschen
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 
@@ -502,7 +585,7 @@ export default function CustomerDetailPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>            <Tabs defaultValue="notes">
+            </Card>            <Tabs defaultValue="deals">
               <TabsList className="inline-flex h-auto w-full justify-start space-x-2 rounded-none border-b bg-transparent p-0">
                 <TabsTrigger value="notes" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Notizen</TabsTrigger>
                 <TabsTrigger value="custom" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Benutzerdefinierte Felder</TabsTrigger>
@@ -604,12 +687,11 @@ export default function CustomerDetailPage() {
                   </CardContent>
                   <CardFooter className="gap-2">
                     <Button variant="outline" asChild>
-                      {/* Link to deals list, potentially filtered by customer */}
-                      <Link to="/deals" search={{ customerId: customer.id }}>Alle Deals anzeigen</Link>
+                      <Link to="/deals">Alle Deals anzeigen</Link>
                     </Button>
-                    <Button asChild>
-                      {/* Link to new deal page, passing customerId */}
-                      <Link to="/deals/$dealId" params={{ dealId: "new" }} search={{ customerId: customer.id }}>Neuen Deal hinzufügen</Link>
+                    <Button onClick={() => setIsAddDealOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Neuen Deal erstellen
                     </Button>
                   </CardFooter>
                 </Card>
@@ -631,22 +713,28 @@ export default function CustomerDetailPage() {
                           <TableRow>
                             <TableHead>Titel</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Priorität</TableHead>
                             <TableHead>Fällig am</TableHead>
-                            <TableHead>Zugewiesen an</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {tasks.map((task) => (
+                          {tasks.map((task) => {
+                            const isHigh = task.priority === 'High' || task.priority === 'Hoch'
+                            const isMedium = task.priority === 'Medium' || task.priority === 'Mittel'
+                            const priorityLabel = isHigh ? 'Hoch' : isMedium ? 'Mittel' : 'Niedrig'
+                            return (
                             <TableRow key={task.id}>
                               <TableCell>
-                                {/* Link to tasks page - task detail route not yet implemented */}
-                                <Link to="/tasks" className="hover:underline font-medium">
-                                  {task.title}
-                                </Link>
+                                <span className="font-medium">{task.title}</span>
                               </TableCell>
                               <TableCell>
                                 <Badge variant={task.completed ? 'default' : 'secondary'}>
-                                  {task.completed ? 'Completed' : 'Pending'}
+                                  {task.completed ? 'Erledigt' : 'Offen'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={isHigh ? 'destructive' : isMedium ? 'secondary' : 'outline'}>
+                                  {priorityLabel}
                                 </Badge>
                               </TableCell>
                               <TableCell>
@@ -674,9 +762,9 @@ export default function CustomerDetailPage() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell>{'-'}</TableCell>
                             </TableRow>
-                          ))}
+                          )})}
+
                         </TableBody>
                       </Table>
                     ) : (
@@ -685,12 +773,11 @@ export default function CustomerDetailPage() {
                   </CardContent>
                   <CardFooter className="gap-2">
                     <Button variant="outline" asChild>
-                      {/* Link to tasks list, potentially filtered by customer */}
-                      <Link to="/tasks" search={{ customerId: customer.id }}>Alle Aufgaben anzeigen</Link>
+                      <Link to="/tasks">Alle Aufgaben anzeigen</Link>
                     </Button>
-                    <Button asChild>
-                      {/* Link to tasks page with customerId filter */}
-                      <Link to="/tasks" search={{ customerId: customer.id }}>Neue Aufgabe hinzufügen</Link>
+                    <Button onClick={() => setIsAddTaskOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Neue Aufgabe erstellen
                     </Button>
                   </CardFooter>
                 </Card>
@@ -725,6 +812,82 @@ export default function CustomerDetailPage() {
             </Tabs>
           </div>
         </div>
+
+        {/* Inline Add Deal Dialog */}
+        <Dialog open={isAddDealOpen} onOpenChange={setIsAddDealOpen}>
+          <DialogContent className="sm:max-w-[420px]">
+            <DialogHeader>
+              <DialogTitle>Neuen Deal erstellen</DialogTitle>
+              <DialogDescription>Für {`${customer.firstName || ''} ${customer.name}`.trim()}</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="dealName">Dealname *</Label>
+                <Input id="dealName" value={newDealName} onChange={e => setNewDealName(e.target.value)} placeholder="z.B. Jahresvertrag 2025" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dealValue">Wert (€)</Label>
+                <Input id="dealValue" type="number" value={newDealValue} onChange={e => setNewDealValue(e.target.value)} placeholder="0" min="0" step="0.01" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dealStage">Phase</Label>
+                <Select value={newDealStage} onValueChange={setNewDealStage}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['Interessent', 'Qualifiziert', 'Angebot', 'Verhandlung', 'Gewonnen', 'Verloren'].map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDealOpen(false)}>Abbrechen</Button>
+              <Button onClick={handleAddDeal} disabled={isSubmittingDeal || !newDealName.trim()}>
+                {isSubmittingDeal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Deal erstellen
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Inline Add Task Dialog */}
+        <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+          <DialogContent className="sm:max-w-[420px]">
+            <DialogHeader>
+              <DialogTitle>Neue Aufgabe erstellen</DialogTitle>
+              <DialogDescription>Für {`${customer.firstName || ''} ${customer.name}`.trim()}</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="taskTitle">Titel *</Label>
+                <Input id="taskTitle" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="z.B. Angebot nachfassen" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="taskDueDate">Fälligkeitsdatum</Label>
+                <Input id="taskDueDate" type="date" value={newTaskDueDate} onChange={e => setNewTaskDueDate(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="taskPriority">Priorität</Label>
+                <Select value={newTaskPriority} onValueChange={setNewTaskPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="High">Hoch</SelectItem>
+                    <SelectItem value="Medium">Mittel</SelectItem>
+                    <SelectItem value="Low">Niedrig</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddTaskOpen(false)}>Abbrechen</Button>
+              <Button onClick={handleAddTask} disabled={isSubmittingTask || !newTaskTitle.trim()}>
+                {isSubmittingTask && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Aufgabe erstellen
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
   )
 }
