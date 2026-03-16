@@ -1,49 +1,58 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
-import { saveDataToDesktop, isElectron } from '@/lib/electron-utils';
+import { Download, ChevronDown } from "lucide-react";
+import { saveDataToDesktop, saveCSVToDesktop } from '@/lib/electron-utils';
 
-// This component provides desktop-specific export functionality
 interface ExportButtonProps {
-  data: any;
+  data: any[];
   fileName: string;
   children?: React.ReactNode;
 }
 
 export default function ExportButton({ data, fileName, children }: ExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
-  
-  const handleExport = async () => {
+
+  const baseName = fileName.replace(/\.[^.]+$/, '');
+
+  const handleExport = async (format: 'csv' | 'json') => {
     try {
       setIsExporting(true);
-      
-      // Using our electron utility to save data
-      const success = saveDataToDesktop(data, fileName);
-      
-      if (success) {
-        toast.success(isElectron() 
-          ? "Data exported to file successfully" 
-          : "Data downloaded successfully");
+      let success: boolean;
+      if (format === 'csv') {
+        success = saveCSVToDesktop(data, `${baseName}.csv`);
+        if (success) toast.success('Als CSV exportiert');
       } else {
-        toast.error("Failed to export data");
+        success = saveDataToDesktop(data, `${baseName}.json`);
+        if (success) toast.success('Als JSON exportiert');
       }
+      if (!success) toast.error('Export fehlgeschlagen');
     } catch (error) {
-      console.error("Export error:", error);
-      toast.error("An error occurred while exporting data");
+      console.error('Export error:', error);
+      toast.error('Fehler beim Exportieren');
     } finally {
       setIsExporting(false);
     }
   };
-  
+
   return (
-    <Button 
-      variant="outline" 
-      onClick={handleExport} 
-      disabled={isExporting}
-    >
-      <Download className="mr-2 h-4 w-4" />
-      {children || "Export"}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" disabled={isExporting}>
+          <Download className="mr-2 h-4 w-4" />
+          {children || 'Exportieren'}
+          <ChevronDown className="ml-2 h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handleExport('csv')}>
+          CSV exportieren (.csv)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleExport('json')}>
+          JSON exportieren (.json)
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

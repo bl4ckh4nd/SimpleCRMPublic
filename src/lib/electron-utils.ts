@@ -84,3 +84,35 @@ export const saveDataToDesktop = (data: any, fileName: string) => {
     }
   }
 };
+
+// Convert an array of objects to CSV string
+export const arrayToCSV = (data: Record<string, any>[]): string => {
+  if (!data || data.length === 0) return '';
+  const headers = Object.keys(data[0]);
+  const escape = (val: any): string => {
+    const str = val === null || val === undefined ? '' : String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  const rows = data.map(row => headers.map(h => escape(row[h])).join(','));
+  return [headers.join(','), ...rows].join('\n');
+};
+
+export const saveCSVToDesktop = (data: Record<string, any>[], fileName: string): boolean => {
+  try {
+    const csv = arrayToCSV(data);
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.error('Failed to save CSV:', error);
+    return false;
+  }
+};
