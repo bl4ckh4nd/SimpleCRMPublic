@@ -3,6 +3,7 @@ import { IPCChannels } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getProductsForDeal,
+  getTasksForDeal,
   addProductToDeal,
   removeProductFromDeal,
   removeProductFromDealById,
@@ -14,6 +15,7 @@ import {
   createDeal,
   updateDeal,
   updateDealStage,
+  deleteDeal,
   getDb,
 } from '../sqlite-service';
 import { DEAL_PRODUCTS_TABLE } from '../database-schema';
@@ -84,6 +86,17 @@ export function registerDealHandlers(options: DealsHandlersOptions) {
   );
 
   disposers.push(
+    registerIpcHandler(IPCChannels.Deals.Delete, async (_event, dealId: number) => {
+      try {
+        return deleteDeal(dealId);
+      } catch (error) {
+        logger.error(`IPC Error deleting deal ${dealId}:`, error);
+        return { success: false, error: (error as Error).message };
+      }
+    }, { logger })
+  );
+
+  disposers.push(
     registerIpcHandler(IPCChannels.Deals.UpdateStage, async (_event, payload: any) => {
       try {
         const { dealId, newStage } = payload ?? {};
@@ -101,6 +114,17 @@ export function registerDealHandlers(options: DealsHandlersOptions) {
         return getProductsForDeal(dealId);
       } catch (error) {
         logger.error(`IPC Error getting products for deal ${dealId}:`, error);
+        return [];
+      }
+    }, { logger })
+  );
+
+  disposers.push(
+    registerIpcHandler(IPCChannels.Deals.GetTasks, async (_event, dealId: number) => {
+      try {
+        return getTasksForDeal(dealId);
+      } catch (error) {
+        logger.error(`IPC Error getting tasks for deal ${dealId}:`, error);
         return [];
       }
     }, { logger })

@@ -256,6 +256,11 @@ function runMigrations() {
             console.log('Migration completed: Added snoozed_until column to tasks table');
         }
 
+        // Migration: Normalize priority values to English (High/Medium/Low)
+        db.prepare(`UPDATE ${TASKS_TABLE} SET priority = 'High'   WHERE priority = 'Hoch'`).run();
+        db.prepare(`UPDATE ${TASKS_TABLE} SET priority = 'Medium' WHERE priority = 'Mittel'`).run();
+        db.prepare(`UPDATE ${TASKS_TABLE} SET priority = 'Low'    WHERE priority = 'Niedrig'`).run();
+
     } catch (error) {
         console.error('Error running migrations:', error);
     }
@@ -1637,6 +1642,31 @@ export function updateDealStage(dealId: number, newStage: string): { success: bo
     return { success: result.changes > 0, error: result.changes === 0 ? 'Deal not found' : undefined };
   } catch (error) {
     console.error(`Error updating deal stage for ${dealId}:`, error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+export function getTasksForDeal(dealId: number): any[] {
+  // Returns all tasks for the customer associated with this deal
+  const stmt = getDb().prepare(`
+    SELECT t.*, c.name as customer_name
+    FROM ${TASKS_TABLE} t
+    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
+    WHERE t.customer_id = (SELECT customer_id FROM ${DEALS_TABLE} WHERE id = ?)
+    ORDER BY t.due_date ASC
+  `);
+  return stmt.all(dealId);
+}
+
+export function deleteDeal(dealId: number): { success: boolean; error?: string } {
+  try {
+    const db = getDb();
+    // Remove associated products first to avoid orphaned rows
+    db.prepare(`DELETE FROM ${DEAL_PRODUCTS_TABLE} WHERE deal_id = ?`).run(dealId);
+    const result = db.prepare(`DELETE FROM ${DEALS_TABLE} WHERE id = ?`).run(dealId);
+    return { success: result.changes > 0, error: result.changes === 0 ? 'Deal not found' : undefined };
+  } catch (error) {
+    console.error(`Error deleting deal ${dealId}:`, error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
