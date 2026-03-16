@@ -11,7 +11,7 @@ interface InstantDetailPanelProps {
   onTimelineFilterChange: (filter: string | undefined) => void
   onLogCall: () => void
   onLogEmail: () => void
-  onCreateTask: () => void
+  onAddNote: () => void
   onSnooze: (snoozedUntil: string) => void
   onComplete: () => void
 }
@@ -22,7 +22,7 @@ export function InstantDetailPanel({
   onTimelineFilterChange,
   onLogCall,
   onLogEmail,
-  onCreateTask,
+  onAddNote,
   onSnooze,
   onComplete,
 }: InstantDetailPanelProps) {
@@ -85,7 +85,7 @@ export function InstantDetailPanel({
       <QuickActions
         onLogCall={onLogCall}
         onLogEmail={onLogEmail}
-        onCreateTask={onCreateTask}
+        onAddNote={onAddNote}
         onSnooze={onSnooze}
         onComplete={onComplete}
         sourceType={item.source_type}

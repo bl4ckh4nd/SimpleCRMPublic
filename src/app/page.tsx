@@ -1,6 +1,6 @@
 "use client";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BarChart3, Clock, Users, Loader2, Rocket } from "lucide-react";
+import { ArrowRight, BarChart3, TrendingUp, Clock, Users, Loader2, Rocket } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -66,8 +66,14 @@ export default function Home() {
     return (
       <main className="flex-1">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-center h-64">
-            <p className="text-red-500">{error}</p>
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+            <p className="text-muted-foreground">{error}</p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.location.reload()}>Erneut versuchen</Button>
+              <Button variant="ghost" asChild>
+                <Link to="/settings">Einstellungen öffnen</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </main>
@@ -111,7 +117,7 @@ export default function Home() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Konversionsrate</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.conversionRate ?? 0}%</div>}
@@ -181,10 +187,14 @@ export default function Home() {
                         </span>
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium leading-none">{customer.name}</p>
+                        <Link to="/customers/$customerId" params={{ customerId: customer.id }} className="text-sm font-medium leading-none hover:underline">{customer.name}</Link>
                         <p className="text-sm text-muted-foreground">{customer.email}</p>
                       </div>
-                      <div className="text-sm text-muted-foreground">{customer.dateAdded}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {customer.dateAdded
+                          ? new Date(customer.dateAdded).toLocaleDateString("de-DE")
+                          : "–"}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -222,26 +232,32 @@ export default function Home() {
                 </div>
               ) : upcomingTasks.length > 0 ? (
                 <div className="space-y-4">
-                  {upcomingTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-4">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                          task.priority === "High" || task.priority === "Hoch"
-                            ? "bg-red-100 text-red-600"
-                            : task.priority === "Medium" || task.priority === "Mittel"
-                              ? "bg-amber-100 text-amber-600"
-                              : "bg-green-100 text-green-600"
-                        }`}
-                      >
-                        <Clock className="h-5 w-5" />
+                  {upcomingTasks.map((task) => {
+                    const isHigh = task.priority === "High" || task.priority === "Hoch";
+                    const isMedium = task.priority === "Medium" || task.priority === "Mittel";
+                    const priorityLabel = isHigh ? "Hoch" : isMedium ? "Mittel" : "Niedrig";
+                    return (
+                      <div key={task.id} className="flex items-center gap-4">
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                            isHigh
+                              ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                              : isMedium
+                              ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
+                              : "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                          }`}
+                          aria-label={`Priorität: ${priorityLabel}`}
+                        >
+                          <Clock className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <Link to="/tasks" className="text-sm font-medium leading-none hover:underline">{task.title}</Link>
+                          <p className="text-sm text-muted-foreground">{task.customerName ?? "Kein Kunde zugewiesen"} · {priorityLabel}</p>
+                        </div>
+                        <div className="text-sm text-muted-foreground">{task.dueDate}</div>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium leading-none">{task.title}</p>
-                        <p className="text-sm text-muted-foreground">{task.customerName ?? `Kunde ID: ${task.customer_id}`}</p>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{task.dueDate}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p>Keine bevorstehenden Aufgaben.</p>

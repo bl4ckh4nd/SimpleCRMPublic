@@ -961,6 +961,23 @@ export default function CalendarPage() {
             </Alert>
           )}
 
+          {/* Event type legend */}
+          <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Legende:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: '#3174ad' }} />
+              <span>Termin</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: TASK_EVENT_DEFAULT_COLOR }} />
+              <span>Aufgabe (offen)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm opacity-70" style={{ backgroundColor: TASK_EVENT_COMPLETED_COLOR }} />
+              <span>Aufgabe (erledigt)</span>
+            </div>
+          </div>
+
           <section className="h-[75vh] w-full">
             <DnDCalendar<CalendarRBCEvent>
               localizer={localizer}

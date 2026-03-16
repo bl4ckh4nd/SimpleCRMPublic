@@ -2,7 +2,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useNavigate } from "@tanstack/react-router"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
@@ -22,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { useToast } from "@/components/ui/use-toast"
+import { toast } from "sonner"
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
 const settingsSchema = z.object({
@@ -53,8 +52,7 @@ export default function SettingsPage() {
   const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'error'>('unknown')
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
-  const navigate = useNavigate()
-  const { toast } = useToast()
+
   
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
@@ -105,11 +103,11 @@ export default function SettingsPage() {
           }
         } catch (error) {
           console.error("Error fetching settings:", error)
-          toast({ variant: "destructive", title: "Fehler", description: "Konnte die MSSQL-Einstellungen nicht laden." })
+          toast.error("Fehler", { description: "Konnte die MSSQL-Einstellungen nicht laden." })
         }
       } else {
         console.warn("Electron API or invoke method not available.")
-        toast({ variant: "default", title: "Einrichtung", description: "Electron API nicht verfügbar. Kann Einstellungen nicht laden." })
+        toast("Einrichtung", { description: "Electron API nicht verfügbar. Kann Einstellungen nicht laden." })
       }
     }
     fetchSettings()
@@ -137,7 +135,7 @@ export default function SettingsPage() {
     setIsTesting(true)
 
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
+      toast.error("Fehler", { description: "Electron API ist nicht verfügbar." })
       setIsTesting(false)
       return
     }
@@ -150,27 +148,25 @@ export default function SettingsPage() {
         const saveResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:save-settings', dataForSave)
 
         if (saveResult.success) {
-          toast({ title: "Erfolg", description: "Verbindung erfolgreich und Einstellungen gespeichert." })
+          toast.success("Einstellungen gespeichert", { description: "Verbindung erfolgreich und Einstellungen gespeichert." })
           const newSettings = await (window.electronAPI as any).invoke('mssql:get-settings');
           if (newSettings) {
             form.reset({ ...newSettings, password: newSettings.password || "" });
           }
-          navigate({ to: '/customers' })
         } else {
-          toast({ variant: "destructive", title: "Speichern fehlgeschlagen", description: saveResult.error || "Konnte die Einstellungen nicht speichern." })
+          toast.error("Speichern fehlgeschlagen", { description: saveResult.error || "Konnte die Einstellungen nicht speichern." })
         }
       } else {
         const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
         const errorDetails = testResult.errorDetails;
-        let toastDescription = errorMessage;
-        if (errorDetails?.suggestion) {
-          toastDescription += `\n\nLösungsvorschlag: ${errorDetails.suggestion}`;
-        }
-        toast({ variant: "destructive", title: "Verbindung fehlgeschlagen", description: toastDescription })
+        const description = errorDetails?.suggestion
+          ? `${errorMessage}\n\nLösungsvorschlag: ${errorDetails.suggestion}`
+          : errorMessage;
+        toast.error("Verbindung fehlgeschlagen", { description })
       }
     } catch (error: any) {
       console.error("Error testing/saving connection:", error)
-      toast({ variant: "destructive", title: "Fehler", description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
+      toast.error("Fehler", { description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
       setConnectionStatus('error')
     } finally {
       setIsTesting(false)
@@ -217,15 +213,15 @@ export default function SettingsPage() {
         } else if (result.message === 'Password successfully cleared from secure storage.') {
             germanMessage = "Das Passwort wurde erfolgreich aus dem sicheren Speicher entfernt.";
         }
-        toast({ title: "Erfolg", description: germanMessage });
+        toast.success("Erfolg", { description: germanMessage });
         form.setValue('password', ''); // Clear password field in the form
       } else {
         console.error('Fehler beim Löschen des Passworts (Backend-Nachricht):', result.message);
-        toast({ variant: "destructive", title: "Fehlgeschlagen", description: "Das Passwort konnte nicht gelöscht werden. Bitte überprüfen Sie die Konsolenprotokolle für weitere Details." });
+        toast.error("Fehlgeschlagen", { description: "Das Passwort konnte nicht gelöscht werden. Bitte überprüfen Sie die Konsolenprotokolle für weitere Details." });
       }
     } catch (error: any) {
       console.error("Fehler beim Löschen des Passworts (IPC):", error);
-      toast({ variant: "destructive", title: "Fehler", description: "Ein unerwarteter Fehler ist aufgetreten beim Löschen des Passworts. Überprüfen Sie die Konsolenprotokolle." });
+      toast.error("Fehler", { description: "Ein unerwarteter Fehler ist aufgetreten beim Löschen des Passworts. Überprüfen Sie die Konsolenprotokolle." });
     } finally {
       setIsClearingPassword(false);
     }
@@ -240,7 +236,7 @@ export default function SettingsPage() {
     }
 
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
+      toast.error("Fehler", { description: "Electron API ist nicht verfügbar." })
       setIsConnecting(false)
       return
     }
@@ -248,25 +244,18 @@ export default function SettingsPage() {
       const testResult: { success: boolean; error?: string; errorDetails?: any } = await (window.electronAPI as any).invoke('mssql:test-connection', dataToTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
       if (testResult.success) {
-        toast({ title: "Erfolg", description: "Verbindung erfolgreich." })
+        toast.success("Verbindung erfolgreich.")
       } else {
-        // Enhanced error handling with detailed messages and suggestions
         const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
         const errorDetails = testResult.errorDetails;
-        
-        let toastDescription = errorMessage;
-        if (errorDetails?.suggestion) {
-          toastDescription += `\n\nLösungsvorschlag: ${errorDetails.suggestion}`;
-        }
-        toast({
-          variant: "destructive",
-          title: "Verbindung fehlgeschlagen",
-          description: toastDescription
-        })
+        const description = errorDetails?.suggestion
+          ? `${errorMessage}\n\nLösungsvorschlag: ${errorDetails.suggestion}`
+          : errorMessage;
+        toast.error("Verbindung fehlgeschlagen", { description })
       }
     } catch (error: any) {
       console.error("Error testing connection:", error)
-      toast({ variant: "destructive", title: "Fehler", description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
+      toast.error("Fehler", { description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
       setConnectionStatus('error')
     } finally {
       setIsConnecting(false)
@@ -277,7 +266,7 @@ export default function SettingsPage() {
     setIsSyncing(true)
     setSyncStatusMessage("Starte Synchronisation...")
     if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." })
+      toast.error("Fehler", { description: "Electron API ist nicht verfügbar." })
       setSyncStatusMessage("Fehler: Electron API nicht verfügbar.")
       setIsSyncing(false)
       return
@@ -295,7 +284,7 @@ export default function SettingsPage() {
             // Fallback if details structure is not as expected but exists
             feedback += ` (Details: ${JSON.stringify(result.details)})`;
         }
-        toast({ title: "Synchronisation abgeschlossen", description: feedback })
+        toast.success("Synchronisation abgeschlossen", { description: feedback })
         setSyncStatusMessage(feedback)
         
         // Fetch updated sync status to get the new timestamp
@@ -309,22 +298,21 @@ export default function SettingsPage() {
         }
       } else {
         const errorMsg = result.message || "Sync fehlgeschlagen."
-        toast({ variant: "destructive", title: "Sync fehlgeschlagen", description: errorMsg })
+        toast.error("Sync fehlgeschlagen", { description: errorMsg })
         setSyncStatusMessage(`Fehler: ${errorMsg}`)
       }
     } catch (error: any) {
       console.error("Error running sync:", error)
       let errorMsg = error.message || "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation."
-      
-      // Check if we have detailed error information from the sync result
+
       if (error.errorDetails) {
         errorMsg = error.errorDetails.userMessage || errorMsg;
         if (error.errorDetails.suggestion) {
           errorMsg += `\n\nLösungsvorschlag: ${error.errorDetails.suggestion}`;
         }
       }
-      
-      toast({ variant: "destructive", title: "Sync Fehler", description: errorMsg })
+
+      toast.error("Sync Fehler", { description: errorMsg })
       setSyncStatusMessage(`Fehler: ${errorMsg}`)
     } finally {
       setIsSyncing(false)
@@ -505,11 +493,11 @@ export default function SettingsPage() {
                     name="kBenutzer"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>kBenutzer</FormLabel>
+                        <FormLabel>Benutzer-ID</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="JTL Benutzer ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                          <Input type="number" placeholder="z.B. 1" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
                         </FormControl>
-                        <FormDescription>Interne JTL Benutzer-ID.</FormDescription>
+                        <FormDescription>Ihre JTL-Benutzer-ID (kBenutzer). Zu finden unter JTL-Wawi → Benutzer.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -519,11 +507,11 @@ export default function SettingsPage() {
                     name="kShop"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>kShop</FormLabel>
+                        <FormLabel>Shop-ID</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="JTL Shop ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                          <Input type="number" placeholder="z.B. 1" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
                         </FormControl>
-                        <FormDescription>Interne JTL Shop-ID.</FormDescription>
+                        <FormDescription>ID des JTL-Shops (kShop), dem Aufträge zugeordnet werden.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -536,11 +524,11 @@ export default function SettingsPage() {
                     name="kPlattform"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>kPlattform</FormLabel>
+                        <FormLabel>Plattform-ID</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="JTL Plattform ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                          <Input type="number" placeholder="z.B. 1" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
                         </FormControl>
-                        <FormDescription>Interne JTL Plattform-ID.</FormDescription>
+                        <FormDescription>Verkaufsplattform in JTL (kPlattform), z.B. 1 = JTL-Shop.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -550,11 +538,11 @@ export default function SettingsPage() {
                     name="kSprache"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>kSprache</FormLabel>
+                        <FormLabel>Sprach-ID</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="JTL Sprache ID" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                          <Input type="number" placeholder="z.B. 1" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
                         </FormControl>
-                        <FormDescription>Interne JTL Sprach-ID.</FormDescription>
+                        <FormDescription>Sprache für Aufträge (kSprache), z.B. 1 = Deutsch.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -601,7 +589,7 @@ export default function SettingsPage() {
                       onClick={handleTestConnection}
                       disabled={isTesting || isConnecting || isSyncing || isClearingPassword}
                     >
-                      {isConnecting ? "Teste..." : "Verbindung testen"}
+                      {isConnecting || isTesting ? "Teste..." : "Verbindung testen"}
                     </Button>
                     {getConnectionStatusIcon()}
                   </div>

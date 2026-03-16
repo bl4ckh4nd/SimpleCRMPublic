@@ -59,11 +59,10 @@ export function CustomerCombobox({
       
       setLoading(true)
       try {
-        console.log(`🔍 [CustomerCombobox] Calling db:search-customers with query: "${searchQuery}", limit: 50`);
+        console.log(`🔍 [CustomerCombobox] Calling db:search-customers with query: "${searchQuery}"`);
         const results = await window.electronAPI.invoke(
           IPCChannels.Db.SearchCustomers,
-          searchQuery,
-          50
+          searchQuery
         ) as CustomerOption[]
         console.log(`🔍 [CustomerCombobox] Received ${results.length} customers in ${Date.now() - startTime}ms`);
         setCustomers(results)

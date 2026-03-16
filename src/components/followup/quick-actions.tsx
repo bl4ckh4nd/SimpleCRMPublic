@@ -1,11 +1,11 @@
-import { Phone, Mail, PlusCircle, Clock, CheckCircle2 } from "lucide-react"
+import { Phone, Mail, FileText, Clock, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SnoozePopover } from "./snooze-popover"
 
 interface QuickActionsProps {
   onLogCall: () => void
   onLogEmail: () => void
-  onCreateTask: () => void
+  onAddNote: () => void
   onSnooze: (snoozedUntil: string) => void
   onComplete: () => void
   sourceType: 'task' | 'deal'
@@ -14,7 +14,7 @@ interface QuickActionsProps {
 export function QuickActions({
   onLogCall,
   onLogEmail,
-  onCreateTask,
+  onAddNote,
   onSnooze,
   onComplete,
   sourceType,
@@ -29,9 +29,9 @@ export function QuickActions({
         <Mail className="h-3 w-3 mr-1" />
         Mail
       </Button>
-      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onCreateTask}>
-        <PlusCircle className="h-3 w-3 mr-1" />
-        Aufgabe
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onAddNote}>
+        <FileText className="h-3 w-3 mr-1" />
+        Notiz
       </Button>
       {sourceType === 'task' && (
         <>

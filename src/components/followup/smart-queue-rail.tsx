@@ -1,6 +1,7 @@
 import { CalendarDays, AlertTriangle, CalendarRange, TrendingDown, DollarSign, Bookmark } from "lucide-react"
 import { QueueItem } from "./queue-item"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { QueueCounts, SavedView } from "@/services/data/types"
 
 interface SmartQueueRailProps {
@@ -11,11 +12,11 @@ interface SmartQueueRailProps {
 }
 
 const presetQueues = [
-  { id: 'heute', label: 'Heute', icon: <CalendarDays className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'heute' as const },
-  { id: 'ueberfaellig', label: 'Überfällig', icon: <AlertTriangle className="h-4 w-4" />, urgency: 'critical' as const, countKey: 'ueberfaellig' as const },
-  { id: 'diese_woche', label: 'Diese Woche', icon: <CalendarRange className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'dieseWoche' as const },
-  { id: 'stagnierende_deals', label: 'Stagnierende Deals', icon: <TrendingDown className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'stagnierend' as const },
-  { id: 'high_value_risk', label: 'High Value Risk', icon: <DollarSign className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'highValueRisk' as const },
+  { id: 'heute', label: 'Heute', icon: <CalendarDays className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'heute' as const, tooltip: 'Aufgaben und Deals, die heute fällig sind.' },
+  { id: 'ueberfaellig', label: 'Überfällig', icon: <AlertTriangle className="h-4 w-4" />, urgency: 'critical' as const, countKey: 'ueberfaellig' as const, tooltip: 'Aufgaben mit abgelaufenem Fälligkeitsdatum, die noch offen sind.' },
+  { id: 'diese_woche', label: 'Diese Woche', icon: <CalendarRange className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'dieseWoche' as const, tooltip: 'Aufgaben und Deals, die bis Ende dieser Woche fällig sind.' },
+  { id: 'stagnierende_deals', label: 'Stagnierende Deals', icon: <TrendingDown className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'stagnierend' as const, tooltip: 'Deals ohne Aktivität seit mehr als 14 Tagen.' },
+  { id: 'high_value_risk', label: 'High Value Risk', icon: <DollarSign className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'highValueRisk' as const, tooltip: 'Hochwertige Deals mit überfälliger oder fehlender Aktion.' },
 ]
 
 export function SmartQueueRail({ activeQueue, counts, savedViews, onQueueSelect }: SmartQueueRailProps) {
@@ -27,17 +28,27 @@ export function SmartQueueRail({ activeQueue, counts, savedViews, onQueueSelect 
         </h2>
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 space-y-0.5">
-        {presetQueues.map((q) => (
-          <QueueItem
-            key={q.id}
-            label={q.label}
-            count={counts[q.countKey]}
-            active={activeQueue === q.id}
-            icon={q.icon}
-            urgency={q.urgency}
-            onClick={() => onQueueSelect(q.id)}
-          />
-        ))}
+        <TooltipProvider delayDuration={500}>
+          {presetQueues.map((q) => (
+            <Tooltip key={q.id}>
+              <TooltipTrigger asChild>
+                <span>
+                  <QueueItem
+                    label={q.label}
+                    count={counts[q.countKey]}
+                    active={activeQueue === q.id}
+                    icon={q.icon}
+                    urgency={q.urgency}
+                    onClick={() => onQueueSelect(q.id)}
+                  />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-[200px] text-xs">
+                {q.tooltip}
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </TooltipProvider>
 
         {savedViews.length > 0 && (
           <>

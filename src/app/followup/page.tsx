@@ -9,6 +9,9 @@ import { LogActivityDialog } from "@/components/followup/log-activity-dialog"
 import { followUpService } from "@/services/data/followUpService"
 import { taskService } from "@/services/data/taskService"
 import type { FollowUpItem, ActivityLogEntry, QueueCounts, SavedView } from "@/services/data/types"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Keyboard } from "lucide-react"
 
 export default function FollowUpPage() {
   // State
@@ -272,9 +275,42 @@ export default function FollowUpPage() {
 
   return (
     <div className="flex flex-col px-6" style={{ height: 'calc(100vh - 104px)' }}>
-      <ResizablePanelGroup direction="horizontal" defaultLayout={["220px", "1fr", "350px"]}>
+      {/* Page header with keyboard shortcut legend */}
+      <div className="flex items-center justify-between py-2 mb-1">
+        <div>
+          <h1 className="text-lg font-semibold">Nachverfolgung</h1>
+          <p className="text-xs text-muted-foreground">Priorisierte Aufgaben und Deals, die Ihre Aufmerksamkeit benötigen</p>
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+              <Keyboard className="h-4 w-4" />
+              Tastenkürzel
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64">
+            <p className="text-sm font-semibold mb-3">Tastenkürzel</p>
+            <div className="space-y-2 text-sm">
+              {[
+                { key: 'j', desc: 'Nächste Aufgabe' },
+                { key: 'k', desc: 'Vorherige Aufgabe' },
+                { key: 'e', desc: 'Als erledigt markieren' },
+                { key: 's', desc: 'Auf morgen verschieben' },
+                { key: 'n', desc: 'Notiz hinzufügen' },
+              ].map(({ key, desc }) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{desc}</span>
+                  <kbd className="px-2 py-0.5 rounded border bg-muted text-xs font-mono">{key}</kbd>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">Kürzel funktionieren nur außerhalb von Eingabefeldern.</p>
+          </PopoverContent>
+        </Popover>
+      </div>
+      <ResizablePanelGroup direction="horizontal">
         {/* Left Rail: Smart Queues */}
-        <ResizablePanel minSize="180px" maxSize="300px">
+        <ResizablePanel>
           <div className="h-full border-r overflow-y-auto">
             <SmartQueueRail
               activeQueue={activeQueue}
@@ -288,7 +324,7 @@ export default function FollowUpPage() {
         <ResizableHandle withHandle />
 
         {/* Center: Execution List */}
-        <ResizablePanel minSize="300px">
+        <ResizablePanel>
           <div className="flex flex-col h-full">
             <ExecutionListToolbar
               search={search}
@@ -317,7 +353,7 @@ export default function FollowUpPage() {
         <ResizableHandle withHandle />
 
         {/* Right: Instant Detail Panel */}
-        <ResizablePanel minSize="250px" maxSize="500px">
+        <ResizablePanel>
           <div className="h-full border-l overflow-y-auto">
             <InstantDetailPanel
               item={selectedItem}
@@ -325,7 +361,7 @@ export default function FollowUpPage() {
               onTimelineFilterChange={setTimelineFilter}
               onLogCall={() => openLogDialog('call')}
               onLogEmail={() => openLogDialog('email')}
-              onCreateTask={() => openLogDialog('note')}
+              onAddNote={() => openLogDialog('note')}
               onSnooze={(snoozedUntil) => {
                 if (selectedItem) handleSnooze(selectedItem, snoozedUntil)
               }}
