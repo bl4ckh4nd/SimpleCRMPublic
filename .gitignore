@@ -42,3 +42,6 @@ src/.DS_Store
 !README.md
 !CHANGELOG.md
 !LICENSE.md
+coverage/
+.playwright-cli/
+.claude/
