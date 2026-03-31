@@ -70,8 +70,13 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --node-linker=hoisted
+      - name: Install dependencies (skip postinstall to avoid electron-rebuild failure)
+        run: pnpm install --frozen-lockfile --node-linker=hoisted --ignore-scripts
+
+      - name: Prepare build prerequisites
+        run: |
+          node node_modules/electron/install.js
+          node scripts/patch-better-sqlite3.js
 
       - name: Ensure tag matches package.json version
         shell: bash
@@ -114,6 +119,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --node-linker=hoisted
+
+      - name: Fix binary permissions
+        run: chmod +x node_modules/app-builder-bin/mac/app-builder_arm64 || true
 
       - name: Ensure tag matches package.json version
         run: |
