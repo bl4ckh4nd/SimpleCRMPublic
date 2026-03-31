@@ -8,12 +8,15 @@ const path = require('path');
 function findPackageDir() {
   const candidates = [
     path.join(__dirname, '../node_modules/better-sqlite3'),
-    // pnpm content-addressable store path (glob not available here, try known suffix)
-    ...require('fs')
-      .readdirSync(path.join(__dirname, '../node_modules/.pnpm'), { withFileTypes: true })
-      .filter(e => e.isDirectory() && e.name.startsWith('better-sqlite3@'))
-      .map(e => path.join(__dirname, '../node_modules/.pnpm', e.name, 'node_modules/better-sqlite3')),
   ];
+  // Also check pnpm content-addressable store if it exists
+  const pnpmDir = path.join(__dirname, '../node_modules/.pnpm');
+  if (fs.existsSync(pnpmDir)) {
+    const pnpmCandidates = fs.readdirSync(pnpmDir, { withFileTypes: true })
+      .filter(e => e.isDirectory() && e.name.startsWith('better-sqlite3@'))
+      .map(e => path.join(pnpmDir, e.name, 'node_modules/better-sqlite3'));
+    candidates.push(...pnpmCandidates);
+  }
   return candidates.find(p => fs.existsSync(path.join(p, 'src')));
 }
 
