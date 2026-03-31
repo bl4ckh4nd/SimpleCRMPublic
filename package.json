@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "electron:dev": "cross-env NODE_ENV=development vite --port 5173 --host --clearScreen false",
-    "electron:build": "npm run build && vite build && cross-env DEBUG=electron-builder* NODE_ENV=production electron-builder",
+    "electron:build": "npm run build && cross-env DEBUG=electron-builder* NODE_ENV=production electron-builder",
+    "electron:publish": "npm run build && cross-env DEBUG=electron-builder* NODE_ENV=production electron-builder --publish always",
     "electron:start": "cross-env NODE_ENV=production electron dist-electron/main.js",
     "postinstall": "node node_modules/electron/install.js && node scripts/patch-better-sqlite3.js && electron-rebuild",
     "seed-db": "cross-env NODE_ENV=development ts-node --project scripts/tsconfig.json scripts/seed-database.ts",
@@ -141,6 +142,11 @@
     "vite-tsconfig-paths": "^6.1.1",
     "wait-on": "^9.0.4"
   },
+  "pnpm": {
+    "overrides": {
+      "app-builder-bin": "4.2.0"
+    }
+  },
   "build": {
     "appId": "com.zondiac.simplecrm",
     "productName": "SimpleCRM",
@@ -166,6 +172,14 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64"] }],
+      "icon": "src/app/simplecrmlogo.ico"
+    },
+    "linux": {
+      "icon": "icons",
+      "category": "Office"
     }
   }
 }
