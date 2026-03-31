@@ -175,7 +175,7 @@
     },
     "mac": {
       "target": [{ "target": "dmg", "arch": ["arm64"] }],
-      "icon": "src/app/simplecrmlogo.ico"
+      "icon": "assets/icons/512x512.png"
     },
     "linux": {
       "icon": "icons",
