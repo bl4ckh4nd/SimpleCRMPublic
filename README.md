@@ -2,6 +2,10 @@
 
 SimpleCRM is a desktop-based Customer Relationship Management (CRM) application built with Electron, React, and TypeScript. It bundles essential CRM features on your local machine, helping you manage customers, products, deals, tasks, and your schedule. It also offers optional one-way data synchronization from your JTL MSSQL database.
 
+<p align="center">
+  <img src="assets/simplecrm.png" alt="SimpleCRM Dashboard" width="800">
+</p>
+
 ## Features
 
 * **Customer Management:** Create, Read, Update, and Delete customer records.
