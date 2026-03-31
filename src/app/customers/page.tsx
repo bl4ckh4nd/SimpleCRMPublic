@@ -163,29 +163,29 @@ const columns: ColumnDef<Customer>[] = [
     header: "JTL Kundennr.",
     cell: ({ row }) => row.original.jtl_kKunde?.toString() || '-',
   },
-  {
-    id: "actions",
-    cell: ({ row }) => {
-      const customer = row.original;
-      const copyAffiliateLink = (link?: string) => {
-        if (link) {
-          navigator.clipboard.writeText(link);
-          toast.success("Affiliate-Link kopiert");
-        } else {
-          toast.info("Kein Affiliate-Link vorhanden.");
-        }
-      };
-      return customer.affiliateLink ? (
-        <Button variant="ghost" size="icon" onClick={() => copyAffiliateLink(customer.affiliateLink)} title="Affiliate-Link kopieren" aria-label="Affiliate-Link kopieren">
-          <Copy className="h-4 w-4" />
-        </Button>
-      ) : (
-        <span className="text-muted-foreground">-</span>
-      );
-    },
-    enableSorting: false,
-    enableHiding: false,
-  }
+  // {
+  //   id: "actions",
+  //   cell: ({ row }) => {
+  //     const customer = row.original;
+  //     const copyAffiliateLink = (link?: string) => {
+  //       if (link) {
+  //         navigator.clipboard.writeText(link);
+  //         toast.success("Affiliate-Link kopiert");
+  //       } else {
+  //         toast.info("Kein Affiliate-Link vorhanden.");
+  //       }
+  //     };
+  //     return customer.affiliateLink ? (
+  //       <Button variant="ghost" size="icon" onClick={() => copyAffiliateLink(customer.affiliateLink)} title="Affiliate-Link kopieren" aria-label="Affiliate-Link kopieren">
+  //         <Copy className="h-4 w-4" />
+  //       </Button>
+  //     ) : (
+  //       <span className="text-muted-foreground">-</span>
+  //     );
+  //   },
+  //   enableSorting: false,
+  //   enableHiding: false,
+  // }
 ];
 
 // German column name mapping for visibility dropdown
@@ -573,9 +573,14 @@ export default function CustomersPage() {
                           <TableRow
                             key={row.id}
                             data-state={row.getIsSelected() && "selected"}
+                            className="cursor-pointer"
+                            onClick={() => navigate({ to: '/customers/$customerId', params: { customerId: row.original.id.toString() } })}
                           >
                             {row.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id}>
+                              <TableCell
+                                key={cell.id}
+                                onClick={cell.column.id === 'select' || cell.column.id === 'actions' ? (e) => e.stopPropagation() : undefined}
+                              >
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </TableCell>
                             ))}

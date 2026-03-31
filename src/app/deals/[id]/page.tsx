@@ -46,6 +46,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { IPCChannels } from '@shared/ipc/channels';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added for CustomerDetails
+import { Badge } from "@/components/ui/badge";
 import { ProductCombobox } from "@/components/product-combobox";
 
 interface PageParams {
