@@ -5,6 +5,44 @@ All notable changes to SimpleCRM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-03-30
+
+### Added
+- **Follow-Up Queue**: New dedicated follow-up page with a smart queue rail, priority indicators, snooze popover, and instant detail panel. Log activities, view the full activity timeline per customer, and filter/sort the queue from a toolbar.
+- **Onboarding Checklist**: Dashboard now shows a getting-started checklist (configure DB → sync JTL → add customers → create first deal) when the database is empty, guiding new users through initial setup.
+- **Inline Deal & Task Creation on Customer Detail**: Create deals and tasks directly from the customer detail page via dialogs, without navigating away. Customer delete now uses a proper `AlertDialog` for destructive confirmation.
+- **CSV Export**: Export button replaced with a format dropdown offering CSV and JSON. CSV files are BOM-prefixed for correct Excel encoding on Windows.
+- **Deal Deletion**: Deals can now be deleted from the deal detail page. Deleting a deal removes its associated products before removing the deal row.
+- **Deal Tasks Panel**: Deal detail page fetches and displays all tasks linked to the deal's customer.
+- **Auto-Update System**: Electron app checks for and installs updates automatically via `electron-updater`. An update status indicator is shown in the UI during download and install.
+- **Calendar Integration**: Tasks are linked to the calendar view with a new event-type colour legend.
+- **Error Boundary**: A top-level `ErrorBoundary` component catches runtime errors and provides a reset action, preventing the entire app from going blank on unexpected errors.
+- **Empty State & Page Header Components**: Reusable `EmptyState` and `PageHeader` components for consistent no-data UI and page title/action layouts.
+- **LICENSE**: MIT license added to the repository.
+
+### Changed
+- **Deal Detail UI**: Inline stage-change `Select` on kanban cards avoids full-page navigation. Breadcrumb navigation replaces the back button. Redundant Products tab removed.
+- **Customer Detail**: Default tab changed to "Deals" for quicker access. Status labels localized.
+- **Settings Page**: Layout condensed and reorganized; MSSQL and sync sections restructured for clarity.
+- **Main Navigation**: Simplified and tightened layout; Follow-Up added as a primary nav item.
+- **Router**: Migrated from deprecated `new Route/Router` API to `createRoute/createRouter`. Added redirect from `/login` to `/` and wrapped the root outlet in `ErrorBoundary`.
+- **IPC Modules**: All IPC handler imports switched from `@shared/ipc` path alias to relative imports, fixing resolution in compiled `dist-electron` output.
+- **Priority Normalization**: Legacy German priority values (`Hoch`, `Mittel`, `Niedrig`) are automatically migrated to English equivalents (`high`, `medium`, `low`) on database startup.
+
+### Fixed
+- **Electron Dev/Prod Window Loading**: Dev URL normalized to include `#/` for `createHashHistory` compatibility. Production uses `electron-serve` with a `loadFile` fallback. Fixes blank window on app start in certain configurations.
+- **Detached DevTools**: Added a dedicated `DevTools` `BrowserWindow` toggled via F12 global shortcut, preventing off-screen DevTools restoration issues.
+- **MSSQL Error Feedback**: Structured MSSQL error types moved to `shared/errors/mssql.ts` with localized, actionable error messages surfaced in the settings UI.
+- **Debug Logs Removed**: Cleaned up `console.log` statements left in production code paths across services and page components.
+
+### Technical Details
+- **Tailwind CSS v4**: Migrated from v3 config (`tailwind.config.ts` + `@tailwind` directives) to v4 (`@import "tailwindcss"` + `@theme` block). Removed `postcss` dependency for Tailwind.
+- **Dependencies**: Upgraded Radix UI packages, `@tanstack/react-router`, `lucide-react`, `electron-log`, `electron-serve`, `electron-store`. Switched `better-sqlite3` to GitHub source ref `v12.7.1` for Electron 41 compatibility; added `scripts/patch-better-sqlite3.js` to apply a required native binding patch on install.
+- **Test Suite**: Comprehensive Jest coverage added — unit tests for services, hooks, and UI components; integration tests for all IPC handler categories; Playwright E2E tests for the Electron app. Coverage scripts added for `unit` and `integration` projects.
+- **CI/CD**: GitHub Actions CI workflow added for lint/test/build on push to `main` and pull requests.
+
+---
+
 ## [0.1.5] - 2025-10-07
 
 ### Added
