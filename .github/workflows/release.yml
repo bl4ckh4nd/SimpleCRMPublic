@@ -71,7 +71,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --shamefully-hoist
 
       - name: Ensure tag matches package.json version
         shell: bash
@@ -113,7 +113,10 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --shamefully-hoist
+
+      - name: Fix binary permissions
+        run: chmod +x node_modules/.pnpm/*/node_modules/app-builder-bin/mac/app-builder_arm64 || true
 
       - name: Ensure tag matches package.json version
         run: |
