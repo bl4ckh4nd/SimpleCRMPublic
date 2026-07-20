@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
       - run: pnpm install --frozen-lockfile --node-linker=hoisted
       - run: pnpm run release:test
       - run: pnpm run lint
@@ -34,8 +35,6 @@ jobs:
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: xvfb-run -a pnpm run test:e2e
-        env:
-          DEBUG: pw:browser
       - name: Upload Playwright diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
