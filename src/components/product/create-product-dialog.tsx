@@ -1,35 +1,30 @@
 "use client"
 
 import * as React from "react"
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
-import { ProductForm } from "./product-form"
+import { ProductForm, type ProductFormValues } from "./product-form"
 import { IPCChannels } from '@shared/ipc/channels';
 
 interface CreateProductDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onProductCreated: () => void; // Callback to refetch data
+  onProductCreated: () => void;
 }
 
 export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: CreateProductDialogProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: ProductFormValues) => {
     setIsSubmitting(true);
     setError(null);
     try {
-      console.log('Invoking products:create with values:', values);
-      // Ensure SKU and description are null if empty strings
       const dataToSend = {
         ...values,
         sku: values.sku || null, 
@@ -39,17 +34,15 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
         IPCChannels.Products.Create,
         dataToSend
       ) as { success: boolean, error?: string };
-      console.log('Create result:', result);
       if (result.success) {
-        onProductCreated(); // Call callback to refetch
-        onOpenChange(false); // Close dialog
-        // Optional: Show success toast
+        onProductCreated();
+        onOpenChange(false);
       } else {
         setError(result.error || 'Ein unbekannter Fehler ist aufgetreten.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating product:', err);
-      setError(err.message || 'Produkt konnte nicht erstellt werden.');
+      setError(err instanceof Error ? err.message : 'Produkt konnte nicht erstellt werden.');
     } finally {
       setIsSubmitting(false);
     }
@@ -57,11 +50,6 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      {/* Optional: If triggered by a button elsewhere, DialogTrigger isn't needed here 
-      <DialogTrigger asChild>
-        <Button>Neues Produkt</Button>
-      </DialogTrigger> 
-      */}
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>Neues Produkt erstellen</DialogTitle>
@@ -74,9 +62,8 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
           onSubmit={handleSubmit} 
           isSubmitting={isSubmitting}
           submitButtonText="Produkt erstellen"
-          onCancel={() => onOpenChange(false)} // Add cancel handler
+          onCancel={() => onOpenChange(false)}
         />
-        {/* Footer removed as submit/cancel are now part of ProductForm */}
       </DialogContent>
     </Dialog>
   )

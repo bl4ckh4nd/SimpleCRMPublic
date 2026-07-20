@@ -1,22 +1,16 @@
 import { IPCChannels } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, any>();
+const handlers = new Map<string, unknown>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((channel: string, handler: unknown) => {
-    handlers.set(channel, handler);
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: unknown) => {
+    handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),
 }));
 
 const sqliteMocks = {
   getProductsForDeal: jest.fn(),
-  addProductToDeal: jest.fn(),
-  removeProductFromDeal: jest.fn(),
-  removeProductFromDealById: jest.fn(),
-  updateDealProduct: jest.fn(),
-  updateProductQuantityInDeal: jest.fn(),
-  updateDealValueBasedOnCalculationMethod: jest.fn(),
   getAllDeals: jest.fn(),
   getDealById: jest.fn(),
   createDeal: jest.fn(),
@@ -24,14 +18,17 @@ const sqliteMocks = {
   updateDealStage: jest.fn(),
   deleteDeal: jest.fn(),
   getTasksForDeal: jest.fn(),
-  getDb: jest.fn(),
 };
 
 jest.mock('../../electron/sqlite-service', () => sqliteMocks);
 
-jest.mock('../../electron/database-schema', () => ({
-  DEAL_PRODUCTS_TABLE: 'deal_products',
-}));
+const dealProductMocks = {
+  addDealProduct: jest.fn(),
+  removeDealProductLine: jest.fn(),
+  updateDealProductLine: jest.fn(),
+};
+
+jest.mock('../../electron/deal-products', () => dealProductMocks);
 
 import { registerDealHandlers } from '../../electron/ipc/deals';
 
@@ -39,40 +36,34 @@ describe('registerDealHandlers', () => {
   beforeEach(() => {
     handlers.clear();
     Object.values(sqliteMocks).forEach((fn) => fn.mockReset());
-    sqliteMocks.getDb.mockReturnValue({
-      prepare: jest.fn(() => ({
-        get: jest.fn(() => ({ deal_id: 1, id: 77 })),
-        run: jest.fn(),
-      })),
-    });
+    Object.values(dealProductMocks).forEach((fn) => fn.mockReset());
   });
 
   test('adds product to deal and recalculates value', async () => {
-    sqliteMocks.addProductToDeal.mockReturnValue({ lastInsertRowid: 5 });
-    sqliteMocks.updateDealValueBasedOnCalculationMethod.mockReturnValue({ success: true });
+    dealProductMocks.addDealProduct.mockReturnValue({ success: true, dealProductId: 5, dealValue: 30 });
     registerDealHandlers({ logger: console, isDevelopment: false });
 
     const add = handlers.get(IPCChannels.Deals.AddProduct);
-    const result = await add({}, { dealId: 1, productId: 2, quantity: 3, price: 10 });
-    expect(result).toEqual({ success: true, lastInsertRowid: 5 });
-    expect(sqliteMocks.updateDealValueBasedOnCalculationMethod).toHaveBeenCalledWith(1);
+    const result = await add({}, { dealId: 1, productId: 2, quantity: 3, unitPrice: 10 });
+    expect(result).toEqual({ success: true, dealProductId: 5, dealValue: 30 });
+    expect(dealProductMocks.addDealProduct).toHaveBeenCalledWith(1, 2, 3, 10);
   });
 
   test('returns validation error when add payload is invalid', async () => {
     registerDealHandlers({ logger: console, isDevelopment: false });
     const add = handlers.get(IPCChannels.Deals.AddProduct);
-    const result = await add({}, { dealId: 1, quantity: 3 });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('required');
+    dealProductMocks.addDealProduct.mockReturnValue({ success: false, error: 'Product not found' });
+    const result = await add({}, { dealId: 1, productId: 99, quantity: 3, unitPrice: 10 });
+    expect(result).toEqual({ success: false, error: 'Product not found' });
   });
 
   test('updates deal product and recalculates deal value', async () => {
-    sqliteMocks.updateDealProduct.mockReturnValue({ changes: 1 });
+    dealProductMocks.updateDealProductLine.mockReturnValue({ success: true, dealProductId: 77, dealValue: 25, changes: 1 });
     registerDealHandlers({ logger: console, isDevelopment: false });
     const update = handlers.get(IPCChannels.Deals.UpdateProduct);
-    const result = await update({}, { dealProductId: 77, quantity: 1, price: 25 });
+    const result = await update({}, { dealProductId: 77, quantity: 1, unitPrice: 25 });
     expect(result.success).toBe(true);
-    expect(sqliteMocks.updateDealProduct).toHaveBeenCalledWith(77, 1, 25);
+    expect(dealProductMocks.updateDealProductLine).toHaveBeenCalledWith(77, 1, 25);
   });
 
   test('deletes deal successfully', async () => {

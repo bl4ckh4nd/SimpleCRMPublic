@@ -2,51 +2,45 @@
 
 import * as React from "react"
 import { Product } from "@/types"
-import { DataTable } from "@/components/ui/data-table" // Assuming generic DataTable exists
+import { DataTable } from "@/components/ui/data-table"
 import { columns } from "./product-columns"
-import { EditProductDialog } from "./edit-product-dialog" // Import Edit dialog
+import { EditProductDialog } from "./edit-product-dialog"
 import { IPCChannels } from '@shared/ipc/channels';
 
 interface ProductTableProps {
   data: Product[];
   actions?: React.ReactNode;
-  onProductUpdated: () => void; // Callback after successful update
-  onProductDeleted: () => void; // Callback after successful deletion
+  onProductUpdated: () => void;
+  onProductDeleted: () => void;
 }
 
 export function ProductTable({ data, actions, onProductUpdated, onProductDeleted }: ProductTableProps) {
   const [isEditDialogOpen, setEditDialogOpen] = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
 
-  // Handler to open the edit dialog
   const handleEdit = (product: Product) => {
     setSelectedProduct(product);
     setEditDialogOpen(true);
   };
 
-  // Handler for deleting a product (calls IPC)
   const handleDelete = async (productId: number) => {
     try {
-      console.log(`Invoking products:delete for ID: ${productId}`);
       const result = await window.electronAPI.invoke(
         IPCChannels.Products.Delete,
         productId
       ) as { success: boolean, error?: string };
-      console.log('Delete result:', result);
       if (result.success) {
-        onProductDeleted(); // Trigger refetch via callback
-        // Optional: Show success toast/notification
+        onProductDeleted();
       } else {
         console.error('Failed to delete product:', result.error);
-        alert(`Fehler beim Löschen des Produkts: ${result.error}`); // Show error to user
+        alert(`Fehler beim Löschen des Produkts: ${result.error}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('IPC Error deleting product:', err);
-      alert(`Fehler beim Löschen des Produkts: ${err.message}`);
+      alert(`Fehler beim Löschen des Produkts: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
-  // Define meta object to pass handlers to columns
   const meta = {
     onEdit: handleEdit,
     onDelete: handleDelete,
@@ -62,16 +56,15 @@ export function ProductTable({ data, actions, onProductUpdated, onProductDeleted
         searchKeys={['name', 'sku', 'description']}
         searchPlaceholder='Suche nach Name, Artikel-Nr. oder Beschreibung...'
       />
-      {/* Render Edit Dialog */} 
       {selectedProduct && (
         <EditProductDialog
-          key={selectedProduct.id} // Ensure dialog re-renders when product changes
+          key={selectedProduct.id}
           product={selectedProduct}
           isOpen={isEditDialogOpen}
           onOpenChange={setEditDialogOpen}
           onProductUpdated={() => {
-            onProductUpdated(); // Trigger refetch via callback
-            setEditDialogOpen(false); // Close dialog on success
+            onProductUpdated();
+            setEditDialogOpen(false);
           }}
         />
       )}

@@ -22,7 +22,7 @@ interface UpdateTaskEventOptions {
   colorCode?: string | null;
 }
 
-const DEFAULT_TASK_EVENT_COLOR = '#3174ad';
+const DEFAULT_TASK_EVENT_COLOR = '#f59e0b';
 const COMPLETED_TASK_EVENT_COLOR = '#9CA3AF';
 
 const parseDueDate = (dueDate: string): { start: Date; end: Date } => {

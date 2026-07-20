@@ -27,7 +27,6 @@ export default function FollowUpPage() {
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [logDialogOpen, setLogDialogOpen] = useState(false)
-  const [logDialogType, setLogDialogType] = useState<'call' | 'email' | 'note'>('note')
 
   // Load queue counts
   const loadCounts = useCallback(async () => {
@@ -199,7 +198,7 @@ export default function FollowUpPage() {
 
     const result = await followUpService.logActivity({
       customer_id: selectedItem.customer_id,
-      deal_id: selectedItem.deal_id,
+      deal_id: selectedItem.deal_id ?? undefined,
       task_id: selectedItem.source_type === 'task' ? selectedItem.item_id : undefined,
       ...data,
     })
@@ -217,8 +216,7 @@ export default function FollowUpPage() {
   }, [selectedItem, timelineFilter, loadTimeline, loadCounts])
 
   // Open log dialog with specific type
-  const openLogDialog = useCallback((type: 'call' | 'email' | 'note') => {
-    setLogDialogType(type)
+  const openLogDialog = useCallback(() => {
     setLogDialogOpen(true)
   }, [])
 
@@ -263,7 +261,7 @@ export default function FollowUpPage() {
         }
         case 'n': {
           e.preventDefault()
-          if (selectedItem) openLogDialog('note')
+          if (selectedItem) openLogDialog()
           break
         }
       }
@@ -310,7 +308,7 @@ export default function FollowUpPage() {
       </div>
       <ResizablePanelGroup direction="horizontal">
         {/* Left Rail: Smart Queues */}
-        <ResizablePanel>
+        <ResizablePanel defaultSize="18%" minSize="160px" maxSize="260px">
           <div className="h-full border-r overflow-y-auto">
             <SmartQueueRail
               activeQueue={activeQueue}
@@ -324,7 +322,7 @@ export default function FollowUpPage() {
         <ResizableHandle withHandle />
 
         {/* Center: Execution List */}
-        <ResizablePanel>
+        <ResizablePanel defaultSize="52%" minSize="420px">
           <div className="flex flex-col h-full">
             <ExecutionListToolbar
               search={search}
@@ -353,15 +351,15 @@ export default function FollowUpPage() {
         <ResizableHandle withHandle />
 
         {/* Right: Instant Detail Panel */}
-        <ResizablePanel>
+        <ResizablePanel defaultSize="30%" minSize="260px">
           <div className="h-full border-l overflow-y-auto">
             <InstantDetailPanel
               item={selectedItem}
               timeline={timeline}
               onTimelineFilterChange={setTimelineFilter}
-              onLogCall={() => openLogDialog('call')}
-              onLogEmail={() => openLogDialog('email')}
-              onAddNote={() => openLogDialog('note')}
+              onLogCall={openLogDialog}
+              onLogEmail={openLogDialog}
+              onAddNote={openLogDialog}
               onSnooze={(snoozedUntil) => {
                 if (selectedItem) handleSnooze(selectedItem, snoozedUntil)
               }}

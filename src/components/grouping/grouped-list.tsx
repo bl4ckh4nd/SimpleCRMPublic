@@ -41,7 +41,7 @@ export function GroupedList<T>({
     setExpandedGroups(prev => {
       const newExpandedGroups = { ...prev }
       
-      // Add any new groups
+      // Add unknown new groups
       groups.forEach(group => {
         if (newExpandedGroups[group.key] === undefined) {
           newExpandedGroups[group.key] = true

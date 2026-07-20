@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
+import { stopNotificationWorker } from './notification-digest';
 
 type UpdateStatus =
   | 'idle'
@@ -54,7 +55,7 @@ export function initializeAutoUpdater(options: {
 
   autoUpdater.logger = log;
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false;
 
   logger.info('[AutoUpdate] Initializing auto-updater');
 
@@ -104,8 +105,10 @@ export async function checkForUpdates() {
   return autoUpdater.checkForUpdates();
 }
 
-export function quitAndInstall() {
+export async function quitAndInstall() {
   log.info('[AutoUpdate] Quitting and installing update');
+  if (!await stopNotificationWorker()) {
+    throw new Error('Notification worker did not stop; update installation was cancelled');
+  }
   autoUpdater.quitAndInstall();
 }
-

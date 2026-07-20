@@ -1,4 +1,4 @@
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/lib/toast';
 
 /**
  * Centralized API error handler.
@@ -8,7 +8,7 @@ import { toast } from '@/components/ui/use-toast';
  * @param userFriendlyBaseMessage An optional base message for the toast. If the error object contains a message, it might be used.
  */
 export function handleApiError(
-  error: any,
+  error: unknown,
   context: string,
   userFriendlyBaseMessage = "Ein unerwarteter Fehler ist aufgetreten."
 ): void {
@@ -17,16 +17,17 @@ export function handleApiError(
   let description = userFriendlyBaseMessage;
 
   // Check for detailed error information first
-  if (error?.errorDetails) {
-    description = error.errorDetails.userMessage || userFriendlyBaseMessage;
-    if (error.errorDetails.suggestion) {
-      description += `\n\nLösungsvorschlag: ${error.errorDetails.suggestion}`;
+  if (typeof error === 'object' && error !== null && 'errorDetails' in error && typeof error.errorDetails === 'object' && error.errorDetails !== null) {
+    const details = error.errorDetails as { userMessage?: string; suggestion?: string };
+    description = details.userMessage || userFriendlyBaseMessage;
+    if (details.suggestion) {
+      description += `\n\nLösungsvorschlag: ${details.suggestion}`;
     }
   } else if (error instanceof Error) {
     description = error.message || userFriendlyBaseMessage;
   } else if (typeof error === 'string' && error.length > 0) {
     description = error;
-  } else if (error && typeof error.error === 'string' && error.error.length > 0) {
+  } else if (typeof error === 'object' && error !== null && 'error' in error && typeof error.error === 'string' && error.error.length > 0) {
     // For backend responses like { success: false, error: "message" }
     description = error.error;
   }

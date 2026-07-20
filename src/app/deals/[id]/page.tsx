@@ -8,8 +8,9 @@ import { DealDetailSkeleton } from "@/components/deal/deal-skeleton";
 import { EditDealDialog } from "@/components/deal/edit-deal-dialog";
 import { Deal } from "@/types/deal";
 import { Customer, Product } from "@/types"; // Correctly import Customer and Product
+import type { Task } from "@/services/data/types";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Edit, Trash2, Package, Info, Loader2, FilePlus2, ListChecks, CheckCircle2, Circle, ChevronRight } from "lucide-react";
+import { Edit, Trash2, Package, Info, Loader2, FilePlus2, ListChecks, CheckCircle2, Circle, ChevronRight } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -42,16 +43,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/lib/toast";
 import { IPCChannels } from '@shared/ipc/channels';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added for CustomerDetails
 import { Badge } from "@/components/ui/badge";
 import { ProductCombobox } from "@/components/product-combobox";
-
-interface PageParams {
-  id: string;
-}
 
 interface JtlFirma { kFirma: number; cName: string; }
 interface JtlWarenlager { kWarenlager: number; cName: string; }
@@ -69,7 +66,6 @@ export default function DealDetailPage() {
   const { dealId: routeDealId } = useParams({ from: '/deals/$dealId' }); // Renamed to avoid conflict with deal object
   const dealId = Number(routeDealId); // Ensure dealId is a number for API calls
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [deal, setDeal] = useState<Deal | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -88,7 +84,7 @@ export default function DealDetailPage() {
   const [selectedZahlungsart, setSelectedZahlungsart] = useState<string>("");
   const [selectedVersandart, setSelectedVersandart] = useState<string>("");
   const [isSubmittingJtlOrder, setIsSubmittingJtlOrder] = useState(false);
-  const [dealTasks, setDealTasks] = useState<any[]>([]);
+  const [dealTasks, setDealTasks] = useState<Task[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   useEffect(() => {
@@ -115,7 +111,7 @@ export default function DealDetailPage() {
           setDeal(null);
           setCustomerForOrder(null);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error fetching deal or customer:", error);
         setDeal(null);
         setCustomerForOrder(null);
@@ -162,8 +158,8 @@ export default function DealDetailPage() {
       if (!dealId || !window.electronAPI?.invoke) return;
       setIsLoadingTasks(true);
       try {
-        const tasks = await window.electronAPI.invoke(IPCChannels.Deals.GetTasks, dealId) as any[];
-        setDealTasks(tasks || []);
+        const tasks = await window.electronAPI.invoke(IPCChannels.Deals.GetTasks, dealId) as unknown[];
+        setDealTasks((tasks || []) as unknown as Task[]);
       } catch (error) {
         console.error('Error fetching deal tasks:', error);
       } finally {
@@ -179,10 +175,10 @@ export default function DealDetailPage() {
       setIsLoadingJtlData(true);
       try {
         const [firmen, warenlager, zahlungsarten, versandarten] = await Promise.all([
-          window.electronAPI.invoke(IPCChannels.Jtl.GetFirmen) as Promise<JtlFirma[]>,
-          window.electronAPI.invoke(IPCChannels.Jtl.GetWarenlager) as Promise<JtlWarenlager[]>,
-          window.electronAPI.invoke(IPCChannels.Jtl.GetZahlungsarten) as Promise<JtlZahlungsart[]>,
-          window.electronAPI.invoke(IPCChannels.Jtl.GetVersandarten) as Promise<JtlVersandart[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetFirmen) as unknown as Promise<JtlFirma[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetWarenlager) as unknown as Promise<JtlWarenlager[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetZahlungsarten) as unknown as Promise<JtlZahlungsart[]>,
+          window.electronAPI.invoke(IPCChannels.Jtl.GetVersandarten) as unknown as Promise<JtlVersandart[]>,
         ]);
         setJtlFirmen(firmen || []);
         setJtlWarenlager(warenlager || []);
@@ -239,7 +235,7 @@ export default function DealDetailPage() {
         setIsLoading(false);
         return false;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error updating deal:", error);
       setIsLoading(false);
       return false;
@@ -261,9 +257,9 @@ export default function DealDetailPage() {
       } else {
         throw new Error(result.error || "Unbekannter Fehler beim Löschen.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error deleting deal:", error);
-      toast({ variant: "destructive", title: "Fehler", description: error.message });
+      toast({ variant: "destructive", title: "Fehler", description: error instanceof Error ? error.message : String(error) });
     } finally {
       setIsLoading(false);
     }
@@ -371,9 +367,9 @@ export default function DealDetailPage() {
       } else {
         throw new Error(result.error || "Unbekannter Fehler beim Erstellen des JTL Auftrags.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating JTL order:", error);
-      toast({ variant: "destructive", title: "Fehler", description: error.message });
+      toast({ variant: "destructive", title: "Fehler", description: error instanceof Error ? error.message : String(error) });
     } finally {
       setIsSubmittingJtlOrder(false);
     }
@@ -797,19 +793,11 @@ export default function DealDetailPage() {
   }
 
   function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
-    const { toast } = useToast();
     // Removed allProducts and isLoadingProducts - ProductCombobox handles this internally
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number>(1);
     const [price, setPrice] = useState<number>(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    // Utility function from parent scope
-    const formatCurrency = (amount: number | string | undefined): string => {
-      const numAmount = Number(amount);
-      if (isNaN(numAmount)) return '-';
-      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(numAmount);
-    };
 
     useEffect(() => {
       if (isOpen) {
@@ -824,7 +812,7 @@ export default function DealDetailPage() {
       setSelectedProductId(productIdString);
       if (productIdString) {
         try {
-          const selectedProduct = await window.electronAPI?.invoke('products:get-by-id', Number(productIdString)) as Product;
+          const selectedProduct = await window.electronAPI?.invoke(IPCChannels.Products.GetById, Number(productIdString)) as unknown as Product;
           if (selectedProduct) {
             setPrice(selectedProduct.price || 0);
           } else {

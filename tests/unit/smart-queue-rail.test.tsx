@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 
 // Mock QueueItem to simplify rendering
 jest.mock('@/components/followup/queue-item', () => ({
-  QueueItem: ({ label, count, active, onClick }: any) => (
+  QueueItem: ({ label, count, active, onClick }: unknown) => (
     <div
       data-testid={`queue-item-${label}`}
       data-active={active ? 'true' : 'false'}
@@ -17,10 +17,10 @@ jest.mock('@/components/followup/queue-item', () => ({
 
 // Mock Tooltip components to avoid portal issues
 jest.mock('@/components/ui/tooltip', () => ({
-  Tooltip: ({ children }: any) => <div>{children}</div>,
-  TooltipTrigger: ({ children }: any) => <div>{children}</div>,
-  TooltipContent: ({ children }: any) => <div role="tooltip">{children}</div>,
-  TooltipProvider: ({ children }: any) => <div>{children}</div>,
+  Tooltip: ({ children }: unknown) => <div>{children}</div>,
+  TooltipTrigger: ({ children }: unknown) => <div>{children}</div>,
+  TooltipContent: ({ children }: unknown) => <div role="tooltip">{children}</div>,
+  TooltipProvider: ({ children }: unknown) => <div>{children}</div>,
 }));
 
 import { SmartQueueRail } from '@/components/followup/smart-queue-rail';
@@ -60,7 +60,7 @@ describe('SmartQueueRail', () => {
     expect(screen.getByTestId('queue-item-Überfällig')).toBeTruthy();
     expect(screen.getByTestId('queue-item-Diese Woche')).toBeTruthy();
     expect(screen.getByTestId('queue-item-Stagnierende Deals')).toBeTruthy();
-    expect(screen.getByTestId('queue-item-High Value Risk')).toBeTruthy();
+    expect(screen.getByTestId('queue-item-Großdeal-Risiko')).toBeTruthy();
   });
 
   test('shows correct counts for each queue', () => {
@@ -77,7 +77,7 @@ describe('SmartQueueRail', () => {
     expect(screen.getByText('Überfällig (5)')).toBeTruthy();
     expect(screen.getByText('Diese Woche (8)')).toBeTruthy();
     expect(screen.getByText('Stagnierende Deals (2)')).toBeTruthy();
-    expect(screen.getByText('High Value Risk (1)')).toBeTruthy();
+    expect(screen.getByText('Großdeal-Risiko (1)')).toBeTruthy();
   });
 
   test('marks active queue correctly', () => {

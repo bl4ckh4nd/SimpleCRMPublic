@@ -26,7 +26,7 @@ describe('contact-utils', () => {
     expect(getFormattedPhone({})).toBe('');
   });
 
-  test('detects presence of any contact info', () => {
+  test('detects presence of unknown contact info', () => {
     expect(hasContactInfo({ email: 'a@b.com' })).toBe(true);
     expect(hasContactInfo({ phone: '12345' })).toBe(true);
     expect(hasContactInfo({ mobile: '12345' })).toBe(true);

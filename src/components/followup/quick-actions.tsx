@@ -38,7 +38,7 @@ export function QuickActions({
           <SnoozePopover onSnooze={onSnooze}>
             <Button variant="outline" size="sm" className="h-7 text-xs">
               <Clock className="h-3 w-3 mr-1" />
-              Snooze
+              Zurückstellen
             </Button>
           </SnoozePopover>
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onComplete}>

@@ -106,6 +106,4 @@ export interface DealProduct {
     dateAdded: string;          // Timestamp when added (ISO 8601 string)
 }
 
-export interface SyncStatus {
-  // Define the structure for synchronization status if needed
-}
+export type SyncStatus = Record<string, never>;

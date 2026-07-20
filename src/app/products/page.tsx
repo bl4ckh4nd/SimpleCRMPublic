@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Package, AlertCircle, RefreshCw } from 'lucide-react';
+import { PlusCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProductTable } from '@/components/product/product-table';
 import { CreateProductDialog } from '@/components/product/create-product-dialog';
 import { Product } from '@/types'; // Assuming Product type will be defined in src/types/index.ts
 import { IPCChannels } from '@shared/ipc/channels';
+import { PageHeader } from '@/components/page-header';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -24,16 +25,16 @@ export default function ProductsPage() {
       }
       const fetchedProducts = await window.electronAPI.invoke(
         IPCChannels.Products.GetAll
-      ) as Product[];
+      ) as unknown as Product[];
       // Ensure isActive is boolean (it comes as 0/1 from SQLite)
       const mappedProducts = fetchedProducts.map((p) => ({
         ...p,
         isActive: Boolean(p.isActive),
       }));
       setProducts(mappedProducts);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching products:', err);
-      setError(err.message || 'Produkte konnten nicht geladen werden.');
+      setError(err instanceof Error ? err.message : 'Produkte konnten nicht geladen werden.');
     } finally {
       setIsLoading(false);
     }
@@ -96,14 +97,14 @@ export default function ProductsPage() {
   return (
     <main className="flex-1">
     <div className="px-6 py-4">
+      <PageHeader
+        title="Produkte"
+        subtitle="Produkte und Preise für Deals verwalten."
+        actions={<Button onClick={() => setCreateDialogOpen(true)}><PlusCircle /> Neues Produkt</Button>}
+      />
       {/* Render ProductTable */}
       <ProductTable
           data={products}
-          actions={
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Neues Produkt
-            </Button>
-          }
           onProductUpdated={handleProductUpdated}
           onProductDeleted={handleProductDeleted}
       /> 

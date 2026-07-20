@@ -3,7 +3,7 @@ import { IPCChannels } from '@shared/ipc/channels';
 const mockInvoke = jest.fn();
 
 // Set up window.electronAPI once; tests reset the mock invoke before each run
-(global.window as any).electronAPI = { invoke: mockInvoke };
+(global.window as unknown).electronAPI = { invoke: mockInvoke };
 
 beforeEach(() => {
   mockInvoke.mockReset();

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 
 // Mock SnoozePopover to avoid complex UI dependencies
 jest.mock('@/components/followup/snooze-popover', () => ({
-  SnoozePopover: ({ children, onSnooze }: any) => (
+  SnoozePopover: ({ children, onSnooze }: unknown) => (
     <div data-testid="snooze-popover" onClick={() => onSnooze('2026-03-20T09:00:00Z')}>
       {children}
     </div>
@@ -38,14 +38,14 @@ describe('QuickActions', () => {
   test('renders Snooze and Erledigt buttons for task source type', () => {
     render(<QuickActions {...defaultProps} sourceType="task" />);
 
-    expect(screen.getByRole('button', { name: /Snooze/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Zurückstellen/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Erledigt/i })).toBeTruthy();
   });
 
   test('does not render Snooze and Erledigt buttons for deal source type', () => {
     render(<QuickActions {...defaultProps} sourceType="deal" />);
 
-    expect(screen.queryByRole('button', { name: /Snooze/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Zurückstellen/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Erledigt/i })).toBeNull();
   });
 

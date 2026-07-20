@@ -1,6 +1,5 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Deal, getDealStageColor, formatCurrency, formatDate } from "@/types/deal";
 import { Link } from "@tanstack/react-router"; // Import Link
 

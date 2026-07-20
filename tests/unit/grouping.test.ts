@@ -60,7 +60,7 @@ describe('grouping helpers', () => {
     const nestedAccessor = getFieldAccessor<{ a: { b: string } }>('a.b');
     expect(nestedAccessor({ a: { b: 'x' } })).toBe('x');
 
-    const customAccessor = getFieldAccessor<{ customFields: Record<string, unknown> }>('custom_customType');
+    const customAccessor = getFieldAccessor<{ customFields: Record<string, any> }>('custom_customType');
     expect(customAccessor({ customFields: { customType: 'VIP' } })).toBe('VIP');
   });
 

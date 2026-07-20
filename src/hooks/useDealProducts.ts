@@ -1,12 +1,11 @@
-// @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { Product, DealProductLink } from '@/types';
+import { toast } from '@/lib/toast';
+import { DealProductLink } from '@/types';
 import { handleApiError } from '@/lib/api-error-handler';
-import { IPCChannels } from '@shared/ipc/channels';
+import { IPC } from '@shared/ipc/channels';
+import { invoke } from '@/lib/ipc';
 
 export function useDealProducts(dealId: number | undefined, onProductsChange?: (products: DealProductLink[]) => void) {
-  const { toast } = useToast(); // Keep for success toasts
   const [dealProducts, setDealProducts] = useState<DealProductLink[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState<boolean>(false);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -21,12 +20,8 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
     setIsProductsLoading(true);
     setProductsError(null);
     try {
-      if (window.electronAPI?.invoke) {
-        const products = await window.electronAPI.invoke(
-          IPCChannels.Deals.GetProducts,
-          dealId
-        );
-        const productsArray = products || [];
+      if (window.electronAPI) {
+        const productsArray = (await invoke(IPC.Deals.GetProducts, dealId)) as unknown as DealProductLink[];
         setDealProducts(productsArray);
         // Call the callback if provided
         if (onProductsChange) {
@@ -39,9 +34,9 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
         setProductsError("API nicht verfügbar."); // Still set local error state if needed for UI
         setDealProducts([]);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       handleApiError(err, "Produkte laden");
-      setProductsError(err.message || "Fehler beim Laden der Produkte."); // Still set local error state
+      setProductsError(err instanceof Error ? err.message : "Fehler beim Laden der Produkte.");
       setDealProducts([]);
     } finally {
       setIsProductsLoading(false);
@@ -63,10 +58,7 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
       if (!window.electronAPI?.invoke) {
         throw new Error("API not available for adding product.");
       }
-      const result = await window.electronAPI.invoke(
-        IPCChannels.Deals.AddProduct,
-        { dealId, productId, quantity, price }
-      );
+      const result = await invoke(IPC.Deals.AddProduct, { dealId, productId, quantity, unitPrice: price });
       if (result.success) { // Check only for success flag from backend
         toast({ title: "Erfolg", description: "Produkt erfolgreich zum Deal hinzugefügt." });
         fetchDealProducts(); // Refresh products list
@@ -76,7 +68,7 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
         handleApiError(result.error || "Unbekannter Fehler", "Produkt hinzufügen", "Produkt konnte nicht hinzugefügt werden.");
         return false;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       handleApiError(error, "Produkt hinzufügen", "Produkt konnte nicht hinzugefügt werden.");
       return false;
     }
@@ -92,10 +84,7 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
         if (!window.electronAPI?.invoke) {
             throw new Error("API not available for updating product.");
         }
-        const result = await window.electronAPI.invoke(
-            IPCChannels.Deals.UpdateProduct,
-            { dealProductId, quantity: newQuantity, price: newPrice }
-        );
+        const result = await invoke(IPC.Deals.UpdateProduct, { dealProductId, quantity: newQuantity, unitPrice: newPrice });
         if (result.success) {
             toast({ title: "Aktualisiert", description: "Produkt im Deal aktualisiert." });
             fetchDealProducts();
@@ -103,7 +92,7 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
             handleApiError(result.error, "Produkt aktualisieren", "Produkt konnte nicht aktualisiert werden.");
             fetchDealProducts(); // Re-fetch to ensure UI consistency
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         handleApiError(error, "Produkt aktualisieren", "Produkt konnte nicht aktualisiert werden.");
         fetchDealProducts(); // Re-fetch to ensure UI consistency
     }
@@ -114,17 +103,14 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
         if (!window.electronAPI?.invoke) {
             throw new Error("API not available for removing product.");
         }
-        const result = await window.electronAPI.invoke(
-            IPCChannels.Deals.RemoveProduct,
-            { dealProductId }
-        );
+        const result = await invoke(IPC.Deals.RemoveProduct, { dealProductId });
         if (result.success) {
             toast({ title: "Entfernt", description: "Produkt aus Deal entfernt." });
             fetchDealProducts();
         } else {
             handleApiError(result.error, "Produkt entfernen", "Produkt konnte nicht entfernt werden.");
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         handleApiError(error, "Produkt entfernen", "Produkt konnte nicht entfernt werden.");
     }
   };

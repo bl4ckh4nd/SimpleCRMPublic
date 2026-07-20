@@ -7,15 +7,15 @@ export default function ErrorPage() {
     <div className="flex min-h-screen items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Error</CardTitle>
-          <CardDescription>Something went wrong</CardDescription>
+          <CardTitle>Fehler</CardTitle>
+          <CardDescription>Etwas ist schiefgelaufen</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            An error occurred while processing your request. Please try again or contact support if the problem persists.
+            Die Anfrage konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut oder wenden Sie sich an den Support, wenn das Problem bestehen bleibt.
           </p>
           <Button asChild>
-            <Link to="/">Return to Dashboard</Link>
+            <Link to="/">Zurück zum Dashboard</Link>
           </Button>
         </CardContent>
       </Card>

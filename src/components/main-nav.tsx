@@ -1,6 +1,6 @@
-// @ts-nocheck
+import type { HTMLAttributes } from "react"
 import { Link } from "@tanstack/react-router"
-import { Users, FileBox, CheckSquare, CheckCircle, Settings, CalendarDays, Package, ListChecks, LayoutDashboard } from "lucide-react"
+import { Users, FileBox, CheckSquare, Settings, CalendarDays, Package, ListChecks, LayoutDashboard } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navLinks = [
@@ -13,23 +13,23 @@ const navLinks = [
   { to: "/calendar", label: "Kalender", icon: CalendarDays },
 ] as const
 
-export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElement>) {
+const navLinkClassName =
+  "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary"
+
+const activeNavLinkClassName =
+  "text-primary font-semibold border-b-2 border-primary pb-[1.19rem] -mb-[1.19rem]"
+
+export function MainNav({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
-    <nav className="border-b">
+    <nav className={cn("border-b", className)} {...props}>
       <div className="flex h-16 items-center px-4">
-        <Link to="/" className="mr-6 flex items-center space-x-2">
-          <CheckCircle className="h-6 w-6" />
-          <span className="font-bold">SimpleCRM</span>
-        </Link>
         <div className="flex flex-1 items-center space-x-4 lg:space-x-6">
           {navLinks.map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}
-              className={cn(
-                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary"
-              )}
-              activeProps={{ className: "text-primary font-semibold border-b-2 border-primary pb-[1.19rem] -mb-[1.19rem]" }}
+              className={navLinkClassName}
+              activeProps={{ className: activeNavLinkClassName }}
               inactiveProps={{ className: "text-muted-foreground" }}
             >
               <Icon className="h-4 w-4" />
@@ -39,9 +39,7 @@ export function MainNav({ className, ...props }: React.HTMLAttributes<HTMLElemen
         </div>
         <Link
           to="/settings"
-          className={cn(
-            "ml-auto flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary"
-          )}
+          className={`${navLinkClassName} ml-auto`}
           activeProps={{ className: "text-primary" }}
           inactiveProps={{ className: "text-muted-foreground" }}
         >

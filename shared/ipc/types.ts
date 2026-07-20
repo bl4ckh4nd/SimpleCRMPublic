@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { InvokeChannel } from './channels';
-import { IpcSchemas } from './schemas';
+import type { AnyIpcEndpoint, InvokeChannel } from './channels';
 
-export type PayloadSchemaMap = typeof IpcSchemas;
+type EndpointFor<C extends InvokeChannel> = Extract<AnyIpcEndpoint, { channel: C }>;
 
-export type InferPayload<C extends InvokeChannel> = z.infer<PayloadSchemaMap[C]['payload']>;
-export type InferResult<C extends InvokeChannel> = z.infer<PayloadSchemaMap[C]['result']>;
+export type InferPayload<C extends InvokeChannel> = z.input<EndpointFor<C>['input']>;
+export type InferResult<C extends InvokeChannel> = z.output<EndpointFor<C>['output']>;
+export type EndpointPayload<E extends AnyIpcEndpoint> = z.input<E['input']>;
+export type EndpointResult<E extends AnyIpcEndpoint> = z.output<E['output']>;
 
 export type InvokeHandler<C extends InvokeChannel> = (
   payload: InferPayload<C>,

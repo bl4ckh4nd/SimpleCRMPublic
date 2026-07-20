@@ -232,7 +232,7 @@ class DatabaseSeeder {
 }
 
 async function promptConfirmation(message: string): Promise<boolean> {
-    const readline = require('readline');
+    const readline = await import('node:readline');
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout

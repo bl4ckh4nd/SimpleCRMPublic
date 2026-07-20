@@ -5,8 +5,8 @@ import { IPCChannels } from '@shared/ipc/channels';
 const toastMock = jest.fn();
 const handleApiErrorMock = jest.fn();
 
-jest.mock('@/components/ui/use-toast', () => ({
-  useToast: () => ({ toast: toastMock }),
+jest.mock('@/lib/toast', () => ({
+  toast: (...args: unknown[]) => toastMock(...args),
 }));
 
 jest.mock('@/lib/api-error-handler', () => ({
@@ -55,7 +55,7 @@ describe('useDealProducts', () => {
       dealId: 7,
       productId: 3,
       quantity: 1,
-      price: 20,
+      unitPrice: 20,
     });
   });
 

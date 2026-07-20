@@ -13,7 +13,6 @@ import {
   Clock,
   Loader2,
   Copy,
-  Link as LinkIcon,
   User,
   ChevronRight,
   Plus,
@@ -50,8 +49,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { Customer, Deal, Task } from "@/services/data/types" // Updated import
 import { TASK_EVENT_COMPLETED_COLOR, TASK_EVENT_DEFAULT_COLOR } from "@/services/data/calendarService"
 import { CustomFieldsForm } from "@/components/custom-fields-form";
-// Import the specific route definition
-import { customerDetailRoute } from "@/router"
 import { getPrimaryPhone, getFormattedPhone } from "@/lib/contact-utils"
 
 // Update interface to match route params - TanStack Router typically uses $paramName for file routes
@@ -117,8 +114,8 @@ export default function CustomerDetailPage() {
 
       try {
         // Pass customerId string directly to the service
-        const api = window.electronAPI as any; // Type assertion for direct invoke access
-        const dbCustomer = await api.invoke('db:get-customer', customerId);
+        const api = window.electronAPI;
+        const dbCustomer = await api.invoke('db:get-customer', Number(customerId)) as any as Customer | null;
         console.log('Fetched customer data in component:', dbCustomer); // Log fetched data
 
         if (dbCustomer) {
@@ -165,14 +162,14 @@ export default function CustomerDetailPage() {
       setIsLoadingRelated(true);
 
       try {
-        const api = window.electronAPI as any;
+        const api = window.electronAPI;
 
         // Fetch deals for this customer
-        const customerDeals = await api.invoke('db:get-deals-for-customer', customerId);
+        const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as any as Deal[];
         setDeals(customerDeals || []);
 
         // Fetch tasks for this customer
-        const customerTasks = await api.invoke('db:get-tasks-for-customer', customerId);
+        const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as any as Task[];
         setTasks(customerTasks || []);
       } catch (error) {
         console.error('Failed to fetch related items:', error);
@@ -212,8 +209,11 @@ export default function CustomerDetailPage() {
       };
 
       // Use window.electronAPI directly
-      const api = window.electronAPI as any;
-      await api.invoke('db:update-customer', updatedCustomer);
+      const api = window.electronAPI;
+      const result = await api.invoke('db:update-customer', { id: Number(customer.id), customerData: { ...updatedCustomer } });
+      if (!result.success) {
+        throw new Error(result.error || "Kunde konnte nicht aktualisiert werden.");
+      }
 
       // Update local state
       setCustomer(updatedCustomer);
@@ -230,8 +230,11 @@ export default function CustomerDetailPage() {
 
     try {
       // Use window.electronAPI directly
-      const api = window.electronAPI as any;
-      await api.invoke('db:delete-customer', customer.id);
+      const api = window.electronAPI;
+      const result = await api.invoke('db:delete-customer', Number(customer.id));
+      if (!result.success) {
+        throw new Error(result.error || "Verknüpfte Deals oder Aufgaben müssen zuerst entfernt werden.");
+      }
 
       toast.success(`Kunde ${customer.name} gelöscht.`);
       navigate({ to: "/customers" });
@@ -245,10 +248,10 @@ export default function CustomerDetailPage() {
     if (!newDealName.trim()) return;
     setIsSubmittingDeal(true);
     try {
-      const api = window.electronAPI as any;
+      const api = window.electronAPI;
       const result = await api.invoke('deals:create', {
         name: newDealName,
-        customer_id: customerId,
+        customer_id: Number(customerId),
         value: parseFloat(newDealValue) || 0,
         stage: newDealStage,
         value_calculation_method: 'static',
@@ -259,7 +262,7 @@ export default function CustomerDetailPage() {
         setNewDealName('');
         setNewDealValue('');
         setNewDealStage('Interessent');
-        const customerDeals = await api.invoke('db:get-deals-for-customer', customerId);
+        const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as any as Deal[];
         setDeals(customerDeals || []);
       } else {
         toast.error('Fehler beim Erstellen des Deals');
@@ -275,13 +278,15 @@ export default function CustomerDetailPage() {
     if (!newTaskTitle.trim()) return;
     setIsSubmittingTask(true);
     try {
-      const api = window.electronAPI as any;
+      const api = window.electronAPI;
       const result = await api.invoke('tasks:create', {
-        customer_id: customerId,
-        title: newTaskTitle,
-        due_date: newTaskDueDate || null,
-        priority: newTaskPriority,
-        completed: false,
+        task: {
+          customer_id: Number(customerId),
+          title: newTaskTitle,
+          due_date: newTaskDueDate || null,
+          priority: newTaskPriority,
+          completed: false,
+        },
       });
       if (result.success) {
         toast.success('Aufgabe erstellt');
@@ -289,7 +294,7 @@ export default function CustomerDetailPage() {
         setNewTaskTitle('');
         setNewTaskDueDate('');
         setNewTaskPriority('Medium');
-        const customerTasks = await api.invoke('db:get-tasks-for-customer', customerId);
+        const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as any as Task[];
         setTasks(customerTasks || []);
       } else {
         toast.error('Fehler beim Erstellen der Aufgabe');
@@ -355,7 +360,7 @@ export default function CustomerDetailPage() {
                               id="customerNumber"
                               value={editedCustomer.customerNumber}
                               disabled
-                              className="bg-gray-50 text-gray-500"
+                              className="bg-muted text-muted-foreground"
                             />
                           </div>
                         )}

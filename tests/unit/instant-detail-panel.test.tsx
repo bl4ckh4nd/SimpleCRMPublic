@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 jest.mock('@/components/followup/quick-actions', () => ({
-  QuickActions: ({ sourceType }: any) => <div data-testid="quick-actions" data-source={sourceType} />,
+  QuickActions: ({ sourceType }: unknown) => <div data-testid="quick-actions" data-source={sourceType} />,
 }));
 
 jest.mock('@/components/followup/timeline', () => ({
@@ -10,7 +10,7 @@ jest.mock('@/components/followup/timeline', () => ({
 }));
 
 jest.mock('@/components/followup/snooze-popover', () => ({
-  SnoozePopover: ({ children }: any) => <div>{children}</div>,
+  SnoozePopover: ({ children }: unknown) => <div>{children}</div>,
 }));
 
 import { InstantDetailPanel } from '@/components/followup/instant-detail-panel';
@@ -30,7 +30,7 @@ const baseItem: FollowUpItem = {
   due_date: '2026-04-01',
   source_id: 42,
   snoozed_until: null,
-} as any;
+} as unknown;
 
 const defaultProps = {
   item: baseItem,

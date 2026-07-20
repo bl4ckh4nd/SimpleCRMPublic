@@ -119,13 +119,6 @@ class DatabaseCleaner {
 
         console.log(`🗑️  Deleting ${count.toLocaleString()} test customers...`);
 
-        // First, get customer IDs that will be deleted
-        const customerIdsStmt = this.db.prepare(`
-            SELECT id FROM customers 
-            WHERE jtl_kKunde < 0
-        `);
-        const customerIds = customerIdsStmt.all() as { id: number }[];
-
         // Delete in transaction to maintain data integrity
         const deleteTransaction = this.db.transaction(() => {
             // Delete custom field values for these customers first
@@ -270,7 +263,7 @@ class DatabaseCleaner {
 }
 
 async function promptConfirmation(message: string): Promise<boolean> {
-    const readline = require('readline');
+    const readline = await import('node:readline');
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout

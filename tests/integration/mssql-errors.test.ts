@@ -29,7 +29,7 @@ describe('getFriendlyMssqlError', () => {
   });
 
   test('handles non-object input (number) with fallback', () => {
-    const parsed = getFriendlyMssqlError(42 as any, 'de');
+    const parsed = getFriendlyMssqlError(42 as unknown, 'de');
     expect(parsed.category).toBe('unknown');
   });
 

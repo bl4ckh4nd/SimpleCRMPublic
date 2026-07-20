@@ -39,7 +39,7 @@ describe('localDataService', () => {
       success: true,
       customer: { id: 21, name: 'New Customer', status: 'Lead' },
     });
-    const created = await localDataService.createCustomer({ name: 'New Customer', status: 'Lead' } as any);
+    const created = await localDataService.createCustomer({ name: 'New Customer', status: 'Lead' } as unknown);
     expect(created.id).toBe('21');
     expect(invoke).toHaveBeenCalledWith(IPCChannels.Db.CreateCustomer, { name: 'New Customer', status: 'Lead' });
   });

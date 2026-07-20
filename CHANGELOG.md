@@ -5,6 +5,37 @@ All notable changes to SimpleCRM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-20
+
+### Added
+- **Email Digests**: Added configurable SMTP notifications, daily task and deal summaries, delivery history, retries, secure keychain-backed credentials, and a dedicated settings page.
+- **Background Notification Worker**: The packaged application can run notifications independently with platform autostart integration, process locking, heartbeat reporting, and coordinated shutdown during updates.
+- **Task Scheduling**: Tasks and calendar events now share one transactional scheduling path, including one-to-one linkage and cascade cleanup.
+- **Typed IPC Contract**: Centralized Electron endpoints, validation schemas, preload exposure, and renderer invocation types in one shared contract.
+- **Architecture Documentation**: Added runtime ownership documentation and ADRs for main-process ownership and endpoint-based IPC.
+- **Automated Releases**: Added a manual semantic-version release workflow, changelog generation, native Windows/macOS/Linux builds, artifact validation, checksums, atomic tagging, and GitHub Release publishing.
+
+### Changed
+- **Data Ownership**: Moved multi-step deal/product, task/calendar, and customer deletion operations behind main-process transaction boundaries.
+- **Deletion Safety**: Customer deletion now reports related deal/task blockers instead of relying on broad database cascades; activity history is retained where possible.
+- **Application UI**: Consolidated toast handling, refined customer/product selection and forms, improved follow-up interactions, and simplified obsolete authentication and duplicate UI code.
+- **Testing**: Reorganized Electron Playwright scenarios and expanded IPC contract, registration, task, calendar, and domain-service coverage.
+- **Build Tooling**: Standardized on pnpm, removed stale generated Electron JavaScript and obsolete helper scripts, and added separate renderer/Electron type checks.
+
+### Fixed
+- **Deal Products**: Centralized product-link mutations and recalculation so deal values remain consistent.
+- **Task and Calendar Consistency**: Prevented duplicate task calendar events and made linked records update and delete together.
+- **Updater Ordering**: Stops the notification worker before installing an application update.
+- **IPC Validation**: Rejects unknown channels and malformed payloads at the Electron boundary while preserving structured error feedback.
+
+### Distribution
+- Windows x64 NSIS installer.
+- macOS x64 and arm64 DMG and ZIP archives.
+- Linux x64 AppImage.
+- Builds are currently unsigned and may display operating-system trust warnings.
+
+---
+
 ## [0.1.6] - 2026-03-30
 
 ### Added

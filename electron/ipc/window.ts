@@ -18,7 +18,8 @@ export function registerWindowHandlers(options: WindowHandlersOptions) {
         window.minimize();
         break;
       case 'maximize':
-        window.isMaximized() ? window.unmaximize() : window.maximize();
+        if (window.isMaximized()) window.unmaximize();
+        else window.maximize();
         break;
       case 'close':
         window.close();
@@ -61,9 +62,9 @@ export function registerWindowHandlers(options: WindowHandlersOptions) {
       await fs.promises.writeFile(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
       logger.info(`[IPC] File saved successfully: ${result.filePath}`);
       event.reply('save-data-reply', { success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('[IPC] Error saving data:', error);
-      event.reply('save-data-reply', { success: false, error: error?.message ?? 'Unknown error' });
+      event.reply('save-data-reply', { success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 

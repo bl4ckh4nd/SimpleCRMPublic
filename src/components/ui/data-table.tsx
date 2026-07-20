@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  TableMeta,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -30,7 +31,7 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   // Optional: Pass meta data down (used in product-table for edit/delete)
-  meta?: any;
+  meta?: TableMeta<TData>;
   searchKey?: string;
   searchKeys?: string[];
   searchPlaceholder?: string;

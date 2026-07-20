@@ -42,6 +42,12 @@ src/.DS_Store
 !README.md
 !CHANGELOG.md
 !LICENSE.md
+!CONTEXT.md
+!docs/
+!docs/adr/
+!docs/adr/*.md
 coverage/
+/test-results/
 .playwright-cli/
 .claude/
+.codex

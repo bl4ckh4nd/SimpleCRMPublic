@@ -1,11 +1,11 @@
-const ipcListeners = new Map<string, any>();
-const ipcHandlers = new Map<string, any>();
+const ipcListeners = new Map<string, unknown>();
+const ipcHandlers = new Map<string, unknown>();
 
 const mockIpcMain = {
-  on: jest.fn((channel: string, listener: any) => {
+  on: jest.fn((channel: string, listener: unknown) => {
     ipcListeners.set(channel, listener);
   }),
-  handle: jest.fn((channel: string, handler: any) => {
+  handle: jest.fn((channel: string, handler: unknown) => {
     ipcHandlers.set(channel, handler);
   }),
   removeListener: jest.fn(),
@@ -41,7 +41,7 @@ const mockWindow = {
   isFullScreen: jest.fn(),
 };
 
-const getMainWindow = jest.fn(() => mockWindow as any);
+const getMainWindow = jest.fn(() => mockWindow as unknown);
 
 describe('registerWindowHandlers', () => {
   beforeEach(() => {
@@ -52,7 +52,7 @@ describe('registerWindowHandlers', () => {
       mockWindow.close, mockWindow.isMaximized, mockWindow.isFullScreen,
       mockDialog.showSaveDialog, mockFs.promises.writeFile,
     ].forEach((fn) => fn.mockReset());
-    getMainWindow.mockReturnValue(mockWindow as any);
+    getMainWindow.mockReturnValue(mockWindow as unknown);
     registerWindowHandlers({ getMainWindow, logger: console });
   });
 

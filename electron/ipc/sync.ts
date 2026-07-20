@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { BrowserWindow } from 'electron';
 import { registerIpcHandler } from './register';
 import { runSync, getLastSyncStatus } from '../sync-service';
@@ -15,7 +15,7 @@ export function registerSyncHandlers(options: SyncHandlersOptions) {
   const { logger, getMainWindow } = options;
   const disposers: Disposer[] = [];
 
-  disposers.push(registerIpcHandler(IPCChannels.Sync.Run, async () => {
+  disposers.push(registerIpcHandler(IPC.Sync.Run, async () => {
     try {
       await runSync(getMainWindow());
       return { success: true };
@@ -25,7 +25,7 @@ export function registerSyncHandlers(options: SyncHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Sync.GetStatus, async () => {
+  disposers.push(registerIpcHandler(IPC.Sync.GetStatus, async () => {
     try {
       return getLastSyncStatus();
     } catch (error) {
@@ -34,7 +34,7 @@ export function registerSyncHandlers(options: SyncHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Sync.GetInfo, async (_event, key: string) => {
+  disposers.push(registerIpcHandler(IPC.Sync.GetInfo, async (_event, key: string) => {
     try {
       return getSyncInfo(key);
     } catch (error) {
@@ -43,7 +43,7 @@ export function registerSyncHandlers(options: SyncHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Sync.SetInfo, async (_event, payload: any) => {
+  disposers.push(registerIpcHandler(IPC.Sync.SetInfo, async (_event, payload) => {
     try {
       const { key, value } = payload ?? {};
       setSyncInfo(key, value);

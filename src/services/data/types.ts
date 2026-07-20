@@ -62,7 +62,7 @@ export interface Customer {
     dateAdded?: string; // From jtl_dateCreated or local creation
     lastModifiedLocally?: string; // For tracking when last modified locally
     lastContact?: string; // Not directly synced?
-    customFields?: Record<string, any>; // Dynamic custom fields
+    customFields?: Record<string, unknown>; // Dynamic custom fields
 }
 
 export interface Product {
@@ -153,20 +153,4 @@ export interface SavedView {
     filters: string;
     display_order: number;
     created_at?: string;
-}
-
-// Define the DataService interface based on usage in localDataService
-export interface DataService {
-    getCustomers(): Promise<Customer[]>;
-    getCustomer(id: string): Promise<Customer | null>;
-    createCustomer(data: Omit<Customer, 'id'>): Promise<Customer>;
-    updateCustomer(id: string, data: Partial<Customer>): Promise<Customer>;
-    deleteCustomer(id: string): Promise<void>;
-
-    getProducts(): Promise<Product[]>;
-    // Define other product methods if needed:
-    // getProduct(id: string): Promise<Product | null>;
-    // createProduct(data: Omit<Product, 'id'>): Promise<Product>;
-    // updateProduct(id: string, data: Partial<Product>): Promise<Product>;
-    // deleteProduct(id: string): Promise<void>;
 }

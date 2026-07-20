@@ -15,8 +15,6 @@ const Titlebar: React.FC = () => {
       return;
     }
 
-    let cleanup: (() => void) | undefined;
-
     window.electron
       .getWindowState?.()
       .then((state) => {
@@ -27,7 +25,7 @@ const Titlebar: React.FC = () => {
         console.error('[Titlebar] Failed to fetch initial window state:', error);
       });
 
-    cleanup = window.electron.onWindowStateChange?.((state: WindowState) => {
+    const cleanup = window.electron.onWindowStateChange?.((state: WindowState) => {
       setIsMaximized(state.isMaximized || state.isFullScreen);
     });
 

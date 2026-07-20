@@ -33,7 +33,9 @@ import {
     ACTIVITY_LOG_TABLE,
     SAVED_VIEWS_TABLE,
     createActivityLogTable,
-    createSavedViewsTable
+    createSavedViewsTable,
+    NOTIFICATION_LOG_TABLE,
+    createNotificationLogTable,
 } from './database-schema';
 import { Product, DealProduct } from './types';
 // Optional: import Knex from 'knex';
@@ -43,7 +45,7 @@ let db: Database.Database;
 // Optional: let knex: Knex.Knex;
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-const sqliteVerboseLogger = (...args: unknown[]) => {
+const sqliteVerboseLogger = (...args: any[]) => {
     if (isDevelopment) {
         console.debug('[SQLite]', ...args);
     }
@@ -72,6 +74,7 @@ export function initializeDatabase() {
             db.exec(createCustomerCustomFieldValuesTable);
             db.exec(createActivityLogTable);
             db.exec(createSavedViewsTable);
+            db.exec(createNotificationLogTable);
             db.exec(createJtlFirmenTable);
             db.exec(createJtlWarenlagerTable);
             db.exec(createJtlZahlungsartenTable);
@@ -171,6 +174,8 @@ export function initializeDatabase() {
 
         ensureTableExists(SAVED_VIEWS_TABLE, createSavedViewsTable, []);
 
+        ensureTableExists(NOTIFICATION_LOG_TABLE, createNotificationLogTable, []);
+
         // Run migrations for schema updates
         runMigrations();
     }
@@ -213,16 +218,8 @@ function runMigrations() {
             console.log('Migration completed: Added value_calculation_method column to deals table');
         }
 
-        // Migration: Add calendar_event_id column to tasks table if it doesn't exist
-        const taskColumnsStmt = db.prepare(`PRAGMA table_info(${TASKS_TABLE})`);
-        const taskColumns = taskColumnsStmt.all();
-        const hasCalendarEventId = taskColumns.some((col: any) => col.name === 'calendar_event_id');
-
-        if (!hasCalendarEventId) {
-            console.log('Adding calendar_event_id column to tasks table...');
-            db.exec(`ALTER TABLE ${TASKS_TABLE} ADD COLUMN calendar_event_id INTEGER`);
-            console.log('Migration completed: Added calendar_event_id column to tasks table');
-        }
+        const taskColumns = db.prepare(`PRAGMA table_info(${TASKS_TABLE})`).all() as Array<{ name: string }>;
+        const hasLegacyCalendarEventId = taskColumns.some((column) => column.name === 'calendar_event_id');
 
         // Migration: Add task_id column to calendar events table if it doesn't exist
         const calendarColumnsStmt = db.prepare(`PRAGMA table_info(${CALENDAR_EVENTS_TABLE})`);
@@ -234,6 +231,36 @@ function runMigrations() {
             db.exec(`ALTER TABLE ${CALENDAR_EVENTS_TABLE} ADD COLUMN task_id INTEGER`);
             console.log('Migration completed: Added task_id column to calendar events table');
         }
+
+        // calendar_events.task_id is the sole persisted task/calendar link. Reconcile
+        // older databases before enforcing one event per task.
+        db.transaction(() => {
+            if (hasLegacyCalendarEventId) {
+                db!.exec(`
+                    UPDATE ${CALENDAR_EVENTS_TABLE}
+                    SET task_id = (
+                        SELECT MIN(t.id) FROM ${TASKS_TABLE} t
+                        WHERE t.calendar_event_id = ${CALENDAR_EVENTS_TABLE}.id
+                    )
+                    WHERE task_id IS NULL
+                      AND EXISTS (
+                        SELECT 1 FROM ${TASKS_TABLE} t
+                        WHERE t.calendar_event_id = ${CALENDAR_EVENTS_TABLE}.id
+                      );
+                `);
+            }
+            db!.exec(`
+                UPDATE ${CALENDAR_EVENTS_TABLE}
+                SET task_id = NULL
+                WHERE task_id IS NOT NULL
+                  AND id NOT IN (
+                    SELECT MIN(id) FROM ${CALENDAR_EVENTS_TABLE}
+                    WHERE task_id IS NOT NULL GROUP BY task_id
+                  );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_task_id
+                  ON ${CALENDAR_EVENTS_TABLE}(task_id) WHERE task_id IS NOT NULL;
+            `);
+        })();
 
         // Migration: Add customerNumber column to customers table if it doesn't exist
         const customerColumns = db.prepare(`PRAGMA table_info(${CUSTOMERS_TABLE})`).all();
@@ -256,6 +283,18 @@ function runMigrations() {
             console.log('Migration completed: Added snoozed_until column to tasks table');
         }
 
+        const notificationColumns = db.prepare(`PRAGMA table_info(${NOTIFICATION_LOG_TABLE})`).all() as Array<{ name: string }>;
+        const notificationColumnNames = new Set(notificationColumns.map((column) => column.name));
+        if (!notificationColumnNames.has('attempts')) db.exec(`ALTER TABLE ${NOTIFICATION_LOG_TABLE} ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0`);
+        if (!notificationColumnNames.has('updated_at')) db.exec(`ALTER TABLE ${NOTIFICATION_LOG_TABLE} ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP`);
+        if (!notificationColumnNames.has('sent_at')) db.exec(`ALTER TABLE ${NOTIFICATION_LOG_TABLE} ADD COLUMN sent_at TEXT`);
+        db.exec(`
+            DELETE FROM ${NOTIFICATION_LOG_TABLE}
+            WHERE id NOT IN (SELECT MAX(id) FROM ${NOTIFICATION_LOG_TABLE} GROUP BY sent_date);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_log_sent_date
+              ON ${NOTIFICATION_LOG_TABLE}(sent_date);
+        `);
+
         // Migration: Normalize priority values to English (High/Medium/Low)
         db.prepare(`UPDATE ${TASKS_TABLE} SET priority = 'High'   WHERE priority = 'Hoch'`).run();
         db.prepare(`UPDATE ${TASKS_TABLE} SET priority = 'Medium' WHERE priority = 'Mittel'`).run();
@@ -263,6 +302,7 @@ function runMigrations() {
 
     } catch (error) {
         console.error('Error running migrations:', error);
+        throw error;
     }
 }
 
@@ -998,29 +1038,46 @@ export function updateCustomer(id: number, customerData: any): any {
     }
 }
 
-export function deleteCustomer(id: number): boolean {
-    // Use a transaction to ensure all operations succeed or fail together
+export type CustomerDeleteBlocker = {
+    customerId: number;
+    deals: number;
+    tasks: number;
+};
+
+export type DeleteCustomersResult =
+    | { success: true; deletedIds: number[] }
+    | { success: false; code: 'CUSTOMER_HAS_RELATIONS'; error: string; blockers: CustomerDeleteBlocker[] };
+
+export function deleteCustomers(customerIds: number[]): DeleteCustomersResult {
     const db = getDb();
-    db.prepare('BEGIN TRANSACTION').run();
+    const ids = [...new Set(customerIds)];
+    const remove = db.transaction((): DeleteCustomersResult => {
+        const blockers = ids.flatMap((customerId) => {
+            const deals = (db.prepare(`SELECT COUNT(*) AS count FROM ${DEALS_TABLE} WHERE customer_id = ?`).get(customerId) as { count: number }).count;
+            const tasks = (db.prepare(`SELECT COUNT(*) AS count FROM ${TASKS_TABLE} WHERE customer_id = ?`).get(customerId) as { count: number }).count;
+            return deals || tasks ? [{ customerId, deals, tasks }] : [];
+        });
 
-    try {
-        // Delete custom field values first (though the foreign key would handle this)
-        deleteAllCustomFieldValuesForCustomer(id);
+        if (blockers.length) {
+            return {
+                success: false,
+                code: 'CUSTOMER_HAS_RELATIONS',
+                error: 'Customers with related deals or tasks cannot be deleted.',
+                blockers,
+            };
+        }
 
-        // Then delete the customer
-        const stmt = db.prepare(`DELETE FROM ${CUSTOMERS_TABLE} WHERE id = ?`);
-        const result = stmt.run(id);
+        const placeholders = ids.map(() => '?').join(', ');
+        db.prepare(`DELETE FROM ${CUSTOMERS_TABLE} WHERE id IN (${placeholders})`).run(...ids);
+        return { success: true, deletedIds: ids };
+    });
 
-        // Commit the transaction
-        db.prepare('COMMIT').run();
+    return remove();
+}
 
-        return result.changes > 0;
-    } catch (error) {
-        // If anything fails, roll back the transaction
-        db.prepare('ROLLBACK').run();
-        console.error('Error deleting customer:', error);
-        throw error;
-    }
+export function deleteCustomer(id: number): boolean {
+    const result = deleteCustomers([id]);
+    return result.success && result.deletedIds.includes(id);
 }
 
 // --- Product Operations ---
@@ -1649,7 +1706,8 @@ export function updateDealStage(dealId: number, newStage: string): { success: bo
 export function getTasksForDeal(dealId: number): any[] {
   // Returns all tasks for the customer associated with this deal
   const stmt = getDb().prepare(`
-    SELECT t.*, c.name as customer_name
+    SELECT t.*, c.name as customer_name,
+      (SELECT id FROM ${CALENDAR_EVENTS_TABLE} WHERE task_id = t.id LIMIT 1) AS calendar_event_id
     FROM ${TASKS_TABLE} t
     LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
     WHERE t.customer_id = (SELECT customer_id FROM ${DEALS_TABLE} WHERE id = ?)
@@ -1682,195 +1740,15 @@ export function getDealsForCustomer(customerId: number): any[] {
     return stmt.all(customerId);
 }
 
-// --- Task Operations ---
-export function getAllTasks(
-  limit: number = 100,
-  offset: number = 0,
-  filter: { completed?: boolean; priority?: string; query?: string } = {}
-): any[] {
-  let sql = `
-    SELECT t.*, c.name as customer_name
-    FROM ${TASKS_TABLE} t
-    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
-    WHERE 1=1
-  `;
-
-  const params: any[] = [];
-
-  // Add completed filter if provided
-  if (filter.completed !== undefined) {
-    sql += ` AND t.completed = ?`;
-    params.push(filter.completed ? 1 : 0);
-  }
-
-  // Add priority filter if provided
-  if (filter.priority) {
-    sql += ` AND t.priority = ?`;
-    params.push(filter.priority);
-  }
-
-  // Add search query filter if provided
-  if (filter.query && filter.query.trim() !== '') {
-    sql += ` AND (t.title LIKE ? OR c.name LIKE ? OR t.description LIKE ?)`;
-    const searchTerm = `%${filter.query}%`;
-    params.push(searchTerm, searchTerm, searchTerm);
-  }
-
-  sql += ` ORDER BY t.due_date ASC LIMIT ? OFFSET ?`;
-  params.push(limit, offset);
-
-  const stmt = getDb().prepare(sql);
-  return stmt.all(...params);
-}
-
-export function getTaskById(taskId: number): any {
-  const stmt = getDb().prepare(`
-    SELECT t.*, c.name as customer_name
-    FROM ${TASKS_TABLE} t
-    LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
-    WHERE t.id = ?
-  `);
-  return stmt.get(taskId);
-}
-
-export function createTask(taskData: any): { success: boolean; id?: number; error?: string } {
-  try {
-    // Prepare timestamp
-    const now = new Date().toISOString();
-
-    // Create task with mandatory fields
-    const stmt = getDb().prepare(`
-      INSERT INTO ${TASKS_TABLE} (
-        customer_id, title, description, due_date, priority, completed,
-        calendar_event_id, created_date, last_modified
-      ) VALUES (
-        @customer_id, @title, @description, @due_date, @priority, @completed,
-        @calendar_event_id, @created_date, @last_modified
-      )
-    `);
-
-    const result = stmt.run({
-      customer_id: taskData.customer_id,
-      title: taskData.title,
-      description: taskData.description || '',
-      due_date: taskData.due_date ?? '',
-      priority: taskData.priority,
-      completed: taskData.completed ? 1 : 0,
-      calendar_event_id: taskData.calendar_event_id ?? null,
-      created_date: now,
-      last_modified: now
-    });
-
-    const newTaskId = result.lastInsertRowid as number;
-
-    try {
-      createActivityLog({
-        customer_id: taskData.customer_id,
-        task_id: newTaskId,
-        activity_type: 'task_created',
-        title: `Aufgabe erstellt: ${taskData.title}`,
-      });
-    } catch (e) {
-      console.error('Failed to log task creation activity:', e);
-    }
-
-    return { success: true, id: newTaskId };
-  } catch (error) {
-    console.error('Error creating task:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
-export function updateTask(taskId: number, taskData: any): { success: boolean; error?: string } {
-  try {
-    // Update last_modified timestamp
-    taskData.last_modified = new Date().toISOString();
-
-    // Convert boolean completed to integer if provided
-    if (taskData.completed !== undefined) {
-      taskData.completed = taskData.completed ? 1 : 0;
-    }
-
-    // Build dynamic update query based on provided fields
-    const fields = Object.keys(taskData)
-      .filter(key => key !== 'id' && taskData[key] !== undefined)
-      .map(key => `${key} = @${key}`)
-      .join(', ');
-
-    if (!fields.length) {
-      return { success: false, error: 'No fields to update' };
-    }
-
-    const stmt = getDb().prepare(`
-      UPDATE ${TASKS_TABLE}
-      SET ${fields}
-      WHERE id = @id
-    `);
-
-    const result = stmt.run({
-      id: taskId,
-      ...taskData
-    });
-
-    return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
-  } catch (error) {
-    console.error(`Error updating task ${taskId}:`, error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
-export function updateTaskCompletion(taskId: number, completed: boolean): { success: boolean; error?: string } {
-  try {
-    const task = getDb().prepare(`SELECT customer_id, title FROM ${TASKS_TABLE} WHERE id = ?`).get(taskId) as any;
-    const now = new Date().toISOString();
-
-    const stmt = getDb().prepare(`
-      UPDATE ${TASKS_TABLE}
-      SET completed = ?, last_modified = ?
-      WHERE id = ?
-    `);
-
-    const result = stmt.run(completed ? 1 : 0, now, taskId);
-
-    if (result.changes > 0 && task && completed) {
-      try {
-        createActivityLog({
-          customer_id: task.customer_id,
-          task_id: taskId,
-          activity_type: 'task_completed',
-          title: `Aufgabe erledigt: ${task.title}`,
-        });
-      } catch (e) {
-        console.error('Failed to log task completion activity:', e);
-      }
-    }
-
-    return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
-  } catch (error) {
-    console.error(`Error updating task completion for ${taskId}:`, error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
-export function deleteTask(taskId: number): { success: boolean; error?: string } {
-  try {
-    const stmt = getDb().prepare(`DELETE FROM ${TASKS_TABLE} WHERE id = ?`);
-    const result = stmt.run(taskId);
-
-    return { success: result.changes > 0, error: result.changes === 0 ? 'Task not found' : undefined };
-  } catch (error) {
-    console.error(`Error deleting task ${taskId}:`, error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
 // --- Task Operations for Customer ---
 export function getTasksForCustomer(customerId: number): any[] {
     // This assumes a 'tasks' table with a customer_id field
     const stmt = getDb().prepare(`
-        SELECT * FROM tasks
-        WHERE customer_id = ?
-        ORDER BY due_date ASC
+        SELECT t.*,
+          (SELECT id FROM ${CALENDAR_EVENTS_TABLE} WHERE task_id = t.id LIMIT 1) AS calendar_event_id
+        FROM ${TASKS_TABLE} t
+        WHERE t.customer_id = ?
+        ORDER BY t.due_date ASC
     `);
     return stmt.all(customerId);
 }
@@ -2407,6 +2285,27 @@ export function deleteSavedView(id: number): { success: boolean; error?: string 
         console.error(`Error deleting saved view ${id}:`, error);
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
+}
+
+// --- Notification log ---
+export type NotificationLogEntry = {
+    id: number;
+    sent_date: string;
+    recipient: string;
+    task_count: number;
+    deal_count: number;
+    status: 'sent' | 'skipped' | 'failed';
+    attempts: number;
+    error_message: string | null;
+    created_at: string;
+    updated_at: string;
+    sent_at: string | null;
+};
+
+export function getNotificationLog(limit: number = 20): NotificationLogEntry[] {
+    return getDb().prepare(
+        `SELECT * FROM ${NOTIFICATION_LOG_TABLE} ORDER BY created_at DESC LIMIT ?`
+    ).all(limit) as NotificationLogEntry[];
 }
 
 // --- Cleanup ---

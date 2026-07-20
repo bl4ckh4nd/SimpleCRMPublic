@@ -12,7 +12,7 @@ export const followUpService = {
       return await window.electronAPI.invoke(
         IPCChannels.FollowUp.GetItems,
         { queue, filters, limit, offset }
-      ) as FollowUpItem[];
+      ) as unknown as FollowUpItem[];
     } catch (error) {
       console.error('Failed to fetch follow-up items:', error);
       return [];
@@ -23,7 +23,7 @@ export const followUpService = {
     try {
       return await window.electronAPI.invoke(
         IPCChannels.FollowUp.GetQueueCounts
-      ) as QueueCounts;
+      ) as unknown as QueueCounts;
     } catch (error) {
       console.error('Failed to fetch queue counts:', error);
       return { heute: 0, ueberfaellig: 0, dieseWoche: 0, stagnierend: 0, highValueRisk: 0 };
@@ -71,7 +71,7 @@ export const followUpService = {
       return await window.electronAPI.invoke(
         IPCChannels.FollowUp.GetTimeline,
         { customerId, filter, limit, offset }
-      ) as ActivityLogEntry[];
+      ) as unknown as ActivityLogEntry[];
     } catch (error) {
       console.error('Failed to fetch timeline:', error);
       return [];
@@ -82,7 +82,7 @@ export const followUpService = {
     try {
       return await window.electronAPI.invoke(
         IPCChannels.FollowUp.GetSavedViews
-      ) as SavedView[];
+      ) as unknown as SavedView[];
     } catch (error) {
       console.error('Failed to fetch saved views:', error);
       return [];

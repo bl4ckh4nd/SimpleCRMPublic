@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { useState, useEffect } from "react"
@@ -29,20 +28,27 @@ const settingsSchema = z.object({
   database: z.string().min(1, "Datenbankname ist erforderlich"),
   user: z.string().min(1, "Benutzername ist erforderlich"),
   password: z.string().optional(), // Made optional, will not require min(1) if empty
-  port: z.coerce.number().int().min(1).max(65535),
+  port: z.number().int().min(1).max(65535),
   encrypt: z.boolean(),
   trustServerCertificate: z.boolean(),
   forcePort: z.boolean().optional(), // <-- New flag
   // JTL specific settings
-  kBenutzer: z.coerce.number({ invalid_type_error: "kBenutzer muss eine Zahl sein" }).int("kBenutzer muss eine ganze Zahl sein").optional(),
-  kShop: z.coerce.number({ invalid_type_error: "kShop muss eine Zahl sein" }).int("kShop muss eine ganze Zahl sein").optional(),
-  kPlattform: z.coerce.number({ invalid_type_error: "kPlattform muss eine Zahl sein" }).int("kPlattform muss eine ganze Zahl sein").optional(),
-  kSprache: z.coerce.number({ invalid_type_error: "kSprache muss eine Zahl sein" }).int("kSprache muss eine ganze Zahl sein").optional(),
+  kBenutzer: z.number({ error: "kBenutzer muss eine Zahl sein" }).int("kBenutzer muss eine ganze Zahl sein").optional(),
+  kShop: z.number({ error: "kShop muss eine Zahl sein" }).int("kShop muss eine ganze Zahl sein").optional(),
+  kPlattform: z.number({ error: "kPlattform muss eine Zahl sein" }).int("kPlattform muss eine ganze Zahl sein").optional(),
+  kSprache: z.number({ error: "kSprache muss eine Zahl sein" }).int("kSprache muss eine ganze Zahl sein").optional(),
   cWaehrung: z.string().optional(),
-  fWaehrungFaktor: z.coerce.number({ invalid_type_error: "fWaehrungFaktor muss eine Zahl sein" }).optional(),
+  fWaehrungFaktor: z.number({ error: "fWaehrungFaktor muss eine Zahl sein" }).optional(),
 })
 
-type SettingsForm = z.infer<typeof settingsSchema>
+type SettingsInput = z.input<typeof settingsSchema>
+type SettingsForm = z.output<typeof settingsSchema>
+
+const asErrorDetails = (value: any): { suggestion?: string; userMessage?: string } =>
+  value && typeof value === "object" ? value as { suggestion?: string; userMessage?: string } : {}
+
+const errorMessage = (error: any, fallback: string) =>
+  error instanceof Error ? error.message : fallback
 
 export default function SettingsPage() {
   const [isTesting, setIsTesting] = useState(false)
@@ -53,8 +59,7 @@ export default function SettingsPage() {
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'success' | 'error'>('unknown')
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null)
 
-  
-  const form = useForm<SettingsForm>({
+  const form = useForm<SettingsInput, unknown, SettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       server: "",
@@ -78,9 +83,9 @@ export default function SettingsPage() {
   // Fetch settings and connection status on load
   useEffect(() => {
     const fetchSettings = async () => {
-      if (window.electronAPI && (window.electronAPI as any).invoke) {
+      if (window.electronAPI && window.electronAPI.invoke) {
         try {
-          const settingsFromIPC = await (window.electronAPI as any).invoke('mssql:get-settings');
+          const settingsFromIPC = await window.electronAPI.invoke('mssql:get-settings');
           if (settingsFromIPC) {
             // For form reset, ensure password field is an empty string if password is undefined
             // and provide a default for forcePort if it's not in stored settings (for backward compatibility)
@@ -94,7 +99,7 @@ export default function SettingsPage() {
             // Test connection with settings as obtained from IPC.
             // If settingsFromIPC.password is undefined, testConnectionWithKeytar will try to use the stored password.
             try {
-              const testResult = await (window.electronAPI as any).invoke('mssql:test-connection', settingsFromIPC);
+              const testResult = await window.electronAPI.invoke('mssql:test-connection', settingsFromIPC);
               setConnectionStatus(testResult.success ? 'success' : 'error');
             } catch (error) {
               console.error("Error testing connection on load:", error);
@@ -116,9 +121,9 @@ export default function SettingsPage() {
   // Fetch sync status
   useEffect(() => {
     const fetchSyncStatus = async () => {
-      if (window.electronAPI && (window.electronAPI as any).invoke) {
+      if (window.electronAPI && window.electronAPI.invoke) {
         try {
-          const syncStatus = await (window.electronAPI as any).invoke('sync:get-status')
+          const syncStatus = await window.electronAPI.invoke('sync:get-status')
           if (syncStatus && syncStatus.status === 'Success' && syncStatus.timestamp) {
             setLastSyncTimestamp(syncStatus.timestamp)
             setSyncStatusMessage(syncStatus.message || null)
@@ -134,22 +139,22 @@ export default function SettingsPage() {
   const testAndSaveConnection = async (dataForTest: SettingsForm, dataForSave: Partial<SettingsForm>) => {
     setIsTesting(true)
 
-    if (!window.electronAPI || !(window.electronAPI as any).invoke) {
+    if (!window.electronAPI || !window.electronAPI.invoke) {
       toast.error("Fehler", { description: "Electron API ist nicht verfügbar." })
       setIsTesting(false)
       return
     }
 
     try {
-      const testResult: { success: boolean; error?: string; errorDetails?: any } = await (window.electronAPI as any).invoke('mssql:test-connection', dataForTest)
+      const testResult: { success: boolean; error?: string; errorDetails?: any } = await window.electronAPI.invoke('mssql:test-connection', dataForTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
 
       if (testResult.success) {
-        const saveResult: { success: boolean; error?: string } = await (window.electronAPI as any).invoke('mssql:save-settings', dataForSave)
+        const saveResult: { success: boolean; error?: string } = await window.electronAPI.invoke('mssql:save-settings', dataForSave)
 
         if (saveResult.success) {
           toast.success("Einstellungen gespeichert", { description: "Verbindung erfolgreich und Einstellungen gespeichert." })
-          const newSettings = await (window.electronAPI as any).invoke('mssql:get-settings');
+          const newSettings = await window.electronAPI.invoke('mssql:get-settings');
           if (newSettings) {
             form.reset({ ...newSettings, password: newSettings.password || "" });
           }
@@ -158,7 +163,7 @@ export default function SettingsPage() {
         }
       } else {
         const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
-        const errorDetails = testResult.errorDetails;
+        const errorDetails = asErrorDetails(testResult.errorDetails);
         const description = errorDetails?.suggestion
           ? `${errorMessage}\n\nLösungsvorschlag: ${errorDetails.suggestion}`
           : errorMessage;
@@ -166,7 +171,7 @@ export default function SettingsPage() {
       }
     } catch (error: any) {
       console.error("Error testing/saving connection:", error)
-      toast.error("Fehler", { description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
+      toast.error("Fehler", { description: errorMessage(error, "Ein unerwarteter Fehler ist aufgetreten.") })
       setConnectionStatus('error')
     } finally {
       setIsTesting(false)
@@ -196,21 +201,22 @@ export default function SettingsPage() {
 
   const handleClearPassword = async () => {
     setIsClearingPassword(true);
-    if (!window.electronAPI || !(window.electronAPI as any).invoke) {
-      toast({ variant: "destructive", title: "Fehler", description: "Electron API ist nicht verfügbar." });
+    if (!window.electronAPI || !window.electronAPI.invoke) {
+      toast.error("Fehler", { description: "Electron API ist nicht verfügbar." });
       setIsClearingPassword(false);
       return;
     }
     try {
-      const result: { success: boolean; message: string } = await (window.electronAPI as any).invoke('mssql:clear-password');
+      const result = await window.electronAPI.invoke('mssql:clear-password');
       if (result.success) {
+        const message = typeof result.message === "string" ? result.message : "";
         let germanMessage = "Das Passwort wurde erfolgreich gelöscht."; // Default success message
         // You can customize the message further based on specific success scenarios if needed:
-        if (result.message === 'No password found in secure storage for the current settings.') {
+        if (message === 'No password found in secure storage for the current settings.') {
             germanMessage = "Es wurde kein zu löschendes Passwort für die aktuellen Einstellungen gefunden (möglicherweise bereits entfernt).";
-        } else if (result.message === 'No connection settings are fully configured, so no password to clear.') {
+        } else if (message === 'No connection settings are fully configured, so no password to clear.') {
             germanMessage = "Keine vollständigen Verbindungseinstellungen konfiguriert, daher gibt es kein Passwort zum Löschen.";
-        } else if (result.message === 'Password successfully cleared from secure storage.') {
+        } else if (message === 'Password successfully cleared from secure storage.') {
             germanMessage = "Das Passwort wurde erfolgreich aus dem sicheren Speicher entfernt.";
         }
         toast.success("Erfolg", { description: germanMessage });
@@ -235,19 +241,19 @@ export default function SettingsPage() {
         delete dataToTest.password; // Don't send empty password for testing if not changed
     }
 
-    if (!window.electronAPI || !(window.electronAPI as any).invoke) {
+    if (!window.electronAPI || !window.electronAPI.invoke) {
       toast.error("Fehler", { description: "Electron API ist nicht verfügbar." })
       setIsConnecting(false)
       return
     }
     try {
-      const testResult: { success: boolean; error?: string; errorDetails?: any } = await (window.electronAPI as any).invoke('mssql:test-connection', dataToTest)
+      const testResult: { success: boolean; error?: string; errorDetails?: any } = await window.electronAPI.invoke('mssql:test-connection', dataToTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
       if (testResult.success) {
         toast.success("Verbindung erfolgreich.")
       } else {
         const errorMessage = testResult.error || "Konnte keine Verbindung zum MSSQL-Server herstellen.";
-        const errorDetails = testResult.errorDetails;
+        const errorDetails = asErrorDetails(testResult.errorDetails);
         const description = errorDetails?.suggestion
           ? `${errorMessage}\n\nLösungsvorschlag: ${errorDetails.suggestion}`
           : errorMessage;
@@ -255,7 +261,7 @@ export default function SettingsPage() {
       }
     } catch (error: any) {
       console.error("Error testing connection:", error)
-      toast.error("Fehler", { description: error.message || "Ein unerwarteter Fehler ist aufgetreten." })
+      toast.error("Fehler", { description: errorMessage(error, "Ein unerwarteter Fehler ist aufgetreten.") })
       setConnectionStatus('error')
     } finally {
       setIsConnecting(false)
@@ -265,7 +271,7 @@ export default function SettingsPage() {
   const handleSync = async () => {
     setIsSyncing(true)
     setSyncStatusMessage("Starte Synchronisation...")
-    if (!window.electronAPI || !(window.electronAPI as any).invoke) {
+    if (!window.electronAPI || !window.electronAPI.invoke) {
       toast.error("Fehler", { description: "Electron API ist nicht verfügbar." })
       setSyncStatusMessage("Fehler: Electron API nicht verfügbar.")
       setIsSyncing(false)
@@ -273,7 +279,7 @@ export default function SettingsPage() {
     }
     try {
       const result: { success: boolean; message: string; details?: { found?: number; synced?: number } } = 
-        await (window.electronAPI as any).invoke('sync:run')
+        await window.electronAPI.invoke('sync:run')
       
       if (result.success) {
         let feedback = result.message || "Sync erfolgreich.";
@@ -289,7 +295,7 @@ export default function SettingsPage() {
         
         // Fetch updated sync status to get the new timestamp
         try {
-          const syncStatus = await (window.electronAPI as any).invoke('sync:get-status')
+          const syncStatus = await window.electronAPI.invoke('sync:get-status')
           if (syncStatus && syncStatus.timestamp) {
             setLastSyncTimestamp(syncStatus.timestamp)
           }
@@ -303,12 +309,15 @@ export default function SettingsPage() {
       }
     } catch (error: any) {
       console.error("Error running sync:", error)
-      let errorMsg = error.message || "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation."
+      let errorMsg = errorMessage(error, "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation.")
 
-      if (error.errorDetails) {
-        errorMsg = error.errorDetails.userMessage || errorMsg;
-        if (error.errorDetails.suggestion) {
-          errorMsg += `\n\nLösungsvorschlag: ${error.errorDetails.suggestion}`;
+      const details = asErrorDetails(
+        error && typeof error === "object" && "errorDetails" in error ? error.errorDetails : undefined
+      );
+      if (details.userMessage) {
+        errorMsg = details.userMessage;
+        if (details.suggestion) {
+          errorMsg += `\n\nLösungsvorschlag: ${details.suggestion}`;
         }
       }
 

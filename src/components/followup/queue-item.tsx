@@ -10,6 +10,22 @@ interface QueueItemProps {
   onClick: () => void
 }
 
+function getBadgeVariant(count: number, urgency?: QueueItemProps["urgency"]) {
+  if (count === 0) {
+    return "secondary"
+  }
+
+  if (urgency === "critical") {
+    return "destructive"
+  }
+
+  if (urgency === "warning") {
+    return "default"
+  }
+
+  return "secondary"
+}
+
 export function QueueItem({ label, count, active, icon, urgency, onClick }: QueueItemProps) {
   return (
     <button
@@ -24,11 +40,7 @@ export function QueueItem({ label, count, active, icon, urgency, onClick }: Queu
       <span className="shrink-0">{icon}</span>
       <span className="flex-1 truncate">{label}</span>
       <Badge
-        variant={
-          urgency === 'critical' && count > 0 ? "destructive"
-          : urgency === 'warning' && count > 0 ? "default"
-          : "secondary"
-        }
+        variant={getBadgeVariant(count, urgency)}
         className="h-5 min-w-[1.25rem] px-1.5 text-xs tabular-nums"
       >
         {count}

@@ -1,10 +1,10 @@
 import { IPCChannels } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, any>();
+const handlers = new Map<string, unknown>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((channel: string, handler: unknown) => {
-    handlers.set(channel, handler);
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: unknown) => {
+    handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),
 }));
@@ -30,13 +30,13 @@ jest.mock('electron', () => ({
 import { registerSyncHandlers } from '../../electron/ipc/sync';
 
 const mockWindow = { webContents: { send: jest.fn() } };
-const getMainWindow = jest.fn(() => mockWindow as any);
+const getMainWindow = jest.fn(() => mockWindow as unknown);
 
 describe('registerSyncHandlers', () => {
   beforeEach(() => {
     handlers.clear();
     [...Object.values(syncServiceMocks), ...Object.values(sqliteMocks)].forEach((fn) => fn.mockReset());
-    getMainWindow.mockReturnValue(mockWindow as any);
+    getMainWindow.mockReturnValue(mockWindow as unknown);
     registerSyncHandlers({ logger: console, getMainWindow });
   });
 

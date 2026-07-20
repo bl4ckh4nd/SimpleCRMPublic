@@ -29,7 +29,7 @@ const queueMessages: Record<string, { heading: string; description: string; sugg
     heading: "Keine stagnierenden Deals",
     description: "Alle Deals sind aktiv.",
     suggestQueue: "high_value_risk",
-    suggestLabel: "High Value Risk",
+    suggestLabel: "Großdeal-Risiko",
   },
   high_value_risk: {
     heading: "Keine gefährdeten High-Value Deals",

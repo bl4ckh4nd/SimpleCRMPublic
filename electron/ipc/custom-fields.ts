@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getAllCustomFields,
@@ -22,7 +22,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
   const { logger } = options;
   const disposers: Disposer[] = [];
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.GetAll, async () => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.GetAll, async () => {
     try {
       return getAllCustomFields();
     } catch (error) {
@@ -31,7 +31,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.GetActive, async () => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.GetActive, async () => {
     try {
       return getActiveCustomFields();
     } catch (error) {
@@ -40,7 +40,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.GetById, async (_event, fieldId: number) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.GetById, async (_event, fieldId: number) => {
     try {
       return getCustomFieldById(fieldId);
     } catch (error) {
@@ -49,7 +49,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.Create, async (_event, fieldData: any) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.Create, async (_event, fieldData) => {
     try {
       const result = createCustomField(fieldData);
       return { success: true, field: result };
@@ -59,7 +59,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.Update, async (_event, payload: any) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.Update, async (_event, payload) => {
     try {
       const { id, fieldData } = payload ?? {};
       const result = updateCustomField(id, fieldData);
@@ -70,7 +70,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.Delete, async (_event, fieldId: number) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.Delete, async (_event, fieldId: number) => {
     try {
       const result = deleteCustomField(fieldId);
       return { success: result };
@@ -80,7 +80,7 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.GetValuesForCustomer, async (_event, customerId: number) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.GetValuesForCustomer, async (_event, customerId: number) => {
     try {
       return getCustomFieldValuesForCustomer(customerId);
     } catch (error) {
@@ -89,20 +89,20 @@ export function registerCustomFieldHandlers(options: CustomFieldHandlersOptions)
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.SetValue, async (_event, payload: any) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.SetValue, async (_event, payload) => {
     try {
       const { customerId, fieldId, value } = payload ?? {};
-      return setCustomFieldValue(customerId, fieldId, value);
+      return { success: setCustomFieldValue(customerId, fieldId, value) };
     } catch (error) {
       logger.error('IPC Error setting custom field value:', error);
       return { success: false, error: (error as Error).message };
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.CustomFields.DeleteValue, async (_event, payload: any) => {
+  disposers.push(registerIpcHandler(IPC.CustomFields.DeleteValue, async (_event, payload) => {
     try {
       const { customerId, fieldId } = payload ?? {};
-      return deleteCustomFieldValue(customerId, fieldId);
+      return { success: deleteCustomFieldValue(customerId, fieldId) };
     } catch (error) {
       logger.error('IPC Error deleting custom field value:', error);
       return { success: false, error: (error as Error).message };

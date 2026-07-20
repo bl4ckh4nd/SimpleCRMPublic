@@ -1,6 +1,6 @@
 const mockToast = jest.fn();
 
-jest.mock('@/components/ui/use-toast', () => ({
+jest.mock('@/lib/toast', () => ({
   toast: mockToast,
 }));
 
@@ -145,7 +145,7 @@ describe('handleApiError', () => {
 
   test('uses errorDetails.userMessage over Error.message', () => {
     const error = new Error('low-level error');
-    (error as any).errorDetails = { userMessage: 'Benutzerfreundliche Meldung' };
+    (error as unknown).errorDetails = { userMessage: 'Benutzerfreundliche Meldung' };
 
     handleApiError(error, 'context');
 

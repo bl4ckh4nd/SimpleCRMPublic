@@ -66,7 +66,7 @@ export function ExecutionListToolbar({
           <SnoozePopover onSnooze={onBulkSnooze}>
             <Button variant="outline" size="sm" className="h-7 text-xs">
               <Clock className="h-3 w-3 mr-1" />
-              Snooze
+              Zurückstellen
             </Button>
           </SnoozePopover>
         </div>

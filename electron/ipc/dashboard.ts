@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import { getDashboardStats, getRecentCustomers, getUpcomingTasks } from '../sqlite-service';
 
@@ -12,7 +12,7 @@ export function registerDashboardHandlers(options: DashboardHandlersOptions) {
   const { logger } = options;
   const disposers: Disposer[] = [];
 
-  disposers.push(registerIpcHandler(IPCChannels.Dashboard.GetStats, async () => {
+  disposers.push(registerIpcHandler(IPC.Dashboard.GetStats, async () => {
     try {
       return getDashboardStats();
     } catch (error) {
@@ -21,18 +21,18 @@ export function registerDashboardHandlers(options: DashboardHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Dashboard.GetRecentCustomers, async () => {
+  disposers.push(registerIpcHandler(IPC.Dashboard.GetRecentCustomers, async (_event, limit) => {
     try {
-      return getRecentCustomers();
+      return getRecentCustomers(limit);
     } catch (error) {
       logger.error('IPC Error getting recent customers:', error);
       throw error;
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Dashboard.GetUpcomingTasks, async () => {
+  disposers.push(registerIpcHandler(IPC.Dashboard.GetUpcomingTasks, async (_event, limit) => {
     try {
-      return getUpcomingTasks();
+      return getUpcomingTasks(limit);
     } catch (error) {
       logger.error('IPC Error getting upcoming tasks:', error);
       throw error;

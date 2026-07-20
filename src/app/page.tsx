@@ -1,12 +1,13 @@
 "use client";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BarChart3, TrendingUp, Clock, Users, Loader2, Rocket } from "lucide-react";
+import { ArrowRight, BarChart3, TrendingUp, Clock, Users, Rocket } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { dashboardService, DashboardStats, RecentCustomer, UpcomingTask } from "@/services/data/dashboardService";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/page-header";
 
 export default function Home() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -83,6 +84,7 @@ export default function Home() {
   return (
     <main className="flex-1">
       <div className="px-6 py-4">
+        <PageHeader title="Dashboard" subtitle="Vertrieb, Kunden und anstehende Aufgaben im Überblick." />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -277,4 +279,3 @@ export default function Home() {
     </main>
   );
 }
-

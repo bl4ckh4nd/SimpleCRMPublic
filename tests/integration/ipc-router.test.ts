@@ -12,6 +12,7 @@ const registerMssqlHandlers = makeRegisterMock();
 const registerJtlHandlers = makeRegisterMock();
 const registerUpdateHandlers = makeRegisterMock();
 const registerFollowUpHandlers = makeRegisterMock();
+const registerNotificationHandlers = makeRegisterMock();
 
 jest.mock('../../electron/ipc/window', () => ({ registerWindowHandlers }));
 jest.mock('../../electron/ipc/database', () => ({ registerDatabaseHandlers }));
@@ -25,6 +26,7 @@ jest.mock('../../electron/ipc/mssql', () => ({ registerMssqlHandlers }));
 jest.mock('../../electron/ipc/jtl', () => ({ registerJtlHandlers }));
 jest.mock('../../electron/ipc/update', () => ({ registerUpdateHandlers }));
 jest.mock('../../electron/ipc/followup', () => ({ registerFollowUpHandlers }));
+jest.mock('../../electron/ipc/notifications', () => ({ registerNotificationHandlers }));
 
 import { registerAllIpcHandlers } from '../../electron/ipc/router';
 
@@ -33,7 +35,7 @@ describe('registerAllIpcHandlers', () => {
     const dispose = registerAllIpcHandlers({
       logger: console,
       isDevelopment: false,
-      getMainWindow: () => null as any,
+      getMainWindow: () => null as unknown,
     });
 
     expect(registerWindowHandlers).toHaveBeenCalled();
@@ -48,6 +50,7 @@ describe('registerAllIpcHandlers', () => {
     expect(registerJtlHandlers).toHaveBeenCalled();
     expect(registerUpdateHandlers).toHaveBeenCalled();
     expect(registerFollowUpHandlers).toHaveBeenCalled();
+    expect(registerNotificationHandlers).toHaveBeenCalled();
 
     expect(typeof dispose).toBe('function');
     dispose();

@@ -4,13 +4,10 @@ import { useState, useEffect } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   ChevronDown,
-  Plus,
   Search,
   SlidersHorizontal,
-  Copy,
   Loader2,
   ArrowUpDown,
-  MoreHorizontal,
   Trash2
 } from "lucide-react"
 import { toast } from "sonner"
@@ -25,15 +22,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { localDataService } from "@/services/data/localDataService"
-import { customFieldService } from "@/services/data/customFieldService"
 import type { Customer } from "@/services/data/types"
 import { AddCustomerDialog } from "@/components/add-customer-dialog"
 import { getPrimaryPhone, getPrimaryContact } from "@/lib/contact-utils"
 import { SyncStatusDisplay } from "@/components/sync-status-display"
-import { DataTablePagination } from "@/components/data-table-pagination"
+import { DataTablePagination } from "@/components/ui/data-table-pagination"
 import { GroupSelector, GroupOption } from "@/components/grouping/group-selector"
 import { GroupedList } from "@/components/grouping/grouped-list"
 import { customerGroupingFields, groupItemsByField, getCustomFieldGroupingOptions } from "@/lib/grouping"
+import { PageHeader } from "@/components/page-header"
 
 import {
   ColumnDef,
@@ -50,18 +47,6 @@ import {
   FilterFn,
 } from "@tanstack/react-table"
 
-// Helper function for date formatting (if needed for sync status)
-const formatDate = (dateString: string | null | undefined) => {
-  if (!dateString) return "N/A"
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return date.toLocaleDateString("de-DE") + ' ' + date.toLocaleTimeString("de-DE");
-  } catch (e) {
-    return dateString
-  }
-}
-
 // Define columns outside the component or memoize them
 const columns: ColumnDef<Customer>[] = [
   {
@@ -70,7 +55,7 @@ const columns: ColumnDef<Customer>[] = [
       <Checkbox
         checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
+        aria-label="Alle auswählen"
         className="translate-y-[2px]"
       />
     ),
@@ -78,7 +63,7 @@ const columns: ColumnDef<Customer>[] = [
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
+        aria-label="Zeile auswählen"
         className="translate-y-[2px]"
       />
     ),
@@ -277,35 +262,7 @@ export default function CustomersPage() {
     const fetchCustomersWithCustomFields = async () => {
       setIsLoading(true)
       try {
-        const fetchedCustomers = await localDataService.getCustomers()
-        const customersWithFields = await Promise.all(
-          fetchedCustomers.map(async (customer) => {
-            try {
-              const customFieldValues = await customFieldService.getCustomFieldValuesForCustomer(Number(customer.id));
-
-              // Convert array of values to a key-value object
-              const customFields = customFieldValues.reduce((acc, field) => {
-                acc[field.name || ''] = field.value;
-                return acc;
-              }, {} as Record<string, any>);
-
-              // Return customer with custom fields
-              return {
-                ...customer,
-                customFields
-              };
-            } catch (error) {
-              console.error(`Failed to fetch custom fields for customer ${customer.id}:`, error);
-              // Return customer without custom fields
-              return {
-                ...customer,
-                customFields: {}
-              };
-            }
-          })
-        );
-
-        setCustomers(customersWithFields);
+        setCustomers(await localDataService.getCustomers())
       } catch (error) {
         console.error("Failed to fetch customers:", error)
         toast.error("Kunden konnten nicht aus der lokalen Datenbank geladen werden.")
@@ -339,15 +296,6 @@ export default function CustomersPage() {
     getSortedRowModel: getSortedRowModel(),
   })
 
-  const copyAffiliateLink = (link?: string) => {
-    if (link) {
-      navigator.clipboard.writeText(link)
-      toast.success("Affiliate-Link in die Zwischenablage kopiert")
-    } else {
-      toast.info("Kein Affiliate-Link für diesen Kunden vorhanden.")
-    }
-  }
-
   const handleCustomerAdded = (newCustomer: Customer) => {
     setCustomers(prev => [newCustomer, ...prev]);
     // Optionally reset filters/sorting or navigate
@@ -363,18 +311,23 @@ export default function CustomersPage() {
     }
 
     try {
-      setIsLoading(true); // Indicate processing
-      // Call the actual API
-      const api = window.electronAPI as any;
-
-      // Delete each customer
-      for (const id of selectedIds) {
-        await api.invoke('db:delete-customer', id);
+      setIsLoading(true);
+      const result = await localDataService.deleteCustomers(selectedIds);
+      if (!result.success) {
+        const related = result.blockers?.reduce(
+          (count, blocker) => count + blocker.deals + blocker.tasks,
+          0,
+        );
+        toast.error("Kunden konnten nicht gelöscht werden.", {
+          description: related
+            ? `${related} verknüpfte Deals oder Aufgaben müssen zuerst entfernt werden.`
+            : result.error,
+        });
+        return;
       }
 
-      // Update state after successful deletion
-      setCustomers(prev => prev.filter(c => !selectedIds.includes(c.id)));
-      table.resetRowSelection(); // Clear selection
+      setCustomers(prev => prev.filter(c => !result.deletedIds.includes(Number(c.id))));
+      table.resetRowSelection();
       toast.success(`${selectedIds.length} Kunde(n) gelöscht.`);
     } catch (error) {
       console.error("Failed to delete selected customers:", error);
@@ -386,7 +339,7 @@ export default function CustomersPage() {
   return (
     <main className="flex-1">
       <div className="px-6 py-4">
-        <h1 className="text-2xl font-bold mb-4">Kunden</h1>
+        <PageHeader title="Kunden" subtitle="Kundenstamm durchsuchen, gruppieren und verwalten." />
           {/* Toolbar: Search, Filters, Actions */}
           <div className="flex flex-wrap gap-2 items-center mb-4">
             <SyncStatusDisplay />
@@ -608,4 +561,3 @@ export default function CustomersPage() {
     </main>
   )
 }
-

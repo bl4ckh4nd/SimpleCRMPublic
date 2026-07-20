@@ -15,7 +15,6 @@ module.exports = {
     'src/components/page-header.tsx',
     'shared/ipc/channels.ts',
     'shared/ipc/schemas.ts',
-    'shared/ipc/utils.ts',
     'electron/ipc/router.ts',
     'electron/ipc/register.ts',
     'electron/ipc/followup.ts',

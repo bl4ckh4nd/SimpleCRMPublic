@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getAllJtlFirmen,
@@ -18,7 +18,7 @@ export function registerJtlHandlers(options: JtlHandlersOptions) {
   const { logger } = options;
   const disposers: Disposer[] = [];
 
-  disposers.push(registerIpcHandler(IPCChannels.Jtl.GetFirmen, async () => {
+  disposers.push(registerIpcHandler(IPC.Jtl.GetFirmen, async () => {
     try {
       return getAllJtlFirmen();
     } catch (error) {
@@ -27,7 +27,7 @@ export function registerJtlHandlers(options: JtlHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Jtl.GetWarenlager, async () => {
+  disposers.push(registerIpcHandler(IPC.Jtl.GetWarenlager, async () => {
     try {
       return getAllJtlWarenlager();
     } catch (error) {
@@ -36,7 +36,7 @@ export function registerJtlHandlers(options: JtlHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Jtl.GetZahlungsarten, async () => {
+  disposers.push(registerIpcHandler(IPC.Jtl.GetZahlungsarten, async () => {
     try {
       return getAllJtlZahlungsarten();
     } catch (error) {
@@ -45,7 +45,7 @@ export function registerJtlHandlers(options: JtlHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Jtl.GetVersandarten, async () => {
+  disposers.push(registerIpcHandler(IPC.Jtl.GetVersandarten, async () => {
     try {
       return getAllJtlVersandarten();
     } catch (error) {
@@ -54,7 +54,7 @@ export function registerJtlHandlers(options: JtlHandlersOptions) {
     }
   }, { logger }));
 
-  disposers.push(registerIpcHandler(IPCChannels.Jtl.CreateOrder, async (_event, orderPayload: any) => {
+  disposers.push(registerIpcHandler(IPC.Jtl.CreateOrder, async (_event, orderPayload) => {
     try {
       return await createJtlOrder(orderPayload);
     } catch (error) {

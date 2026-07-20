@@ -8,7 +8,6 @@ import {
     fetchJtlVersandarten // Added
 } from './mssql-keytar-service';
 import {
-    upsertCustomer,
     upsertProduct,
     setSyncInfo,
     getSyncInfo,
@@ -18,7 +17,6 @@ import {
     upsertJtlZahlungsart, // Added
     upsertJtlVersandart // Added
 } from './sqlite-service';
-import { MssqlCustomerData, MssqlProductData } from './types'; // Assuming types for JTL data
 
 let isSyncing = false;
 
@@ -36,7 +34,7 @@ function mapJtlCustomerToSqlite(jtlCustomer: any): any {
             // Attempt conversion if it's a string-like date
             dateCreated = new Date(jtlCustomer.CustomerDateCreated).toISOString();
         }
-    } catch (e) {
+    } catch {
         console.warn(`[Sync] Could not parse CustomerDateCreated for kKunde ${jtlCustomer?.kKunde}:`, jtlCustomer.CustomerDateCreated);
         dateCreated = null; // Default to null if parsing fails
     }
@@ -74,7 +72,7 @@ function mapJtlProductToSqlite(jtlProduct: any): any {
             if (!isNaN(date.getTime())) { // Check if date is valid
                 jtlDateCreatedISO = date.toISOString();
             }
-        } catch (e) {
+        } catch {
             console.warn(`[Sync] Could not parse ProductDateCreated for kArtikel ${jtlProduct?.kArtikel}:`, jtlProduct.ProductDateCreated);
         }
     }
@@ -149,7 +147,7 @@ async function processInChunks<T>(
     }
 }
 
-export async function runSync(mainWindow: BrowserWindow | null, options?: { incremental?: boolean }) {
+export async function runSync(mainWindow: BrowserWindow | null) {
     if (isSyncing) {
         console.warn('Sync already in progress.');
          sendSyncStatus(mainWindow, 'Skipped', 'Sync already in progress.');
@@ -348,7 +346,7 @@ export async function runSync(mainWindow: BrowserWindow | null, options?: { incr
         
         // Extract detailed error information if available
         const detailedError = (error as any)?.detailedError;
-        const context = (error as any)?.context || 'unknown operation';
+        const context = (error as any)?.context || 'any operation';
         
         let errorMessage = `Sync failed: ${(error as Error).message}`;
         

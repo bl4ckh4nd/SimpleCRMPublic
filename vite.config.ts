@@ -29,7 +29,7 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron', 'better-sqlite3', 'mssql', 'keytar', 'electron-window-state', 'electron-log', 'electron-rebuild'],
+              external: ['electron', 'better-sqlite3', 'mssql', 'keytar', 'nodemailer', 'electron-window-state', 'electron-log', 'electron-rebuild'],
             },
           },
         },
@@ -68,7 +68,6 @@ export default defineConfig({
   },
   clearScreen: false,
   optimizeDeps: {
-    include: ['@supabase/postgrest-js'],
     exclude: ['electron'],
   },
 })

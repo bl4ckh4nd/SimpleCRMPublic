@@ -16,9 +16,10 @@ jest.mock('@/lib/utils', () => ({
 import { MainNav } from '@/components/main-nav';
 
 describe('MainNav', () => {
-  test('renders the SimpleCRM brand link', () => {
+  test('does not duplicate the SimpleCRM titlebar brand', () => {
     render(<MainNav />);
-    expect(screen.getByText('SimpleCRM')).toBeTruthy();
+    expect(screen.queryByText('SimpleCRM')).toBeNull();
+    expect(screen.getAllByText('Dashboard')).toHaveLength(1);
   });
 
   test('renders all main navigation links', () => {

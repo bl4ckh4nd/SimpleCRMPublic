@@ -11,7 +11,7 @@ describe('cn', () => {
   });
 
   test('filters out falsy values (undefined, false, null)', () => {
-    expect(cn(undefined, false as any, null as any, 'active')).toBe('active');
+    expect(cn(undefined, false as unknown, null as unknown, 'active')).toBe('active');
   });
 
   test('handles conditional classes from an object', () => {
@@ -19,7 +19,7 @@ describe('cn', () => {
   });
 
   test('returns empty string when no truthy classes provided', () => {
-    expect(cn(undefined, false as any)).toBe('');
+    expect(cn(undefined, false as unknown)).toBe('');
   });
 
   test('handles multiple conflicting utilities', () => {

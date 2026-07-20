@@ -1,10 +1,10 @@
 import { IPCChannels } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, any>();
+const handlers = new Map<string, unknown>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((channel: string, handler: unknown) => {
-    handlers.set(channel, handler);
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: unknown) => {
+    handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),
 }));
@@ -14,7 +14,7 @@ const sqliteMocks = {
   getCustomerById: jest.fn(),
   createCustomer: jest.fn(),
   updateCustomer: jest.fn(),
-  deleteCustomer: jest.fn(),
+  deleteCustomers: jest.fn(),
   getDealsForCustomer: jest.fn(),
   getTasksForCustomer: jest.fn(),
   searchCustomers: jest.fn(),
@@ -43,7 +43,7 @@ describe('registerDatabaseHandlers', () => {
       test('returns customers from service', async () => {
         sqliteMocks.getAllCustomers.mockReturnValue([{ id: 1, name: 'Acme' }]);
         const handler = handlers.get(IPCChannels.Db.GetCustomers);
-        const result = await handler({}, false);
+        const result = await handler({}, { includeCustomFields: false });
         expect(result).toEqual([{ id: 1, name: 'Acme' }]);
         expect(sqliteMocks.getAllCustomers).toHaveBeenCalledWith(false);
       });
@@ -51,7 +51,7 @@ describe('registerDatabaseHandlers', () => {
       test('re-throws on service error', async () => {
         sqliteMocks.getAllCustomers.mockImplementation(() => { throw new Error('DB error'); });
         const handler = handlers.get(IPCChannels.Db.GetCustomers);
-        await expect(handler({}, false)).rejects.toThrow('DB error');
+        await expect(handler({}, { includeCustomFields: false })).rejects.toThrow('DB error');
       });
     });
 
@@ -76,7 +76,7 @@ describe('registerDatabaseHandlers', () => {
         const results = [{ id: 2, name: 'Acme Corp' }];
         sqliteMocks.searchCustomers.mockReturnValue(results);
         const handler = handlers.get(IPCChannels.Db.SearchCustomers);
-        const result = await handler({}, 'Acme', 10);
+        const result = await handler({}, { query: 'Acme', limit: 10 });
         expect(result).toEqual(results);
         expect(sqliteMocks.searchCustomers).toHaveBeenCalledWith('Acme', 10);
       });
@@ -84,7 +84,7 @@ describe('registerDatabaseHandlers', () => {
       test('re-throws on service error', async () => {
         sqliteMocks.searchCustomers.mockImplementation(() => { throw new Error('Search failed'); });
         const handler = handlers.get(IPCChannels.Db.SearchCustomers);
-        await expect(handler({}, 'bad', 5)).rejects.toThrow('Search failed');
+        await expect(handler({}, { query: 'bad', limit: 5 })).rejects.toThrow('Search failed');
       });
     });
 
@@ -149,14 +149,14 @@ describe('registerDatabaseHandlers', () => {
 
     describe('Db.DeleteCustomer', () => {
       test('deletes customer and returns result', async () => {
-        sqliteMocks.deleteCustomer.mockReturnValue(true);
+        sqliteMocks.deleteCustomers.mockReturnValue({ success: true, deletedIds: [1] });
         const handler = handlers.get(IPCChannels.Db.DeleteCustomer);
         const result = await handler({}, 1);
-        expect(result).toEqual({ success: true });
+        expect(result).toEqual({ success: true, deletedIds: [1] });
       });
 
       test('returns error object on service throw', async () => {
-        sqliteMocks.deleteCustomer.mockImplementation(() => { throw new Error('FK constraint'); });
+        sqliteMocks.deleteCustomers.mockImplementation(() => { throw new Error('FK constraint'); });
         const handler = handlers.get(IPCChannels.Db.DeleteCustomer);
         const result = await handler({}, 1);
         expect(result.success).toBe(false);
@@ -212,7 +212,7 @@ describe('registerDatabaseHandlers', () => {
       test('returns search results', async () => {
         sqliteMocks.searchProducts.mockReturnValue([{ id: 1, name: 'Widget Pro' }]);
         const handler = handlers.get(IPCChannels.Products.Search);
-        const result = await handler({}, 'Widget', 10);
+        const result = await handler({}, { query: 'Widget', limit: 10 });
         expect(result).toEqual([{ id: 1, name: 'Widget Pro' }]);
         expect(sqliteMocks.searchProducts).toHaveBeenCalledWith('Widget', 10);
       });
@@ -220,7 +220,7 @@ describe('registerDatabaseHandlers', () => {
       test('returns empty array on error', async () => {
         sqliteMocks.searchProducts.mockImplementation(() => { throw new Error('Search failed'); });
         const handler = handlers.get(IPCChannels.Products.Search);
-        expect(await handler({}, 'bad')).toEqual([]);
+        expect(await handler({}, { query: 'bad' })).toEqual([]);
       });
     });
 
@@ -338,7 +338,7 @@ describe('registerDatabaseHandlers', () => {
     test('GetCustomers logs debug in dev mode', async () => {
       sqliteMocks.getAllCustomers.mockReturnValue([]);
       const debugSpy = jest.spyOn(console, 'debug').mockImplementation(() => {});
-      await handlers.get(IPCChannels.Db.GetCustomers)({}, true);
+      await handlers.get(IPCChannels.Db.GetCustomers)({}, { includeCustomFields: true });
       expect(debugSpy).toHaveBeenCalled();
       debugSpy.mockRestore();
     });
@@ -354,7 +354,7 @@ describe('registerDatabaseHandlers', () => {
     test('SearchCustomers logs before and after query in dev mode', async () => {
       sqliteMocks.searchCustomers.mockReturnValue([{ id: 1 }]);
       const debugSpy = jest.spyOn(console, 'debug').mockImplementation(() => {});
-      await handlers.get(IPCChannels.Db.SearchCustomers)({}, 'test', 5);
+      await handlers.get(IPCChannels.Db.SearchCustomers)({}, { query: 'test', limit: 5 });
       expect(debugSpy).toHaveBeenCalledTimes(2);
       debugSpy.mockRestore();
     });

@@ -1,155 +1,226 @@
-name: Build and Publish Electron App
+name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: Semantic version increment
+        required: true
+        type: choice
+        options: [patch, minor, major]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-main
+  cancel-in-progress: false
 
 jobs:
-  create-release:
+  prepare:
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
-
+      version: ${{ steps.release.outputs.version }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Extract changelog entry for this version
-        id: changelog
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --node-linker=hoisted
+      - id: release
+        name: Prepare version and changelog
         shell: bash
         run: |
-          TAG="${GITHUB_REF##*/}"
-          VERSION="${TAG#v}"
-          # Extract the block between ## [VERSION] and the next ## [
-          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
-          if [ -z "$NOTES" ]; then
-            NOTES="Release $TAG"
-          fi
-          {
-            echo "notes<<CHANGELOG_EOF"
-            echo "$NOTES"
-            echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create draft GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
+          VERSION=$(node scripts/prepare-release.mjs "${{ inputs.release_type }}" --notes-file release-notes.md)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "## Preparing v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+      - run: pnpm run release:test
+      - run: pnpm run lint
+      - run: pnpm test -- --runInBand
+      - run: pnpm run typecheck
+      - run: pnpm run build
+      - uses: actions/upload-artifact@v6
         with:
-          draft: true
-          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          body: ${{ steps.changelog.outputs.notes }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: release-metadata
+          path: |
+            package.json
+            CHANGELOG.md
+            release-notes.md
+          if-no-files-found: error
 
-  build-windows:
-    needs: create-release
+  windows:
+    needs: prepare
     runs-on: windows-latest
     timeout-minutes: 60
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
         with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+          name: release-metadata
+          path: release-metadata
+      - shell: pwsh
+        run: Copy-Item release-metadata/package.json package.json -Force
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Install dependencies (skip postinstall to avoid electron-rebuild failure)
-        run: pnpm install --frozen-lockfile --node-linker=hoisted --ignore-scripts
-
-      - name: Prepare build prerequisites
+      - run: pnpm install --frozen-lockfile --node-linker=hoisted --ignore-scripts
+      - name: Prepare Electron and native dependency patch
         run: |
           node node_modules/electron/install.js
           node scripts/patch-better-sqlite3.js
+      - run: pnpm run build
+      - name: Package Windows x64
+        env:
+          NODE_ENV: production
+        run: pnpm exec electron-builder --win nsis --x64 --publish never
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-windows
+          path: |
+            dist-build/*.exe
+            dist-build/*.blockmap
+            dist-build/latest*.yml
+          if-no-files-found: error
 
-      - name: Ensure tag matches package.json version
+  macos:
+    needs: prepare
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-metadata
+          path: release-metadata
+      - run: cp release-metadata/package.json package.json
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --node-linker=hoisted
+      - run: pnpm run build
+      - name: Package macOS x64 and arm64
+        env:
+          NODE_ENV: production
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm exec electron-builder --mac dmg zip --x64 --arm64 --publish never
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-macos
+          path: |
+            dist-build/*.dmg
+            dist-build/*.zip
+            dist-build/*.blockmap
+            dist-build/latest*.yml
+          if-no-files-found: error
+
+  linux:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-metadata
+          path: release-metadata
+      - run: cp release-metadata/package.json package.json
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+      - run: pnpm install --frozen-lockfile --node-linker=hoisted
+      - run: pnpm run build
+      - name: Package Linux x64
+        env:
+          NODE_ENV: production
+        run: pnpm exec electron-builder --linux AppImage --x64 --publish never
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-linux
+          path: |
+            dist-build/*.AppImage
+            dist-build/*.blockmap
+            dist-build/latest*.yml
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, windows, macos, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-metadata
+          path: release-metadata
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Validate and checksum release assets
         shell: bash
         run: |
-          TAG="${GITHUB_REF##*/}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "Tag ref: $TAG"
-          echo "package.json version: $PKG_VERSION"
-          if [ "v$PKG_VERSION" != "$TAG" ]; then
-            echo "❌ Tag ($TAG) does not match package.json version (v$PKG_VERSION)"
-            exit 1
-          fi
-          echo "✅ Tag matches package.json version"
-
-      - name: Build and publish Electron app (Windows)
-        env:
-          NODE_ENV: production
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm run electron:publish
-
-  build-macos:
-    needs: create-release
-    runs-on: macos-latest
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --node-linker=hoisted
-
-      - name: Fix binary permissions
-        run: chmod +x node_modules/app-builder-bin/mac/app-builder_arm64 || true
-
-      - name: Ensure tag matches package.json version
+          find release-assets -type f \( -name 'package.json' -o -name 'CHANGELOG.md' -o -name 'release-notes.md' \) -delete
+          find release-assets -type f -name '*.exe' -print -quit | grep -q .
+          test "$(find release-assets -type f -name '*.dmg' | wc -l)" -eq 2
+          test "$(find release-assets -type f -name '*.zip' | wc -l)" -eq 2
+          find release-assets -type f -name '*.AppImage' -print -quit | grep -q .
+          test "$(find release-assets -type f -name 'latest*.yml' | wc -l)" -ge 3
+          (cd release-assets && find . -type f -print0 | sort -z | xargs -0 sha256sum) > release-assets/SHA256SUMS.txt
+      - name: Commit and tag release
+        shell: bash
         run: |
-          TAG="${GITHUB_REF##*/}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "Tag ref: $TAG"
-          echo "package.json version: $PKG_VERSION"
-          if [ "v$PKG_VERSION" != "$TAG" ]; then
-            echo "❌ Tag ($TAG) does not match package.json version (v$PKG_VERSION)"
-            exit 1
+          TAG="v$VERSION"
+          git fetch origin main --tags
+          REMOTE_SHA=$(git rev-parse origin/main)
+          if [ "$REMOTE_SHA" = "$GITHUB_SHA" ]; then
+            cp release-metadata/package.json package.json
+            cp release-metadata/CHANGELOG.md CHANGELOG.md
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add package.json CHANGELOG.md
+            git diff --cached --quiet && { echo 'Release metadata made no changes'; exit 1; }
+            git commit -m "chore(release): $TAG"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push --atomic origin HEAD:main "$TAG"
+          else
+            REMOTE_VERSION=$(git show origin/main:package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+            test "$REMOTE_VERSION" = "$VERSION"
+            test "$(git rev-list -n 1 "$TAG")" = "$REMOTE_SHA"
+            git show origin/main:CHANGELOG.md > /tmp/remote-changelog.md
+            cmp release-metadata/CHANGELOG.md /tmp/remote-changelog.md
           fi
-          echo "✅ Tag matches package.json version"
-
-      - name: Build and publish Electron app (macOS)
-        env:
-          NODE_ENV: production
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm run electron:publish
-
-  publish-release:
-    needs: [build-windows, build-macos]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create or resume GitHub Release
+        shell: bash
+        run: |
+          TAG="v$VERSION"
+          mapfile -d '' ASSETS < <(find release-assets -type f -print0)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release edit "$TAG" --title "$TAG" --notes-file release-metadata/release-notes.md --draft=false
+          else
+            gh release create "$TAG" "${ASSETS[@]}" --verify-tag --title "$TAG" --notes-file release-metadata/release-notes.md
+          fi
+          URL=$(gh release view "$TAG" --json url --jq .url)
+          echo "## Published [$TAG]($URL)" >> "$GITHUB_STEP_SUMMARY"
+          find release-assets -type f -printf -- '- `%f`\n' | sort >> "$GITHUB_STEP_SUMMARY"

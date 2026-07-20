@@ -73,8 +73,8 @@ describe('formatDate', () => {
   });
 
   test('returns null-ish values as empty string', () => {
-    expect(formatDate(null as any)).toBe('');
-    expect(formatDate(undefined as any)).toBe('');
+    expect(formatDate(null as unknown)).toBe('');
+    expect(formatDate(undefined as unknown)).toBe('');
   });
 
   test('returns already-formatted dd.mm.yyyy string unchanged', () => {

@@ -1,55 +1,33 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
-import { ZodTypeAny, ZodFirstPartyTypeKind } from 'zod';
-import { InvokeChannel } from '../../shared/ipc/channels';
-import { getPayloadSchema, getResultSchema, isDeprecatedChannel } from '../../shared/ipc/schemas';
+import type { AnyIpcEndpoint } from '../../shared/ipc/channels';
+import type { EndpointPayload, EndpointResult } from '../../shared/ipc/types';
 
 export interface RegisterIpcOptions {
   logger?: Pick<typeof console, 'debug' | 'info' | 'warn' | 'error'>;
-  onDeprecatedUse?: (channel: InvokeChannel) => void;
 }
 
-export type IpcHandler<C extends InvokeChannel> = (
+export type IpcHandler<E extends AnyIpcEndpoint> = (
   event: IpcMainInvokeEvent,
-  payload: any,
+  payload: EndpointPayload<E>,
 ) => Promise<unknown> | unknown;
 
-function parseWithSchema(schema: ZodTypeAny, value: unknown) {
-  if (
-    !schema ||
-    schema._def?.typeName === ZodFirstPartyTypeKind.ZodAny ||
-    schema._def?.typeName === ZodFirstPartyTypeKind.ZodUnknown
-  ) {
-    return value;
-  }
-
-  const result = schema.safeParse(value);
-  if (result.success) {
-    return result.data;
-  }
-
-  throw result.error;
-}
-
-export function registerIpcHandler<C extends InvokeChannel>(
-  channel: C,
-  handler: IpcHandler<C>,
+export function registerIpcHandler<E extends AnyIpcEndpoint>(
+  definition: E,
+  handler: IpcHandler<E>,
   options: RegisterIpcOptions = {},
 ) {
-  const { logger = console, onDeprecatedUse } = options;
-  const payloadSchema = getPayloadSchema(channel);
-  const resultSchema = getResultSchema(channel);
-  const deprecated = isDeprecatedChannel(channel);
+  const { logger = console } = options;
+  const { channel, input, output } = definition;
 
   const wrappedHandler = async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
     try {
-      if (deprecated && onDeprecatedUse) {
-        onDeprecatedUse(channel);
+      if (args.length > 1) {
+        throw new TypeError(`IPC channel ${channel} accepts one payload argument`);
       }
 
-      const payload = args.length <= 1 ? args[0] : args;
-      const parsedPayload = parseWithSchema(payloadSchema, payload);
+      const parsedPayload = input.parse(args[0]) as EndpointPayload<E>;
       const result = await handler(event, parsedPayload);
-      return parseWithSchema(resultSchema, result);
+      return output.parse(result) as EndpointResult<E>;
     } catch (error) {
       logger.error(`[IPC] Handler error for ${channel}:`, error);
       throw error;

@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   checkForUpdates,
@@ -18,7 +18,7 @@ export function registerUpdateHandlers(options: UpdateHandlersOptions) {
 
   disposers.push(
     registerIpcHandler(
-      IPCChannels.Update.CheckForUpdates,
+      IPC.Update.CheckForUpdates,
       async () => {
         logger.info('[IPC Main] app:check-for-updates invoked');
         try {
@@ -38,7 +38,7 @@ export function registerUpdateHandlers(options: UpdateHandlersOptions) {
 
   disposers.push(
     registerIpcHandler(
-      IPCChannels.Update.GetStatus,
+      IPC.Update.GetStatus,
       async () => {
         logger.debug('[IPC Main] app:get-update-status invoked');
         return getUpdateStatus();
@@ -49,11 +49,11 @@ export function registerUpdateHandlers(options: UpdateHandlersOptions) {
 
   disposers.push(
     registerIpcHandler(
-      IPCChannels.Update.InstallUpdate,
+      IPC.Update.InstallUpdate,
       async () => {
         logger.info('[IPC Main] app:install-update invoked');
         try {
-          quitAndInstall();
+          await quitAndInstall();
           return { success: true };
         } catch (error) {
           logger.error('[IPC Main] app:install-update error:', error);

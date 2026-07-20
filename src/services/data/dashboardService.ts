@@ -1,5 +1,6 @@
 import type { Customer, Task } from './types';
-import { IPCChannels } from '@shared/ipc/channels';
+import { IPC } from '@shared/ipc/channels';
+import { invoke } from '@/lib/ipc';
 
 export interface DashboardStats {
   totalCustomers: number;
@@ -23,14 +24,7 @@ export interface UpcomingTask extends Pick<Task, 'id' | 'title' | 'priority' | '
 export const dashboardService = {
   async getDashboardStats(): Promise<DashboardStats> {
     try {
-      if (!window.electronAPI) {
-        throw new Error("Electron API not available for 'dashboard:get-stats'");
-      }
-      const stats = await window.electronAPI.invoke(
-        IPCChannels.Dashboard.GetStats
-      );
-      // Add any necessary mapping or default values here
-      return stats as DashboardStats;
+      return await invoke(IPC.Dashboard.GetStats) as unknown as DashboardStats;
     } catch (error) {
       console.error("Error invoking 'dashboard:get-stats':", error);
       // Return default/empty stats on error
@@ -48,19 +42,12 @@ export const dashboardService = {
 
   async getRecentCustomers(limit: number = 5): Promise<RecentCustomer[]> {
     try {
-      if (!window.electronAPI) {
-        throw new Error("Electron API not available for 'dashboard:get-recent-customers'");
-      }
-      const rawCustomers = await window.electronAPI.invoke(
-        IPCChannels.Dashboard.GetRecentCustomers,
-        limit
-      ) as any[];
-      // Add any necessary mapping here
-      const customers: RecentCustomer[] = rawCustomers.map((c: any) => ({
+      const rawCustomers = await invoke(IPC.Dashboard.GetRecentCustomers, limit) as unknown as Array<Customer & { jtl_dateCreated?: string }>;
+      const customers: RecentCustomer[] = rawCustomers.map((c) => ({
         id: c.id,
         name: c.name,
         email: c.email,
-        dateAdded: c.dateAdded || c.jtl_dateCreated, // Map from jtl_dateCreated if dateAdded is not present
+        dateAdded: c.dateAdded || c.jtl_dateCreated || '',
       }));
       return customers;
     } catch (error) {
@@ -71,15 +58,8 @@ export const dashboardService = {
 
   async getUpcomingTasks(limit: number = 5): Promise<UpcomingTask[]> {
     try {
-      if (!window.electronAPI) {
-        throw new Error("Electron API not available for 'dashboard:get-upcoming-tasks'");
-      }
-      const rawTasks = await window.electronAPI.invoke(
-        IPCChannels.Dashboard.GetUpcomingTasks,
-        limit
-      ) as any[];
-      // Add any necessary mapping here, e.g., fetching customer names
-      const tasks: UpcomingTask[] = rawTasks.map((t: any) => ({
+      const rawTasks = await invoke(IPC.Dashboard.GetUpcomingTasks, limit) as unknown as Task[];
+      const tasks: UpcomingTask[] = rawTasks.map((t) => ({
         id: t.id,
         title: t.title,
         priority: t.priority,

@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getFollowUpItems,
@@ -22,7 +22,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   const disposers: Disposer[] = [];
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.GetItems, async (_event, params: any = {}) => {
+    registerIpcHandler(IPC.FollowUp.GetItems, async (_event, params) => {
       try {
         const { queue, filters, limit, offset } = params ?? {};
         return getFollowUpItems(queue, filters, limit, offset);
@@ -34,7 +34,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.GetQueueCounts, async () => {
+    registerIpcHandler(IPC.FollowUp.GetQueueCounts, async () => {
       try {
         return getFollowUpQueueCounts();
       } catch (error) {
@@ -45,7 +45,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.SnoozeTask, async (_event, payload: any) => {
+    registerIpcHandler(IPC.FollowUp.SnoozeTask, async (_event, payload) => {
       try {
         const { taskId, snoozedUntil } = payload ?? {};
         return snoozeTask(taskId, snoozedUntil);
@@ -57,7 +57,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.LogActivity, async (_event, data: any) => {
+    registerIpcHandler(IPC.FollowUp.LogActivity, async (_event, data) => {
       try {
         return createActivityLog(data);
       } catch (error) {
@@ -68,7 +68,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.GetTimeline, async (_event, params: any = {}) => {
+    registerIpcHandler(IPC.FollowUp.GetTimeline, async (_event, params) => {
       try {
         const { customerId, filter, limit, offset } = params ?? {};
         return getTimeline(customerId, filter, limit, offset);
@@ -80,7 +80,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.GetSavedViews, async () => {
+    registerIpcHandler(IPC.FollowUp.GetSavedViews, async () => {
       try {
         return getSavedViews();
       } catch (error) {
@@ -91,7 +91,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.CreateSavedView, async (_event, data: any) => {
+    registerIpcHandler(IPC.FollowUp.CreateSavedView, async (_event, data) => {
       try {
         return createSavedView(data);
       } catch (error) {
@@ -102,7 +102,7 @@ export function registerFollowUpHandlers(options: FollowUpHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.FollowUp.DeleteSavedView, async (_event, id: number) => {
+    registerIpcHandler(IPC.FollowUp.DeleteSavedView, async (_event, id: number) => {
       try {
         return deleteSavedView(id);
       } catch (error) {

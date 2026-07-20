@@ -1,10 +1,10 @@
 import { IPCChannels } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, any>();
+const handlers = new Map<string, unknown>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((channel: string, handler: unknown) => {
-    handlers.set(channel, handler);
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: unknown) => {
+    handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),
 }));
@@ -163,7 +163,7 @@ describe('registerCustomFieldHandlers', () => {
 
   describe('CustomFields.SetValue', () => {
     test('sets field value and returns result', async () => {
-      sqliteMocks.setCustomFieldValue.mockReturnValue({ success: true });
+      sqliteMocks.setCustomFieldValue.mockReturnValue(true);
       const handler = handlers.get(IPCChannels.CustomFields.SetValue);
       const result = await handler({}, { customerId: 1, fieldId: 2, value: 'gold' });
       expect(result).toEqual({ success: true });
@@ -188,7 +188,7 @@ describe('registerCustomFieldHandlers', () => {
 
   describe('CustomFields.DeleteValue', () => {
     test('deletes field value and returns result', async () => {
-      sqliteMocks.deleteCustomFieldValue.mockReturnValue({ success: true });
+      sqliteMocks.deleteCustomFieldValue.mockReturnValue(true);
       const handler = handlers.get(IPCChannels.CustomFields.DeleteValue);
       const result = await handler({}, { customerId: 1, fieldId: 2 });
       expect(result).toEqual({ success: true });

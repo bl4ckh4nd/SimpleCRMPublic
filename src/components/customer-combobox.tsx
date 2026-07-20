@@ -9,7 +9,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
@@ -34,6 +33,33 @@ interface CustomerComboboxProps {
   onCustomerSelect?: (customer: CustomerOption | null) => void
 }
 
+interface CustomerRecord {
+  id: number | string
+  name?: string
+  firstName?: string
+  company?: string
+  customerNumber?: string
+  email?: string
+}
+
+const SEARCH_DELAY_MS = 300
+
+function normalizeCustomer(customer: CustomerRecord): CustomerOption {
+  return {
+    id: customer.id,
+    name: customer.name || customer.firstName || customer.company || "Unknown",
+    customerNumber: customer.customerNumber,
+    email: customer.email,
+  }
+}
+
+function matchesSelectedValue(
+  optionId: CustomerOption["id"] | null | undefined,
+  value: string | number | undefined
+) {
+  return value !== undefined && optionId !== undefined && String(optionId) === String(value)
+}
+
 export function CustomerCombobox({
   value,
   onValueChange,
@@ -41,82 +67,81 @@ export function CustomerCombobox({
   disabled = false,
   onCustomerSelect
 }: CustomerComboboxProps) {
-  console.log(`🔍 [CustomerCombobox] Component initialized with value: ${value}`);
-  
   const [open, setOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [customers, setCustomers] = React.useState<CustomerOption[]>([])
   const [loading, setLoading] = React.useState(false)
   const [selectedCustomer, setSelectedCustomer] = React.useState<CustomerOption | null>(null)
 
-  // Load initial customers and search
   React.useEffect(() => {
-    console.log(`🔍 [CustomerCombobox] useEffect triggered for searchQuery: "${searchQuery}"`);
-    
-    const searchCustomers = async () => {
-      console.log(`🔍 [CustomerCombobox] Starting customer search for: "${searchQuery}"`);
-      const startTime = Date.now();
-      
+    let cancelled = false
+
+    const timeoutId = window.setTimeout(async () => {
       setLoading(true)
       try {
-        console.log(`🔍 [CustomerCombobox] Calling db:search-customers with query: "${searchQuery}"`);
         const results = await window.electronAPI.invoke(
           IPCChannels.Db.SearchCustomers,
-          searchQuery
-        ) as CustomerOption[]
-        console.log(`🔍 [CustomerCombobox] Received ${results.length} customers in ${Date.now() - startTime}ms`);
-        setCustomers(results)
-      } catch (error) {
-        console.error('🚨 [CustomerCombobox] Failed to search customers:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
+          { query: searchQuery }
+        ) as unknown as CustomerOption[]
 
-    // Debounce search
-    const timeoutId = setTimeout(() => {
-      console.log(`🔍 [CustomerCombobox] Debounce timeout reached, executing search...`);
-      searchCustomers()
-    }, searchQuery ? 300 : 0)
+        if (!cancelled) {
+          setCustomers(results)
+        }
+      } catch (error) {
+        console.error("[CustomerCombobox] Failed to search customers:", error)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }, searchQuery ? SEARCH_DELAY_MS : 0)
 
     return () => {
-      console.log(`🔍 [CustomerCombobox] Cleaning up timeout for: "${searchQuery}"`);
-      clearTimeout(timeoutId)
+      cancelled = true
+      window.clearTimeout(timeoutId)
     }
   }, [searchQuery])
 
-  // Load selected customer details if value is provided
   React.useEffect(() => {
-    if (value && !selectedCustomer) {
-      console.log(`🔍 [CustomerCombobox] Loading customer details for value: ${value}`);
-      
-      const loadCustomer = async () => {
-        const startTime = Date.now();
-        try {
-          console.log(`🔍 [CustomerCombobox] Calling db:get-customer for ID: ${value}`);
-          const customer = await window.electronAPI.invoke(
-            IPCChannels.Db.GetCustomer,
-            value
-          ) as any
-          console.log(`🔍 [CustomerCombobox] Received customer details in ${Date.now() - startTime}ms:`, customer ? customer.name : 'null');
-          
-          if (customer) {
-            const normalizedCustomer: CustomerOption = {
-              id: customer.id,
-              name: customer.name || customer.firstName || customer.company || 'Unknown',
-              customerNumber: customer.customerNumber,
-              email: customer.email
-            }
-            setSelectedCustomer(normalizedCustomer)
-            onCustomerSelect?.(normalizedCustomer)
-          }
-        } catch (error) {
-          console.error('🚨 [CustomerCombobox] Failed to load customer:', error)
+    if (value === undefined) {
+      setSelectedCustomer(null)
+      onCustomerSelect?.(null)
+      return
+    }
+
+    if (matchesSelectedValue(selectedCustomer?.id, value)) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadCustomer = async () => {
+      try {
+        const customer = await window.electronAPI.invoke(
+          IPCChannels.Db.GetCustomer,
+          Number(value)
+        ) as unknown as CustomerRecord | null
+
+        if (!customer || cancelled) {
+          return
+        }
+
+        const normalizedCustomer = normalizeCustomer(customer)
+        setSelectedCustomer(normalizedCustomer)
+        onCustomerSelect?.(normalizedCustomer)
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[CustomerCombobox] Failed to load customer:", error)
         }
       }
-      loadCustomer()
     }
-  }, [value, selectedCustomer])
+
+    void loadCustomer()
+
+    return () => {
+      cancelled = true
+    }
+  }, [value, selectedCustomer?.id, onCustomerSelect])
 
   const handleSelect = (customer: CustomerOption) => {
     setSelectedCustomer(customer)
@@ -125,13 +150,6 @@ export function CustomerCombobox({
     setOpen(false)
     setSearchQuery("")
   }
-
-  React.useEffect(() => {
-    if (!value) {
-      setSelectedCustomer(null)
-      onCustomerSelect?.(null)
-    }
-  }, [value, onCustomerSelect])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -178,13 +196,13 @@ export function CustomerCombobox({
                     onSelect={() => handleSelect(customer)}
                     className="cursor-pointer"
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4 shrink-0",
-                        value === customer.id || value === customer.id.toString()
-                          ? "opacity-100"
-                          : "opacity-0"
-                      )}
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4 shrink-0",
+                            matchesSelectedValue(customer.id, value)
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{customer.name}</div>

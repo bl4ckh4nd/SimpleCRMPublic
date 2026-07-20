@@ -5,13 +5,12 @@ import { Link } from "@tanstack/react-router"
 import { ChevronDown, Plus, Search, SlidersHorizontal, LayoutGrid, List, Calendar as CalendarIcon, Loader2, FileBox } from "lucide-react"
 import ExportButton from "@/components/export-button"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay } from '@dnd-kit/core'
-import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { KanbanCard } from "@/components/deal/kanban-card"
 import { KanbanColumn } from "@/components/deal/kanban-column"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -44,7 +43,7 @@ import { GroupedList } from "@/components/grouping/grouped-list"
 import { dealGroupingFields, groupItemsByField } from "@/lib/grouping"
 import { IPCChannels } from '@shared/ipc/channels';
 
-import { EmptyState } from "@/components/empty-state"
+import { PageHeader } from "@/components/page-header"
 
 // Define the Deal type for better type safety
 type Deal = {
@@ -155,7 +154,7 @@ export default function DealsPage() {
       const apiDeals = await window.electronAPI.invoke(
         IPCChannels.Deals.GetAll,
         { limit: 10000, offset: 0, filter }
-      )
+      ) as any as DealFromApi[]
 
       const formattedDeals = Array.isArray(apiDeals)
         ? apiDeals.map(formatDealForUI)
@@ -335,7 +334,7 @@ export default function DealsPage() {
   return (
     <main className="flex-1">
       <div className="px-6 py-4">
-        <h1 className="text-2xl font-bold mb-4">Deals</h1>
+        <PageHeader title="Deals" subtitle="Pipeline in der Tabellen- oder Kanbanansicht bearbeiten." />
         <div className="flex flex-wrap gap-2 items-center mb-4">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

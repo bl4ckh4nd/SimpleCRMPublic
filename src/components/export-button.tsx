@@ -6,7 +6,7 @@ import { Download, ChevronDown } from "lucide-react";
 import { saveDataToDesktop, saveCSVToDesktop } from '@/lib/electron-utils';
 
 interface ExportButtonProps {
-  data: any[];
+  data: object[];
   fileName: string;
   children?: React.ReactNode;
 }
@@ -21,7 +21,7 @@ export default function ExportButton({ data, fileName, children }: ExportButtonP
       setIsExporting(true);
       let success: boolean;
       if (format === 'csv') {
-        success = saveCSVToDesktop(data, `${baseName}.csv`);
+        success = saveCSVToDesktop(data as Record<string, unknown>[], `${baseName}.csv`);
         if (success) toast.success('Als CSV exportiert');
       } else {
         success = saveDataToDesktop(data, `${baseName}.json`);

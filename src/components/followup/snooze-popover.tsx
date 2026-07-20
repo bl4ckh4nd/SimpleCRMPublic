@@ -1,4 +1,4 @@
-import { Clock, Moon, Sun, CalendarDays } from "lucide-react"
+import { Moon, Sun, CalendarDays } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 

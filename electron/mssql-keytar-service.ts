@@ -22,7 +22,7 @@ interface DetailedMssqlError {
     docsUrl?: string;
 }
 
-function categorizeAndTranslateMssqlError(error: unknown): DetailedMssqlError {
+function categorizeAndTranslateMssqlError(error: any): DetailedMssqlError {
     const parsed = getFriendlyMssqlError(error, 'de');
 
     const category: MssqlErrorCategory = parsed.category ?? 'unknown';
@@ -121,7 +121,7 @@ function buildConnectionConfig(settings: MssqlSettings): sql.config {
     const portFromServer = parsed.portFromServer;
     const hasInstance = !!parsed.instanceName;
 
-    let server = parsed.host;
+    const server = parsed.host;
     let port: number | undefined = undefined;
     let instanceName: string | undefined = undefined;
 
@@ -168,7 +168,8 @@ export async function saveMssqlSettingsWithKeytar(settings: MssqlSettings): Prom
     store.delete(STORE_KEY_SETTINGS); // Clear existing settings first
 
     // settings is of type MssqlSettings. We want to store Omit<MssqlSettings, 'password'>.
-    const { password, ...settingsToStore } = settings;
+    const settingsToStore = { ...settings };
+    delete settingsToStore.password;
     // Use original server for keytar account, as "forcePort" is a connection-time override, not a change in identity for password storage.
     const account = getKeytarAccount(settings); // Uses server, database, user, port from settings
 
@@ -279,7 +280,7 @@ export async function testConnectionWithKeytar(settings: MssqlSettings): Promise
                 const storedPassword = await keytar.getPassword(KEYTAR_SERVICE, account);
                 effectivePassword = storedPassword !== null ? storedPassword : undefined;
                 console.log('[MSSQL Keytar] For test connection, using password from keychain.');
-            } catch (keytarError) {
+            } catch {
                 console.warn('[MSSQL Keytar] Could not retrieve password from keychain for test connection. Proceeding with undefined password.');
                 effectivePassword = undefined;
             }

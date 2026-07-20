@@ -1,4 +1,4 @@
-import { format, parseISO, isValid, startOfMonth, startOfQuarter, getYear, getMonth } from "date-fns"
+import { format, parseISO, isValid, startOfMonth, startOfQuarter, getYear } from "date-fns"
 import { de } from "date-fns/locale"
 import { Group } from "@/components/grouping/grouped-list"
 import { customFieldService } from "@/services/data/customFieldService"
@@ -8,7 +8,7 @@ import type { CustomField } from "@/services/data/types"
 export interface GroupingField {
   value: string;
   label: string;
-  groupingFn: <T>(items: T[], accessor: (item: T) => any) => Group<T>[];
+  groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => Group<T>[];
 }
 
 // Helper function to safely parse a date string
@@ -17,7 +17,7 @@ export function safeParseDate(dateString: string | null | undefined): Date | nul
   try {
     const date = parseISO(dateString)
     return isValid(date) ? date : null
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -83,22 +83,22 @@ export function createNoValueGroupTitle(fieldName: string): string {
 // Group by string field
 export function groupByString<T>(
   items: T[],
-  accessor: (item: T) => string | null | undefined
+  accessor: (item: T) => unknown
 ): Group<T>[] {
   return groupBy(
     items,
     item => {
       const value = accessor(item)
-      return value || 'no_value'
+      return typeof value === 'string' && value ? value : 'no_value'
     },
-    (key, _) => key === 'no_value' ? 'Kein Wert' : key
+    (key) => key === 'no_value' ? 'Kein Wert' : key
   )
 }
 
 // Group by date field (month/year)
 export function groupByMonthYear<T>(
   items: T[],
-  accessor: (item: T) => string | Date | null | undefined
+  accessor: (item: T) => unknown
 ): Group<T>[] {
   return groupBy(
     items,
@@ -106,14 +106,14 @@ export function groupByMonthYear<T>(
       const value = accessor(item)
       if (!value) return 'no_date'
 
-      const date = value instanceof Date ? value : safeParseDate(value as string)
+      const date = value instanceof Date ? value : typeof value === 'string' ? safeParseDate(value) : null
       if (!date) return 'no_date'
 
       // Use startOfMonth to normalize dates to the beginning of the month
       const monthStart = startOfMonth(date)
       return monthStart.toISOString()
     },
-    (key, _) => {
+    (key) => {
       if (key === 'no_date') return 'Kein Datum'
       const date = new Date(key)
       return formatMonthYear(date)
@@ -124,7 +124,7 @@ export function groupByMonthYear<T>(
 // Group by date field (quarter/year)
 export function groupByQuarterYear<T>(
   items: T[],
-  accessor: (item: T) => string | Date | null | undefined
+  accessor: (item: T) => unknown
 ): Group<T>[] {
   return groupBy(
     items,
@@ -132,14 +132,14 @@ export function groupByQuarterYear<T>(
       const value = accessor(item)
       if (!value) return 'no_date'
 
-      const date = value instanceof Date ? value : safeParseDate(value as string)
+      const date = value instanceof Date ? value : typeof value === 'string' ? safeParseDate(value) : null
       if (!date) return 'no_date'
 
       // Use startOfQuarter to normalize dates to the beginning of the quarter
       const quarterStart = startOfQuarter(date)
       return quarterStart.toISOString()
     },
-    (key, _) => {
+    (key) => {
       if (key === 'no_date') return 'Kein Datum'
       const date = new Date(key)
       return formatQuarterYear(date)
@@ -150,7 +150,7 @@ export function groupByQuarterYear<T>(
 // Group by year
 export function groupByYear<T>(
   items: T[],
-  accessor: (item: T) => string | Date | null | undefined
+  accessor: (item: T) => unknown
 ): Group<T>[] {
   return groupBy(
     items,
@@ -158,19 +158,19 @@ export function groupByYear<T>(
       const value = accessor(item)
       if (!value) return 'no_date'
 
-      const date = value instanceof Date ? value : safeParseDate(value as string)
+      const date = value instanceof Date ? value : typeof value === 'string' ? safeParseDate(value) : null
       if (!date) return 'no_date'
 
       return getYear(date).toString()
     },
-    (key, _) => key === 'no_date' ? 'Kein Datum' : key
+    (key) => key === 'no_date' ? 'Kein Datum' : key
   )
 }
 
 // Group by numeric value ranges
 export function groupByValueRange<T>(
   items: T[],
-  accessor: (item: T) => number | string | null | undefined
+  accessor: (item: T) => unknown
 ): Group<T>[] {
   return groupBy(
     items,
@@ -178,7 +178,7 @@ export function groupByValueRange<T>(
       const value = accessor(item)
       if (value === null || value === undefined || value === '') return 'no_value'
 
-      const numValue = typeof value === 'string' ? parseFloat(value) : value
+      const numValue = typeof value === 'string' ? parseFloat(value) : typeof value === 'number' ? value : NaN
       if (isNaN(numValue)) return 'no_value'
 
       return getValueRangeGroup(numValue)
@@ -190,7 +190,7 @@ export function groupByValueRange<T>(
 // Group by boolean value
 export function groupByBoolean<T>(
   items: T[],
-  accessor: (item: T) => boolean | string | number | null | undefined,
+  accessor: (item: T) => unknown,
   trueLabel: string = 'Ja',
   falseLabel: string = 'Nein'
 ): Group<T>[] {
@@ -211,7 +211,7 @@ export function groupByBoolean<T>(
 
       return 'no_value'
     },
-    (key, _) => {
+    (key) => {
       if (key === 'true') return trueLabel
       if (key === 'false') return falseLabel
       return 'Kein Wert'
@@ -222,13 +222,13 @@ export function groupByBoolean<T>(
 // Group by first letter (alphabetical)
 export function groupByFirstLetter<T>(
   items: T[],
-  accessor: (item: T) => string | null | undefined
+  accessor: (item: T) => unknown
 ): Group<T>[] {
   return groupBy(
     items,
     item => {
       const value = accessor(item)
-      if (!value) return '#'
+      if (typeof value !== 'string' || !value) return '#'
 
       const firstChar = value.charAt(0).toUpperCase()
       // Check if the first character is a letter
@@ -254,37 +254,37 @@ export const dealGroupingFields: GroupingField[] = [
   {
     value: 'stage',
     label: 'Phase',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByString(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByString(items, accessor)
   },
   {
     value: 'customer',
     label: 'Kunde',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByFirstLetter(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByFirstLetter(items, accessor)
   },
   {
     value: 'value',
     label: 'Wert',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByValueRange(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByValueRange(items, accessor)
   },
   {
     value: 'createdDate',
     label: 'Erstellungsdatum (Monat)',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByMonthYear(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByMonthYear(items, accessor)
   },
   {
     value: 'createdDate_quarter',
     label: 'Erstellungsdatum (Quartal)',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByQuarterYear(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByQuarterYear(items, accessor)
   },
   {
     value: 'expectedCloseDate',
     label: 'Abschlussdatum (Monat)',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByMonthYear(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByMonthYear(items, accessor)
   },
   {
     value: 'value_calculation_method',
     label: 'Berechnungsmethode',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByString(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByString(items, accessor)
   }
 ]
 
@@ -293,36 +293,37 @@ export const customerGroupingFields: GroupingField[] = [
   {
     value: 'status',
     label: 'Status',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByString(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByString(items, accessor)
   },
   {
     value: 'name',
     label: 'Name (A-Z)',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByFirstLetter(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByFirstLetter(items, accessor)
   },
   {
     value: 'company',
     label: 'Firma (A-Z)',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByFirstLetter(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByFirstLetter(items, accessor)
   },
   {
     value: 'city',
     label: 'Stadt',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByString(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByString(items, accessor)
   },
   {
     value: 'country',
     label: 'Land',
-    groupingFn: <T>(items: T[], accessor: (item: T) => any) => groupByString(items, accessor)
+    groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => groupByString(items, accessor)
   }
 ]
 
 // Helper function to get accessor function for a field
-export function getFieldAccessor<T>(fieldName: string): (item: T) => any {
+export function getFieldAccessor<T>(fieldName: string): (item: T) => unknown {
   return (item: T) => {
+    const record = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {};
     // Handle special cases with custom accessors
     if (fieldName === 'createdDate_quarter') {
-      return (item as any)['createdDate']
+      return record.createdDate
     }
 
     // Handle custom fields (prefixed with 'custom_')
@@ -330,8 +331,9 @@ export function getFieldAccessor<T>(fieldName: string): (item: T) => any {
       const customFieldName = fieldName.substring(7) // Remove 'custom_' prefix
 
       // Access the custom field value from the item's customFields property
-      if ((item as any).customFields) {
-        return (item as any).customFields[customFieldName]
+      const customFields = record.customFields
+      if (typeof customFields === 'object' && customFields !== null) {
+        return (customFields as Record<string, unknown>)[customFieldName]
       }
       return undefined
     }
@@ -339,16 +341,17 @@ export function getFieldAccessor<T>(fieldName: string): (item: T) => any {
     // Handle nested fields with dot notation
     if (fieldName.includes('.')) {
       const parts = fieldName.split('.')
-      let value: any = item
+      let value: unknown = item
       for (const part of parts) {
         if (value === null || value === undefined) return undefined
-        value = value[part]
+        if (typeof value !== 'object' || value === null) return undefined
+        value = (value as Record<string, unknown>)[part]
       }
       return value
     }
 
     // Regular field access
-    return (item as any)[fieldName]
+    return record[fieldName]
   }
 }
 

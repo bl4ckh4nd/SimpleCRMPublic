@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { type ComponentProps, useEffect, useState } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { 
   Select, 
@@ -23,18 +22,101 @@ import {
 import { Loader2 } from "lucide-react"
 import { customFieldService } from "@/services/data/customFieldService"
 import { CustomField, CustomFieldOption } from "@/services/data/types"
-import { UseFormReturn } from "react-hook-form"
+import { type ControllerRenderProps, type FieldValues, type UseFormReturn } from "react-hook-form"
+
+type CustomFieldValue = unknown
 
 interface CustomFieldsFormProps {
   customerId?: string | number
-  form?: UseFormReturn<any>
-  formData?: Record<string, any>
-  onChange?: (field: string, value: any) => void
+  form?: UseFormReturn<FieldValues>
+  formData?: { customFields?: Record<string, CustomFieldValue> }
+  onChange?: (field: string, value: CustomFieldValue) => void
   className?: string
 }
 
+type InputProps = ComponentProps<typeof Input>
+type SelectProps = Pick<
+  ComponentProps<typeof Select>,
+  "defaultValue" | "onValueChange" | "value"
+>
+
+function parseOptions(optionsString?: string): CustomFieldOption[] {
+  if (!optionsString) return []
+
+  try {
+    return JSON.parse(optionsString)
+  } catch (error) {
+    console.error("Failed to parse options:", error)
+    return []
+  }
+}
+
+function getFieldLabel(field: CustomField) {
+  return `${field.label}${field.required ? " *" : ""}`
+}
+
+function renderTextLikeField(field: CustomField, inputProps: InputProps) {
+  const inputType =
+    field.type === "number" ? "number" : field.type === "date" ? "date" : undefined
+
+  return (
+    <Input
+      {...inputProps}
+      type={inputType}
+      placeholder={field.placeholder}
+    />
+  )
+}
+
+function renderBooleanField(
+  field: CustomField,
+  {
+    checked,
+    id,
+    onCheckedChange,
+  }: {
+    checked: ComponentProps<typeof Checkbox>["checked"]
+    id: string
+    onCheckedChange: ComponentProps<typeof Checkbox>["onCheckedChange"]
+  }
+) {
+  return (
+    <div className="flex items-center space-x-2">
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+      />
+      <label
+        htmlFor={id}
+        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+      >
+        {field.placeholder || "Yes"}
+      </label>
+    </div>
+  )
+}
+
+function renderSelectField(field: CustomField, selectProps: SelectProps) {
+  const options = parseOptions(field.options)
+
+  return (
+    <Select {...selectProps}>
+      <SelectTrigger>
+        <SelectValue placeholder={field.placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 export function CustomFieldsForm({
-  customerId,
   form,
   formData,
   onChange,
@@ -72,22 +154,11 @@ export function CustomFieldsForm({
     return null
   }
 
-  // Parse options for select fields
-  const parseOptions = (optionsString?: string): CustomFieldOption[] => {
-    if (!optionsString) return []
-    
-    try {
-      return JSON.parse(optionsString)
-    } catch (error) {
-      console.error("Failed to parse options:", error)
-      return []
-    }
-  }
-
   // Render field based on type
   const renderField = (field: CustomField) => {
     const fieldName = `customFields.${field.name}`
-    const fieldValue = formData?.customFields?.[field.name] || field.default_value || ""
+    const fieldId = `custom-${field.name}`
+    const fieldValue = formData?.customFields?.[field.name] ?? field.default_value ?? ""
     
     // If using React Hook Form
     if (form) {
@@ -98,7 +169,7 @@ export function CustomFieldsForm({
           name={fieldName}
           render={({ field: formField }) => (
             <FormItem>
-              <FormLabel>{field.label}{field.required ? " *" : ""}</FormLabel>
+              <FormLabel>{getFieldLabel(field)}</FormLabel>
               <FormControl>
                 {renderFormControl(field, formField)}
               </FormControl>
@@ -115,9 +186,7 @@ export function CustomFieldsForm({
     // If using controlled components
     return (
       <div key={field.id} className="grid gap-2">
-        <Label htmlFor={`custom-${field.name}`}>
-          {field.label}{field.required ? " *" : ""}
-        </Label>
+        <Label htmlFor={fieldId}>{getFieldLabel(field)}</Label>
         {renderControlledField(field, fieldValue)}
         {field.description && (
           <p className="text-sm text-muted-foreground">{field.description}</p>
@@ -127,158 +196,69 @@ export function CustomFieldsForm({
   }
 
   // Render form control for React Hook Form
-  const renderFormControl = (field: CustomField, formField: any) => {
+  const renderFormControl = (field: CustomField, formField: ControllerRenderProps<FieldValues, string>) => {
+    const fieldId = `custom-${field.name}`
+
     switch (field.type) {
-      case "text":
-        return (
-          <Input
-            {...formField}
-            placeholder={field.placeholder}
-          />
-        )
       case "number":
-        return (
-          <Input
-            {...formField}
-            type="number"
-            placeholder={field.placeholder}
-          />
-        )
       case "date":
-        return (
-          <Input
-            {...formField}
-            type="date"
-            placeholder={field.placeholder}
-          />
-        )
+      case "text":
+        return renderTextLikeField(field, formField)
       case "boolean":
-        return (
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id={`custom-${field.name}`}
-              checked={formField.value}
-              onCheckedChange={formField.onChange}
-            />
-            <label
-              htmlFor={`custom-${field.name}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              {field.placeholder || "Yes"}
-            </label>
-          </div>
-        )
+        return renderBooleanField(field, {
+          id: fieldId,
+          checked: formField.value,
+          onCheckedChange: formField.onChange,
+        })
       case "select":
-        const options = parseOptions(field.options)
-        return (
-          <Select
-            onValueChange={formField.onChange}
-            defaultValue={formField.value}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={field.placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )
+        return renderSelectField(field, {
+          onValueChange: formField.onChange,
+          defaultValue: formField.value,
+        })
       default:
-        return (
-          <Input
-            {...formField}
-            placeholder={field.placeholder}
-          />
-        )
+        return renderTextLikeField(field, formField)
     }
   }
 
   // Render controlled field
-  const renderControlledField = (field: CustomField, value: any) => {
-    const handleChange = (newValue: any) => {
-      if (onChange) {
-        onChange(`customFields.${field.name}`, newValue)
-      }
+  const renderControlledField = (field: CustomField, value: CustomFieldValue) => {
+    const fieldId = `custom-${field.name}`
+    const inputValue = typeof value === "string" || typeof value === "number" ? value : value == null ? "" : String(value)
+    const handleChange = (newValue: CustomFieldValue) => {
+      onChange?.(`customFields.${field.name}`, newValue)
     }
 
     switch (field.type) {
-      case "text":
-        return (
-          <Input
-            id={`custom-${field.name}`}
-            value={value}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={field.placeholder}
-          />
-        )
       case "number":
-        return (
-          <Input
-            id={`custom-${field.name}`}
-            type="number"
-            value={value}
-            onChange={(e) => handleChange(e.target.valueAsNumber)}
-            placeholder={field.placeholder}
-          />
-        )
       case "date":
-        return (
-          <Input
-            id={`custom-${field.name}`}
-            type="date"
-            value={value}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={field.placeholder}
-          />
-        )
+      case "text":
+        return renderTextLikeField(field, {
+          id: fieldId,
+          value: inputValue,
+          onChange: (event) =>
+            handleChange(
+              field.type === "number"
+                ? event.target.valueAsNumber
+                : event.target.value
+            ),
+        })
       case "boolean":
-        return (
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id={`custom-${field.name}`}
-              checked={value === true}
-              onCheckedChange={(checked) => handleChange(checked)}
-            />
-            <label
-              htmlFor={`custom-${field.name}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              {field.placeholder || "Yes"}
-            </label>
-          </div>
-        )
+        return renderBooleanField(field, {
+          id: fieldId,
+          checked: value === true,
+          onCheckedChange: handleChange,
+        })
       case "select":
-        const options = parseOptions(field.options)
-        return (
-          <Select
-            value={value}
-            onValueChange={handleChange}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={field.placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )
+        return renderSelectField(field, {
+          value: value === undefined ? undefined : String(value),
+          onValueChange: handleChange,
+        })
       default:
-        return (
-          <Input
-            id={`custom-${field.name}`}
-            value={value}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={field.placeholder}
-          />
-        )
+        return renderTextLikeField(field, {
+          id: fieldId,
+          value: inputValue,
+          onChange: (event) => handleChange(event.target.value),
+        })
     }
   }
 

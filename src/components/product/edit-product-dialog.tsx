@@ -1,16 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ProductForm } from "./product-form"
+import { ProductForm, type ProductFormValues } from "./product-form"
 import { Product } from "@/types"
 import { IPCChannels } from '@shared/ipc/channels';
 
@@ -18,21 +16,19 @@ interface EditProductDialogProps {
   product: Product | null;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onProductUpdated: () => void; // Callback to refetch data
+  onProductUpdated: () => void;
 }
 
 export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpdated }: EditProductDialogProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const handleSubmit = async (values: any) => {
-    if (!product) return; // Should not happen if dialog is open with a product
+  const handleSubmit = async (values: ProductFormValues) => {
+    if (!product) return;
 
     setIsSubmitting(true);
     setError(null);
     try {
-      console.log(`Invoking products:update for ID ${product.id} with values:`, values);
-      // Ensure SKU and description are null if empty strings
       const dataToSend = {
         ...values,
         sku: values.sku || null,
@@ -42,23 +38,20 @@ export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpda
         IPCChannels.Products.Update,
         { id: product.id, productData: dataToSend }
       ) as { success: boolean, error?: string };
-      console.log('Update result:', result);
       if (result.success) {
-        onProductUpdated(); // Call callback to refetch
-        onOpenChange(false); // Close dialog
-        // Optional: Show success toast
+        onProductUpdated();
+        onOpenChange(false);
       } else {
         setError(result.error || 'Ein unbekannter Fehler ist aufgetreten.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating product:', err);
-      setError(err.message || 'Produkt konnte nicht aktualisiert werden.');
+      setError(err instanceof Error ? err.message : 'Produkt konnte nicht aktualisiert werden.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // If no product is provided, don't render the dialog content
   if (!product) return null;
 
   return (
@@ -72,11 +65,11 @@ export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpda
         </DialogHeader>
         {error && <p className="text-sm font-medium text-destructive">Fehler: {error}</p>}
         <ProductForm 
-          product={product} // Pass product data to pre-fill the form
+          product={product}
           onSubmit={handleSubmit} 
           isSubmitting={isSubmitting}
           submitButtonText="Änderungen speichern"
-          onCancel={() => onOpenChange(false)} // Add cancel handler
+          onCancel={() => onOpenChange(false)}
         />
       </DialogContent>
     </Dialog>

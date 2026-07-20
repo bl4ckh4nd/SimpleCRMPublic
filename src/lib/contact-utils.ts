@@ -47,7 +47,7 @@ export function getFormattedPhone(contact: CustomerContact): string {
 }
 
 /**
- * Checks if customer has any contact information
+ * Checks if customer has unknown contact information
  */
 export function hasContactInfo(contact: CustomerContact): boolean {
   return !!(contact.email?.trim() || contact.phone?.trim() || contact.mobile?.trim());
@@ -68,6 +68,6 @@ export function isValidEmail(email: string): boolean {
 export function isValidPhone(phone: string): boolean {
   if (!phone) return false;
   // Basic check: at least 5 digits, can contain spaces, dashes, parentheses, plus
-  const phoneRegex = /^[\+]?[\d\s\-\(\)]{5,}$/;
+  const phoneRegex = /^\+?[\d\s()-]{5,}$/;
   return phoneRegex.test(phone.trim());
 }

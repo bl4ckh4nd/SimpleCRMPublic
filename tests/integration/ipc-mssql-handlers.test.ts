@@ -1,10 +1,10 @@
 import { IPCChannels } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, any>();
+const handlers = new Map<string, unknown>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((channel: string, handler: unknown) => {
-    handlers.set(channel, handler);
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: unknown) => {
+    handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),
 }));
@@ -19,7 +19,7 @@ const keytarMocks = {
 jest.mock('../../electron/mssql-keytar-service', () => keytarMocks);
 
 jest.mock('../../electron/utils/ports', () => ({
-  parsePort: jest.fn((port: any) => (port ? Number(port) : 1433)),
+  parsePort: jest.fn((port: unknown) => (port ? Number(port) : 1433)),
 }));
 
 import { registerMssqlHandlers } from '../../electron/ipc/mssql';
@@ -259,7 +259,7 @@ describe('registerMssqlHandlers', () => {
       await handler({}, { server: 'localhost', user: 'a', password: 'ab', port: '1433' });
 
       // Short password (≤2 chars) should be masked as all asterisks
-      const debugCall = debugSpy.mock.calls.find((c: any[]) => c[1]?.password !== undefined);
+      const debugCall = debugSpy.mock.calls.find((c: unknown[]) => c[1]?.password !== undefined);
       expect(debugCall?.[1].password).toBe('**');
       debugSpy.mockRestore();
     });
@@ -272,7 +272,7 @@ describe('registerMssqlHandlers', () => {
       // No user or password in payload
       await handler({}, { server: 'localhost', port: '1433' });
 
-      const debugCall = debugSpy.mock.calls.find((c: any[]) => c[1] !== undefined);
+      const debugCall = debugSpy.mock.calls.find((c: unknown[]) => c[1] !== undefined);
       expect(debugCall?.[1].user).toBeUndefined();
       expect(debugCall?.[1].password).toBeUndefined();
       debugSpy.mockRestore();
@@ -286,7 +286,7 @@ describe('registerMssqlHandlers', () => {
       // Long password: 'supersecret123' (14 chars) → first + 6 asterisks + last = 8 chars
       await handler({}, { server: 'localhost', user: 'admin', password: 'supersecret123', port: '1433' });
 
-      const debugCall = debugSpy.mock.calls.find((c: any[]) => c[1]?.password !== undefined);
+      const debugCall = debugSpy.mock.calls.find((c: unknown[]) => c[1]?.password !== undefined);
       // first char 's' + 6 asterisks + last char '3' = 's******3'
       expect(debugCall?.[1].password).toBe('s******3');
       debugSpy.mockRestore();

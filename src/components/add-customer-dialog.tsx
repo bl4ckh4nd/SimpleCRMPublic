@@ -24,52 +24,66 @@ interface AddCustomerDialogProps {
   onCustomerAdded?: (customer: Customer) => void;
 }
 
+type CustomerDraft = Omit<Customer, "id" | "jtl_kKunde">;
+
+function createInitialFormData(): CustomerDraft {
+  return {
+    customerNumber: "",
+    name: "",
+    firstName: "",
+    company: "",
+    email: "",
+    phone: "",
+    mobile: "",
+    street: "",
+    zip: "",
+    city: "",
+    country: "",
+    status: "Active",
+    notes: "",
+    affiliateLink: "",
+    customFields: {},
+  };
+}
+
 export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState<Omit<Customer, 'id' | 'jtl_kKunde'>>({
-    customerNumber: '', // For local customers, this will be empty
-    name: '',
-    firstName: '',
-    company: '',
-    email: '',
-    phone: '',
-    mobile: '',
-    street: '',
-    zip: '',
-    city: '',
-    country: '',
-    status: 'Active',
-    notes: '',
-    affiliateLink: '',
-    customFields: {},
-  });
+  const [formData, setFormData] = useState<CustomerDraft>(createInitialFormData);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = <K extends keyof CustomerDraft>(field: K, value: CustomerDraft[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      firstName: '',
-      company: '',
-      email: '',
-      phone: '',
-      mobile: '',
-      street: '',
-      zip: '',
-      city: '',
-      country: '',
-      status: 'Active',
-      notes: '',
-      affiliateLink: '',
-      customFields: {},
-    });
+    setFormData(createInitialFormData());
+  };
+
+  const closeDialog = () => {
+    setIsOpen(false);
+    resetForm();
+  };
+
+  const handleCustomFieldChange = (field: string, value: unknown) => {
+    if (!field.startsWith("customFields.")) {
+      return;
+    }
+
+    const fieldName = field.slice("customFields.".length);
+    if (!fieldName) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      customFields: {
+        ...prev.customFields,
+        [fieldName]: value,
+      },
+    }));
   };
 
   const handleSubmit = async () => {
-    // Validate required fields
     if (!formData.name) {
       toast.error("Name ist ein Pflichtfeld.");
       return;
@@ -77,21 +91,13 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
 
     setIsLoading(true);
     try {
-      // Create a new customer, setting jtl_kKunde to 0 since it's a manual entry
       const newCustomer = await localDataService.createCustomer({
         ...formData
-        // jtl_kKunde is intentionally omitted for local customers,
-        // the backend will handle it as NULL.
       });
 
       toast.success("Kunde erfolgreich erstellt.");
-      setIsOpen(false);
-      resetForm();
-
-      // Notify parent component if callback is provided
-      if (onCustomerAdded) {
-        onCustomerAdded(newCustomer);
-      }
+      closeDialog();
+      onCustomerAdded?.(newCustomer);
     } catch (error) {
       console.error("Failed to create customer:", error);
       toast.error("Fehler beim Erstellen des Kunden.");
@@ -242,28 +248,13 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
           <TabsContent value="custom">
             <CustomFieldsForm
               formData={formData}
-              onChange={(field, value) => {
-                // Handle nested fields (customFields.fieldName)
-                if (field.startsWith('customFields.')) {
-                  const fieldName = field.split('.')[1];
-                  setFormData(prev => ({
-                    ...prev,
-                    customFields: {
-                      ...prev.customFields,
-                      [fieldName]: value
-                    }
-                  }));
-                }
-              }}
+              onChange={handleCustomFieldChange}
               className="py-4"
             />
           </TabsContent>
         </Tabs>
         <DialogFooter>
-          <Button variant="outline" onClick={() => {
-            setIsOpen(false);
-            resetForm();
-          }}>
+          <Button variant="outline" onClick={closeDialog}>
             Abbrechen
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading}>

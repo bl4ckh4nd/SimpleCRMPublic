@@ -37,7 +37,7 @@ describe('customFieldService', () => {
       required: false,
       display_order: 0,
       active: true,
-    } as any);
+    } as unknown);
     const deleted = await customFieldService.deleteCustomField(3);
     expect(created).toEqual({ id: 3, name: 'x' });
     expect(deleted).toBe(true);

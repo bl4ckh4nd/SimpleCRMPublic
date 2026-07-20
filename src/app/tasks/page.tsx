@@ -1,8 +1,7 @@
-// @ts-nocheck
 "use client"
 
 import React, { useState, useEffect, Fragment } from "react"
-import { CalendarDays, CheckSquare, ChevronDown, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react"
+import { CalendarDays, CheckSquare, ChevronDown, Plus, Search, SlidersHorizontal } from "lucide-react"
 import { Link, useNavigate } from "@tanstack/react-router"
 
 import ExportButton from "@/components/export-button"
@@ -27,13 +26,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
-import { ToastAction } from "@/components/ui/toast"
-import { CustomerCombobox, type CustomerOption } from "@/components/customer-combobox"
+import { CustomerCombobox } from "@/components/customer-combobox"
 import { taskService } from "@/services/data/taskService"
-import { calendarService, TASK_EVENT_DEFAULT_COLOR, TASK_EVENT_COMPLETED_COLOR } from "@/services/data/calendarService"
-import { useToast } from "@/components/ui/use-toast"
-import { Task } from "@/services/data/types"
+import { TASK_EVENT_DEFAULT_COLOR, TASK_EVENT_COMPLETED_COLOR } from "@/services/data/calendarService"
+import { toast } from "@/lib/toast"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
+import { PageHeader } from "@/components/page-header"
 
 // Match the database structure
 interface TaskData {
@@ -69,7 +67,6 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Pagination
@@ -81,14 +78,9 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'High' | 'Medium' | 'Low'>('all')
   
-  const { toast } = useToast()
-
   const [newTask, setNewTask] = useState<Omit<TaskData, 'id'>>(createEmptyTask())
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
   const [addToCalendar, setAddToCalendar] = useState(false)
   const [calendarToggleTouched, setCalendarToggleTouched] = useState(false)
-  const [selectedCustomerName, setSelectedCustomerName] = useState<string | null>(null)
-  const [taskMarkedForDelete, setTaskMarkedForDelete] = useState<TaskDisplay | null>(null)
 
   const navigate = useNavigate()
 
@@ -106,10 +98,6 @@ export default function TasksPage() {
     setNewTask((prev) => ({ ...prev, customer_id: Number(value) }))
   }
 
-  const handleCustomerSelect = (customer: CustomerOption | null) => {
-    setSelectedCustomerName(customer?.name ?? null)
-  }
-
   const formatDueDateForDisplay = (value: string) => {
     if (!value) return "Kein Fälligkeitsdatum"
 
@@ -124,7 +112,7 @@ export default function TasksPage() {
 
     if (Number.isNaN(date.getTime())) return "Kein Fälligkeitsdatum"
 
-    return date.toLocaleDateString()
+    return date.toLocaleDateString("de-DE")
   }
 
   // Load tasks from database
@@ -229,78 +217,42 @@ export default function TasksPage() {
       ...newTask,
       title: trimmedTitle,
       description: trimmedDescription,
-      calendar_event_id: null,
     }
 
     try {
-      const result = await taskService.createTask(payload)
+      const schedule = addToCalendar && newTask.due_date
+        ? (() => {
+            const start = new Date(`${newTask.due_date}T00:00:00`)
+            const end = new Date(start)
+            end.setDate(end.getDate() + 1)
+            return { startDate: start.toISOString(), endDate: end.toISOString(), allDay: true }
+          })()
+        : undefined
+      const result = await taskService.createTask(payload, schedule)
 
       if (result.success) {
         const dueDateSnapshot = newTask.due_date
-        const customerNameSnapshot = selectedCustomerName
-        const taskId = typeof result.id === 'number' ? result.id : null
-        let calendarEventCreated = false
-        let calendarError: Error | null = null
-
-        if (addToCalendar && dueDateSnapshot) {
-          try {
-            const calendarResult = await calendarService.addTaskEvent({
-              title: trimmedTitle,
-              description: trimmedDescription || undefined,
-              dueDate: dueDateSnapshot,
-              customerName: customerNameSnapshot || undefined,
-            })
-            if (typeof calendarResult.id !== 'number') {
-              throw new Error("Kalenderereignis wurde erstellt, aber es wurde keine Ereignis-ID zurückgegeben.")
-            }
-
-            if (taskId !== null) {
-              const updateResponse = await taskService.updateTask(taskId, { calendar_event_id: calendarResult.id })
-              if (!updateResponse.success) {
-                throw new Error(updateResponse.error || "Kalender-ID konnte nicht der Aufgabe zugeordnet werden.")
-              }
-            }
-
-            calendarEventCreated = true
-          } catch (error) {
-            calendarError = error instanceof Error ? error : new Error("Kalendereintrag fehlgeschlagen")
-            console.error("Kalendereintrag konnte nicht erstellt werden:", error)
-          }
-        }
+        const calendarEventCreated = typeof result.eventId === 'number'
 
         const actionButton = dueDateSnapshot
-          ? (
-            <ToastAction
-              altText="Kalender öffnen"
-              onClick={() => navigate({ to: "/calendar", search: { date: dueDateSnapshot } })}
-            >
-              Kalender öffnen
-            </ToastAction>
-          )
+          ? {
+            label: "Kalender öffnen",
+            onClick: () => navigate({ to: "/calendar", search: { date: dueDateSnapshot } }),
+          }
           : undefined
 
-        if (calendarError) {
-          toast({
-            title: "Aufgabe gespeichert",
-            description: "Die Aufgabe wurde gespeichert, der Kalendereintrag konnte jedoch nicht erstellt werden.",
-            variant: "destructive",
-            action: actionButton,
-          })
-        } else {
-          toast({
-            title: calendarEventCreated ? "Aufgabe geplant" : "Aufgabe gespeichert",
-            description: calendarEventCreated
-              ? "Die Aufgabe wurde gespeichert und dem Kalender hinzugefügt."
-              : "Die Aufgabe wurde gespeichert.",
-            action: calendarEventCreated ? actionButton : undefined,
-          })
-        }
+        toast({
+          title: calendarEventCreated ? "Aufgabe geplant" : "Aufgabe gespeichert",
+          description: calendarEventCreated
+            ? "Die Aufgabe wurde gespeichert und dem Kalender hinzugefügt."
+            : "Die Aufgabe wurde gespeichert.",
+          action: calendarEventCreated ? actionButton : undefined,
+        })
 
         setIsAddTaskOpen(false)
         setNewTask(createEmptyTask())
         setAddToCalendar(false)
         setCalendarToggleTouched(false)
-        setSelectedCustomerName(null)
         loadTasks()
       } else {
         toast({
@@ -343,33 +295,6 @@ export default function TasksPage() {
         t.id === id ? { ...t, completed: nextCompleted } : t
       ))
 
-      if (task.calendar_event_id) {
-        try {
-          await calendarService.updateTaskEvent(task.calendar_event_id, {
-            completed: nextCompleted,
-          })
-        } catch (calendarError) {
-          console.error("Kalenderereignis konnte nicht aktualisiert werden:", calendarError)
-          const message = calendarError instanceof Error ? calendarError.message : String(calendarError)
-          toast({
-            title: "Kalender nicht erreichbar",
-            description: "Der Kalendereintrag konnte nicht aktualisiert werden.",
-            variant: "destructive",
-          })
-
-          const shouldUnlink = /nicht gefunden|not found|no such/i.test(message)
-          if (shouldUnlink) {
-            try {
-              await taskService.updateTask(id, { calendar_event_id: null })
-              setTasks(prev => prev.map(t =>
-                t.id === id ? { ...t, calendar_event_id: null } : t
-              ))
-            } catch (unlinkError) {
-              console.error("Kalender-Verknüpfung konnte nicht entfernt werden:", unlinkError)
-            }
-          }
-        }
-      }
     } catch (error) {
       console.error("Aufgabe konnte nicht aktualisiert werden:", error)
       toast({
@@ -397,6 +322,7 @@ export default function TasksPage() {
   return (
     <main className="flex-1">
       <div className="px-6 py-4">
+        <PageHeader title="Aufgaben" subtitle="Offene Arbeit priorisieren und im Kalender einplanen." />
         <div className="flex flex-wrap gap-2 items-center mb-4">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -482,7 +408,6 @@ export default function TasksPage() {
                     <CustomerCombobox
                       value={newTask.customer_id || undefined}
                       onValueChange={handleCustomerValueChange}
-                      onCustomerSelect={handleCustomerSelect}
                       placeholder="Kunde auswählen..."
                     />
                   </div>
@@ -628,9 +553,7 @@ export default function TasksPage() {
                                 aria-label="Im Kalender anzeigen"
                                 disabled={!task.due_date}
                                 onClick={() => {
-                                  const search = task.due_date
-                                    ? { date: task.due_date }
-                                    : {};
+                                  const search = { date: task.due_date || undefined };
                                   navigate({ to: "/calendar", search });
                                 }}
                               >

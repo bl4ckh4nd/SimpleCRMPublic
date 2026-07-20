@@ -218,7 +218,7 @@ describe('saveCSVToDesktop', () => {
     createElementSpy = jest
       .spyOn(document, 'createElement')
       .mockImplementation((tag: string) => {
-        if (tag === 'a') return fakeAnchor as unknown as HTMLElement;
+        if (tag === 'a') return fakeAnchor as any as HTMLElement;
         return document.createElement(tag);
       });
   });
@@ -256,7 +256,7 @@ describe('saveCSVToDesktop', () => {
   test('sets correct download filename', () => {
     const fakeAnchor = { href: '', download: '', click: jest.fn() };
     createElementSpy.mockImplementation((tag: string) => {
-      if (tag === 'a') return fakeAnchor as unknown as HTMLElement;
+      if (tag === 'a') return fakeAnchor as any as HTMLElement;
       return document.createElement(tag);
     });
 
@@ -288,7 +288,7 @@ describe('saveDataToDesktop (JSON fallback)', () => {
 
     jest.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       if (tag === 'a')
-        return { href: '', download: '', click: clickSpy } as unknown as HTMLElement;
+        return { href: '', download: '', click: clickSpy } as any as HTMLElement;
       return document.createElement(tag);
     });
   });

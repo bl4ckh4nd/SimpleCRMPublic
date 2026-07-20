@@ -133,15 +133,15 @@ export interface ParsedError {
  * @param error The error object or string.
  * @param lang The preferred language ('de' or 'en'). Defaults to 'de'.
  */
-export function getFriendlyMssqlError(error: unknown, lang: 'de' | 'en' = 'de'): ParsedError {
+export function getFriendlyMssqlError(error: any, lang: 'de' | 'en' = 'de'): ParsedError {
   let errorCode: string | undefined;
   let errorName: string | undefined;
   let errorMessage =
-    lang === 'de' ? 'Ein unbekannter Fehler ist aufgetreten.' : 'An unknown error occurred.';
+    lang === 'de' ? 'Ein unbekannter Fehler ist aufgetreten.' : 'An any error occurred.';
 
   if (typeof error === 'string') {
     errorMessage = error;
-  } else if (error && typeof (error as any).message === 'string') {
+  } else if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
     const err = error as { message: string; code?: string | number; name?: string };
     errorMessage = err.message;
     if (err.code !== undefined) {

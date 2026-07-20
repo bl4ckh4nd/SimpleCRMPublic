@@ -96,10 +96,10 @@ export const createCalendarEventsTable = `
     color_code TEXT,
     event_type TEXT,
     recurrence_rule TEXT,     -- Storing recurrence as JSON string
-    task_id INTEGER,
+    task_id INTEGER UNIQUE,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES ${TASKS_TABLE}(id) ON DELETE SET NULL
+    FOREIGN KEY (task_id) REFERENCES ${TASKS_TABLE}(id) ON DELETE CASCADE
   );
 `;
 
@@ -116,7 +116,7 @@ export const createDealsTable = `
     created_date TEXT DEFAULT CURRENT_TIMESTAMP,
     expected_close_date TEXT,
     last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE RESTRICT
   );
 `;
 
@@ -130,11 +130,10 @@ export const createTasksTable = `
     due_date TEXT,
     priority TEXT NOT NULL,
     completed INTEGER NOT NULL DEFAULT 0,
-    calendar_event_id INTEGER,
+    snoozed_until TEXT,
     created_date TEXT DEFAULT CURRENT_TIMESTAMP,
     last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE,
-    FOREIGN KEY (calendar_event_id) REFERENCES ${CALENDAR_EVENTS_TABLE}(id) ON DELETE SET NULL
+    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE RESTRICT
   );
 `;
 
@@ -149,7 +148,7 @@ export const createActivityLogTable = `
     description TEXT,
     metadata TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE SET NULL,
     FOREIGN KEY (deal_id) REFERENCES ${DEALS_TABLE}(id) ON DELETE SET NULL,
     FOREIGN KEY (task_id) REFERENCES ${TASKS_TABLE}(id) ON DELETE SET NULL
   );
@@ -224,6 +223,25 @@ export const createCustomerCustomFieldValuesTable = `
     FOREIGN KEY (customer_id) REFERENCES ${CUSTOMERS_TABLE}(id) ON DELETE CASCADE,
     FOREIGN KEY (field_id) REFERENCES ${CUSTOMER_CUSTOM_FIELDS_TABLE}(id) ON DELETE CASCADE,
     UNIQUE(customer_id, field_id) -- Each customer can have only one value per field
+  );
+`;
+
+export const NOTIFICATION_LOG_TABLE = 'notification_log';
+
+export const createNotificationLogTable = `
+  CREATE TABLE IF NOT EXISTS ${NOTIFICATION_LOG_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sent_date TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    task_count INTEGER NOT NULL DEFAULT 0,
+    deal_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    sent_at TEXT,
+    UNIQUE(sent_date)
   );
 `;
 

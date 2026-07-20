@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/lib/toast";
 import { TASK_EVENT_DEFAULT_COLOR } from "@/services/data/calendarService";
 import type { RecurrenceRule } from "@/types";
 import type { EventFormData, EventFormSubmitPayload, TaskFormState } from "../types";
@@ -73,7 +73,6 @@ export function CalendarEventForm({
   onCancel,
   isEditMode = false,
 }: CalendarEventFormProps) {
-  const { toast } = useToast();
 
   const [title, setTitle] = useState(initialData.title);
   const [start, setStart] = useState(initialData.start);

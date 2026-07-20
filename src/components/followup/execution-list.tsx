@@ -57,14 +57,11 @@ export function ExecutionList({
     <div className="flex-1 overflow-auto">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-background border-b">
-        <div className="grid grid-cols-[32px_24px_1fr_1fr_1fr_100px_100px_80px] gap-1 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        <div className="grid grid-cols-[32px_24px_minmax(0,1fr)_78px_64px] gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground">
           <span />
           <span />
-          <span>Kunde</span>
-          <span>Deal</span>
-          <span>Grund</span>
+          <span>Kontext</span>
           <span>Fällig</span>
-          <span>Kontakt</span>
           <span />
         </div>
       </div>
@@ -80,7 +77,7 @@ export function ExecutionList({
             <div
               key={`${item.source_type}-${item.item_id}`}
               className={cn(
-                "grid grid-cols-[32px_24px_1fr_1fr_1fr_100px_100px_80px] gap-1 px-3 py-2 text-xs cursor-pointer transition-colors items-center",
+                "grid grid-cols-[32px_24px_minmax(0,1fr)_78px_64px] gap-2 px-3 py-2 text-xs cursor-pointer transition-colors items-center",
                 isSelected && "bg-accent",
                 !isSelected && "hover:bg-accent/50",
                 isOverdue && !isSelected && "bg-red-500/5"
@@ -99,30 +96,17 @@ export function ExecutionList({
               {/* Priority indicator */}
               <PriorityIndicator score={item.priority_score} dueDate={item.due_date} />
 
-              {/* Customer */}
-              <span className="truncate font-medium">{item.customer_name || '—'}</span>
-
-              {/* Deal */}
-              <span className="truncate">
-                {item.deal_name || '—'}
-                {item.deal_stage && (
-                  <Badge variant="outline" className="ml-1 text-[10px] h-4 px-1">
-                    {item.deal_stage}
-                  </Badge>
-                )}
-              </span>
-
-              {/* Reason */}
-              <span className="truncate text-muted-foreground">{item.reason}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-medium">{item.customer_name || '—'}</span>
+                  {item.deal_stage && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">{item.deal_stage}</Badge>}
+                </div>
+                <p className="truncate text-muted-foreground">{[item.deal_name, item.reason].filter(Boolean).join(' · ') || 'Kein weiterer Kontext'}</p>
+              </div>
 
               {/* Due date */}
               <span className={cn("tabular-nums", isOverdue && "text-red-500 font-medium")}>
                 {formatDate(item.due_date)}
-              </span>
-
-              {/* Last contact */}
-              <span className="text-muted-foreground tabular-nums">
-                {formatDate(item.last_contact_date)}
               </span>
 
               {/* Actions */}
@@ -139,7 +123,7 @@ export function ExecutionList({
                       <CheckCircle2 className="h-3.5 w-3.5" />
                     </Button>
                     <SnoozePopover onSnooze={(date) => onSnooze(item, date)}>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" title="Snooze">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" title="Zurückstellen">
                         <Clock className="h-3.5 w-3.5" />
                       </Button>
                     </SnoozePopover>

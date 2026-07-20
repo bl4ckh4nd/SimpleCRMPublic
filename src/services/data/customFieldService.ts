@@ -22,7 +22,7 @@ export const customFieldService = {
     try {
       const fields = await window.electronAPI.invoke(
         IPCChannels.CustomFields.GetAll
-      ) as CustomField[];
+      ) as unknown as CustomField[];
       return fields.map(field => ({
         ...field,
         required: Boolean(field.required),
@@ -41,7 +41,7 @@ export const customFieldService = {
     try {
       const fields = await window.electronAPI.invoke(
         IPCChannels.CustomFields.GetActive
-      ) as CustomField[];
+      ) as unknown as CustomField[];
       return fields.map(field => ({
         ...field,
         required: Boolean(field.required),
@@ -61,7 +61,7 @@ export const customFieldService = {
       const field = await window.electronAPI.invoke(
         IPCChannels.CustomFields.GetById,
         fieldId
-      ) as CustomField;
+      ) as unknown as CustomField;
       if (!field) return null;
 
       return {
@@ -83,7 +83,7 @@ export const customFieldService = {
       const result = await window.electronAPI.invoke(
         IPCChannels.CustomFields.Create,
         fieldData
-      ) as CustomFieldResponse;
+      ) as unknown as CustomFieldResponse;
       if (result.success) {
         return result.field;
       }
@@ -102,7 +102,7 @@ export const customFieldService = {
       const result = await window.electronAPI.invoke(
         IPCChannels.CustomFields.Update,
         { id: fieldId, fieldData }
-      ) as CustomFieldResponse;
+      ) as unknown as CustomFieldResponse;
       if (result.success) {
         return result.field;
       }
@@ -137,7 +137,7 @@ export const customFieldService = {
       const values = await window.electronAPI.invoke(
         IPCChannels.CustomFields.GetValuesForCustomer,
         customerId
-      ) as CustomFieldValue[];
+      ) as unknown as CustomFieldValue[];
       return values;
     } catch (error) {
       console.error(`Failed to fetch custom field values for customer ${customerId}:`, error);
@@ -148,7 +148,7 @@ export const customFieldService = {
   /**
    * Set a custom field value for a customer
    */
-  async setCustomFieldValue(customerId: number, fieldId: number, value: any): Promise<boolean> {
+  async setCustomFieldValue(customerId: number, fieldId: number, value: unknown): Promise<boolean> {
     try {
       const result = await window.electronAPI.invoke(
         IPCChannels.CustomFields.SetValue,

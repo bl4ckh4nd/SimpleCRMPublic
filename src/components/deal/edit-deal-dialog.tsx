@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,9 +39,20 @@ const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
 
+const cloneDealProducts = (products: FetchedDealProduct[]): DealProductLink[] =>
+  products.map((product) => ({ ...product }));
+
+const formatDateForInput = (value?: string) =>
+  value ? value.split('.').reverse().join('-') : '';
+
+const formatDateForStorage = (value: string) =>
+  value ? value.split('-').reverse().join('.') : '';
+
+const calculateDynamicDealValue = (products: DealProductLink[]) =>
+  products.reduce((sum, product) => sum + (product.quantity * product.price_at_time_of_adding), 0);
+
 export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialogProps) {
   const [editedDeal, setEditedDeal] = useState<Deal>({ ...deal });
-  // Removed allProducts state since ProductCombobox handles searching internally
   const [dealProducts, setDealProducts] = useState<DealProductLink[]>([]);
   const [initialDealProducts, setInitialDealProducts] = useState<DealProductLink[]>([]);
 
@@ -54,7 +64,11 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Removed fetchAllProducts since ProductCombobox handles searching internally
+  const resetPendingProduct = () => {
+    setSelectedProductId(null);
+    setQuantity(1);
+    setPrice(0);
+  };
 
   const fetchDealProducts = useCallback(async (dealId: number) => {
     setIsLoading(true);
@@ -64,11 +78,9 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
         IPCChannels.Deals.GetProducts,
         dealId
       );
-      const linkedProducts: DealProductLink[] = fetched.map((p: FetchedDealProduct) => ({
-          ...p,
-      }));
+      const linkedProducts = cloneDealProducts(fetched);
       setDealProducts(linkedProducts);
-      setInitialDealProducts(linkedProducts);
+      setInitialDealProducts(cloneDealProducts(fetched));
     } catch (err) {
       console.error(`Error fetching products for deal ${dealId}:`, err);
       setError("Fehler beim Laden der zugeordneten Produkte.");
@@ -85,9 +97,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
       setError(null);
       setIsSaving(false);
       fetchDealProducts(deal.id);
-      setSelectedProductId(null);
-      setQuantity(1);
-      setPrice(0);
+      resetPendingProduct();
     } else {
       setDealProducts([]);
       setInitialDealProducts([]);
@@ -96,7 +106,6 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
   useEffect(() => {
     if (selectedProductId) {
-      // Fetch product details to set price
       const fetchProductPrice = async () => {
         try {
           const product = await window.electronAPI.invoke(
@@ -132,26 +141,33 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
         return;
       }
 
-    const existingIndex = dealProducts.findIndex(p => p.id === productToAdd.id);
+      setDealProducts((currentProducts) => {
+        const existingIndex = currentProducts.findIndex((product) => product.id === productToAdd.id);
 
-    if (existingIndex !== -1) {
-        const updatedProducts = [...dealProducts];
-        updatedProducts[existingIndex].quantity += quantity;
-        updatedProducts[existingIndex].price_at_time_of_adding = price;
-        setDealProducts(updatedProducts);
-    } else {
-        const newLink: DealProductLink = {
+        if (existingIndex !== -1) {
+          return currentProducts.map((product, index) =>
+            index === existingIndex
+              ? {
+                  ...product,
+                  quantity: product.quantity + quantity,
+                  price_at_time_of_adding: price,
+                }
+              : product
+          );
+        }
+
+        return [
+          ...currentProducts,
+          {
             ...productToAdd,
             deal_product_id: Date.now(),
-            quantity: quantity,
-            price_at_time_of_adding: price
-        };
-        setDealProducts([...dealProducts, newLink]);
-    }
+            quantity,
+            price_at_time_of_adding: price,
+          },
+        ];
+      });
 
-      setSelectedProductId(null);
-      setQuantity(1);
-      setPrice(0);
+      resetPendingProduct();
     } catch (error) {
       console.error("Error adding product:", error);
       alert("Fehler beim Hinzufügen des Produkts.");
@@ -159,26 +175,22 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
   };
 
   const handleRemoveProduct = (link: DealProductLink) => {
-    setDealProducts(dealProducts.filter(p => p.deal_product_id !== link.deal_product_id));
+    setDealProducts((currentProducts) =>
+      currentProducts.filter((product) => product.deal_product_id !== link.deal_product_id)
+    );
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
 
-    // If the calculation method is dynamic, recalculate the total value
-    if (editedDeal.value_calculation_method === 'dynamic') {
-      // Calculate the total value from products
-      const totalValue = dealProducts.reduce((sum, product) => {
-        return sum + (product.quantity * product.price_at_time_of_adding);
-      }, 0);
-
-      // Update the editedDeal with the calculated value
-      editedDeal.value = totalValue.toString();
-    }
+    const dealToSave =
+      editedDeal.value_calculation_method === 'dynamic'
+        ? { ...editedDeal, value: calculateDynamicDealValue(dealProducts).toString() }
+        : editedDeal;
 
     try {
-      const dealSaveSuccess = await onSave(editedDeal);
+      const dealSaveSuccess = await onSave(dealToSave);
 
       if (!dealSaveSuccess) {
         throw new Error("Fehler beim Speichern der Deal-Details.");
@@ -191,45 +203,40 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
           return initial && (initial.quantity !== dp.quantity || initial.price_at_time_of_adding !== dp.price_at_time_of_adding);
       });
 
-      const promises: Promise<{ success: boolean; error?: string; [key: string]: any }>[] = [];
+      const promises: Promise<{ success: boolean; error?: string; [key: string]: unknown }>[] = [];
 
       productsToAdd.forEach(p => {
-        console.log(`Adding product ${p.id} to deal ${deal.id}`);
         promises.push(window.electronAPI.invoke(
           IPCChannels.Deals.AddProduct,
           {
             dealId: deal.id,
             productId: p.id,
             quantity: p.quantity,
-            price: p.price_at_time_of_adding
+            unitPrice: p.price_at_time_of_adding
           }
         ));
       });
 
       productsToRemove.forEach(p => {
-          console.log(`Removing product ${p.id} from deal ${deal.id}`);
           promises.push(window.electronAPI.invoke(
             IPCChannels.Deals.RemoveProduct,
-            { dealProductId: p.deal_product_id, dealId: deal.id, productId: p.id }
+            { dealProductId: p.deal_product_id }
           ));
       });
 
        productsToUpdate.forEach(p => {
-          console.log(`Updating quantity for product link ${p.deal_product_id} in deal ${deal.id} to ${p.quantity}`);
           promises.push(window.electronAPI.invoke(
             IPCChannels.Deals.UpdateProduct,
             {
               dealProductId: p.deal_product_id,
               quantity: p.quantity,
-              price: p.price_at_time_of_adding,
-              dealId: deal.id,
-              productId: p.id
+              unitPrice: p.price_at_time_of_adding
             }
           ));
       });
 
       const results = await Promise.all(promises);
-      const failedResults = results.filter((r: { success: boolean; [key: string]: any }) => !r.success);
+      const failedResults = results.filter((r: { success: boolean; [key: string]: unknown }) => !r.success);
 
       if (failedResults.length > 0) {
         console.error("Errors during product link updates:", failedResults);
@@ -238,15 +245,13 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
       onClose();
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error during save:", err);
-      setError(err.message || "Ein Fehler ist beim Speichern aufgetreten.");
+      setError(err instanceof Error ? err.message : "Ein Fehler ist beim Speichern aufgetreten.");
     } finally {
       setIsSaving(false);
     }
   };
-
-  // Remove productOptions since ProductCombobox handles searching internally
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -314,7 +319,15 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
           </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-expected-close-date">Voraussichtliches Abschlussdatum</Label>
-            <Input id="edit-expected-close-date" type="date" value={editedDeal.expectedCloseDate?.split('.').reverse().join('-') || ''} onChange={(e) => {const dateValue = e.target.value; const formattedDate = dateValue ? dateValue.split('-').reverse().join('.') : ''; setEditedDeal({ ...editedDeal, expectedCloseDate: formattedDate }); }} disabled={isSaving}/>
+            <Input
+              id="edit-expected-close-date"
+              type="date"
+              value={formatDateForInput(editedDeal.expectedCloseDate)}
+              onChange={(e) =>
+                setEditedDeal({ ...editedDeal, expectedCloseDate: formatDateForStorage(e.target.value) })
+              }
+              disabled={isSaving}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="edit-notes">Notizen</Label>

@@ -5,7 +5,7 @@ describe('IPC contracts', () => {
   test('contains key invoke channels', () => {
     expect(AllowedInvokeChannels).toContain(IPCChannels.Deals.AddProduct);
     expect(AllowedInvokeChannels).toContain(IPCChannels.Mssql.TestConnection);
-    expect(DeprecatedInvokeChannels).toContain(IPCChannels.Deals.UpdateProductQuantityLegacy);
+    expect(DeprecatedInvokeChannels).toEqual([]);
   });
 
   test('validates deal payload schemas', () => {
@@ -13,7 +13,7 @@ describe('IPC contracts', () => {
       dealId: 1,
       productId: 2,
       quantity: 1,
-      price: 19.99,
+      unitPrice: 19.99,
     };
     expect(() => getPayloadSchema(IPCChannels.Deals.AddProduct).parse(addPayload)).not.toThrow();
     expect(() =>
@@ -21,8 +21,8 @@ describe('IPC contracts', () => {
     ).toThrow();
   });
 
-  test('marks deprecated channels and supports result schema', () => {
-    expect(isDeprecatedChannel(IPCChannels.Deals.UpdateProductQuantityLegacy)).toBe(true);
+  test('has no deprecated channels and supports result schema', () => {
+    expect(isDeprecatedChannel(IPCChannels.Deals.UpdateProduct)).toBe(false);
     expect(() =>
       getResultSchema(IPCChannels.Mssql.TestConnection).parse({ success: false, error: 'boom' })
     ).not.toThrow();
@@ -42,8 +42,8 @@ describe('IPC contracts', () => {
   test('FollowUp channels have registered payload and result schemas', () => {
     const followUpChannels = Object.values(IPCChannels.FollowUp);
     for (const channel of followUpChannels) {
-      expect(() => getPayloadSchema(channel as any)).not.toThrow();
-      expect(() => getResultSchema(channel as any)).not.toThrow();
+      expect(() => getPayloadSchema(channel as unknown)).not.toThrow();
+      expect(() => getResultSchema(channel as unknown)).not.toThrow();
     }
   });
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 
 import { useState, useEffect } from "react"
@@ -26,7 +25,6 @@ import {
   DialogFooter, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger 
 } from "@/components/ui/dialog"
 import { 
   Form, 
@@ -40,6 +38,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { PageHeader } from "@/components/page-header"
 import { 
   Select, 
   SelectContent, 
@@ -61,19 +60,20 @@ const formSchema = z.object({
     .min(1, { message: "Name ist erforderlich" })
     .regex(/^[a-zA-Z0-9_]+$/, { message: "Name darf nur Buchstaben, Zahlen und Unterstriche enthalten" }),
   label: z.string().min(1, { message: "Bezeichnung ist erforderlich" }),
-  type: z.enum(["text", "number", "date", "boolean", "select"], { 
-    required_error: "Feldtyp ist erforderlich" 
+  type: z.enum(["text", "number", "date", "boolean", "select"], {
+    error: "Feldtyp ist erforderlich"
   }),
   required: z.boolean().default(false),
   options: z.string().optional(),
   default_value: z.string().optional(),
   placeholder: z.string().optional(),
   description: z.string().optional(),
-  display_order: z.coerce.number().int().default(0),
+  display_order: z.number().int().default(0),
   active: z.boolean().default(true),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormInput = z.input<typeof formSchema>;
+type FormValues = z.output<typeof formSchema>;
 
 export default function CustomFieldsPage() {
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -82,7 +82,7 @@ export default function CustomFieldsPage() {
   const [editingField, setEditingField] = useState<CustomField | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
@@ -121,12 +121,12 @@ export default function CustomFieldsPage() {
     if (isDialogOpen) {
       if (editingField) {
         // Parse options if it's a JSON string
-        let options = editingField.options || "";
+        const options = editingField.options || "";
         
         form.reset({
           name: editingField.name,
           label: editingField.label,
-          type: editingField.type as any,
+          type: formSchema.shape.type.parse(editingField.type),
           required: Boolean(editingField.required),
           options,
           default_value: editingField.default_value || "",
@@ -219,12 +219,11 @@ export default function CustomFieldsPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Benutzerdefinierte Felder</h1>
-        <Button onClick={handleCreateField}>
-          <Plus className="mr-2 h-4 w-4" /> Benutzerdefiniertes Feld hinzufügen
-        </Button>
-      </div>
+      <PageHeader
+        title="Benutzerdefinierte Felder"
+        subtitle="Zusätzliche Informationen für Kundendatensätze definieren."
+        actions={<Button onClick={handleCreateField}><Plus /> Feld hinzufügen</Button>}
+      />
 
       <Card>
         <CardHeader>
@@ -242,9 +241,6 @@ export default function CustomFieldsPage() {
           ) : customFields.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-muted-foreground">Noch keine benutzerdefinierten Felder definiert.</p>
-              <Button onClick={handleCreateField} className="mt-4">
-                <Plus className="mr-2 h-4 w-4" /> Fügen Sie Ihr erstes benutzerdefiniertes Feld hinzu
-              </Button>
             </div>
           ) : (
             <div className="rounded-md border">

@@ -1,22 +1,27 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, any>();
+const handlers = new Map<string, (...args: any[]) => any>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((channel: string, handler: unknown) => {
-    handlers.set(channel, handler);
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: (...args: any[]) => any) => {
+    handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),
 }));
 
 const sqliteMocks = {
-  getAllCalendarEvents: jest.fn(),
   createCalendarEvent: jest.fn(),
-  updateCalendarEvent: jest.fn(),
-  deleteCalendarEvent: jest.fn(),
+  getAllCalendarEvents: jest.fn(),
 };
-
 jest.mock('../../electron/sqlite-service', () => sqliteMocks);
+
+const scheduling = {
+  deleteEventWithTask: jest.fn(),
+  saveCalendarEntry: jest.fn(),
+  setTaskSchedule: jest.fn(),
+  updateEventWithTask: jest.fn(),
+};
+jest.mock('../../electron/task-scheduling', () => scheduling);
 
 import { registerCalendarHandlers } from '../../electron/ipc/calendar';
 
@@ -24,139 +29,46 @@ describe('registerCalendarHandlers', () => {
   beforeEach(() => {
     handlers.clear();
     Object.values(sqliteMocks).forEach((fn) => fn.mockReset());
+    Object.values(scheduling).forEach((fn) => fn.mockReset());
     registerCalendarHandlers({ logger: console });
   });
 
-  describe('Calendar.GetCalendarEvents', () => {
-    test('returns events from service', async () => {
-      const events = [{ id: 1, title: 'Meeting' }];
-      sqliteMocks.getAllCalendarEvents.mockReturnValue(events);
-      const handler = handlers.get(IPCChannels.Calendar.GetCalendarEvents);
-      const result = await handler({}, { startDate: '2026-01-01', endDate: '2026-03-31' });
-      expect(result).toEqual(events);
-      expect(sqliteMocks.getAllCalendarEvents).toHaveBeenCalledWith('2026-01-01', '2026-03-31');
-    });
-
-    test('passes undefined when no params provided', async () => {
-      sqliteMocks.getAllCalendarEvents.mockReturnValue([]);
-      const handler = handlers.get(IPCChannels.Calendar.GetCalendarEvents);
-      const result = await handler({}, undefined);
-      expect(result).toEqual([]);
-      expect(sqliteMocks.getAllCalendarEvents).toHaveBeenCalledWith(undefined, undefined);
-    });
-
-    test('returns empty array on error', async () => {
-      sqliteMocks.getAllCalendarEvents.mockImplementation(() => { throw new Error('DB error'); });
-      const handler = handlers.get(IPCChannels.Calendar.GetCalendarEvents);
-      const result = await handler({}, {});
-      expect(result).toEqual([]);
-    });
+  test('registers the calendar contract', () => {
+    Object.values(IPC.Calendar).forEach((endpoint) => expect(handlers.has(endpoint.channel)).toBe(true));
   });
 
-  describe('Calendar.AddCalendarEvent', () => {
-    test('creates event and returns result', async () => {
-      const created = { id: 10, title: 'New event' };
-      sqliteMocks.createCalendarEvent.mockReturnValue(created);
-      const handler = handlers.get(IPCChannels.Calendar.AddCalendarEvent);
-      const result = await handler({}, { title: 'New event', start: '2026-04-01' });
-      expect(result).toEqual(created);
-    });
-
-    test('returns error object on service throw', async () => {
-      sqliteMocks.createCalendarEvent.mockImplementation(() => { throw new Error('Insert failed'); });
-      const handler = handlers.get(IPCChannels.Calendar.AddCalendarEvent);
-      const result = await handler({}, { title: 'Bad' });
-      expect(result).toEqual({ success: false, error: 'Insert failed' });
-    });
+  test('loads calendar events with one range payload', async () => {
+    sqliteMocks.getAllCalendarEvents.mockReturnValue([{ id: 1 }]);
+    const input = { startDate: '2026-07-01', endDate: '2026-07-31' };
+    expect(await handlers.get(IPC.Calendar.GetCalendarEvents.channel)!({}, input)).toEqual([{ id: 1 }]);
+    expect(sqliteMocks.getAllCalendarEvents).toHaveBeenCalledWith(input.startDate, input.endDate);
   });
 
-  describe('Calendar.UpdateCalendarEvent', () => {
-    test('updates event with string id and eventData key', async () => {
-      const updated = { id: 9, title: 'Updated' };
-      sqliteMocks.updateCalendarEvent.mockReturnValue(updated);
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      const result = await handler({}, { id: '9', eventData: { title: 'Updated' } });
-      expect(result).toEqual(updated);
-      expect(sqliteMocks.updateCalendarEvent).toHaveBeenCalledWith(9, { title: 'Updated' });
-    });
-
-    test('strips id from eventData before calling service', async () => {
-      sqliteMocks.updateCalendarEvent.mockReturnValue({ success: true });
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      await handler({}, { id: 4, eventData: { id: 4, title: 'Strip me' } });
-      const [, passedData] = sqliteMocks.updateCalendarEvent.mock.calls[0];
-      expect(passedData).not.toHaveProperty('id');
-      expect(passedData).toHaveProperty('title', 'Strip me');
-    });
-
-    test('updates event with numeric id', async () => {
-      sqliteMocks.updateCalendarEvent.mockReturnValue({ success: true });
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      await handler({}, { id: 7, eventData: { title: 'Numeric id' } });
-      expect(sqliteMocks.updateCalendarEvent).toHaveBeenCalledWith(7, { title: 'Numeric id' });
-    });
-
-    test('updates event with flat payload (no eventData key)', async () => {
-      sqliteMocks.updateCalendarEvent.mockReturnValue({ success: true });
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      await handler({}, { id: 3, title: 'Flat title', start: '2026-04-01' });
-      expect(sqliteMocks.updateCalendarEvent).toHaveBeenCalledWith(
-        3,
-        expect.objectContaining({ title: 'Flat title', start: '2026-04-01' })
-      );
-    });
-
-    test('returns error when payload is null', async () => {
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      const result = await handler({}, null);
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('No payload');
-    });
-
-    test('returns error when id is missing', async () => {
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      const result = await handler({}, { title: 'No id' });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Missing calendar event ID');
-    });
-
-    test('returns error when eventData is empty', async () => {
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      const result = await handler({}, { id: 5, eventData: {} });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Missing calendar event data');
-    });
-
-    test('returns error on service throw', async () => {
-      sqliteMocks.updateCalendarEvent.mockImplementation(() => { throw new Error('Update failed'); });
-      const handler = handlers.get(IPCChannels.Calendar.UpdateCalendarEvent);
-      const result = await handler({}, { id: 1, eventData: { title: 'x' } });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Update failed');
-    });
+  test('creates standalone events in SQLite', async () => {
+    sqliteMocks.createCalendarEvent.mockReturnValue({ lastInsertRowid: 10 });
+    const event = { title: 'New event' };
+    expect(await handlers.get(IPC.Calendar.AddCalendarEvent.channel)!({}, event)).toEqual({ success: true, id: 10 });
   });
 
-  describe('Calendar.DeleteCalendarEvent', () => {
-    test('deletes event and returns result', async () => {
-      sqliteMocks.deleteCalendarEvent.mockReturnValue({ success: true });
-      const handler = handlers.get(IPCChannels.Calendar.DeleteCalendarEvent);
-      const result = await handler({}, 5);
-      expect(result).toEqual({ success: true });
-      expect(sqliteMocks.deleteCalendarEvent).toHaveBeenCalledWith(5);
+  test('routes task event changes through the scheduling owner', async () => {
+    const event = { task_id: 4, start_date: '2026-07-16', end_date: '2026-07-17', all_day: true };
+    await handlers.get(IPC.Calendar.AddCalendarEvent.channel)!({}, event);
+    expect(scheduling.setTaskSchedule).toHaveBeenCalledWith(4, {
+      startDate: event.start_date,
+      endDate: event.end_date,
+      allDay: true,
     });
 
-    test('returns error object on service throw', async () => {
-      sqliteMocks.deleteCalendarEvent.mockImplementation(() => { throw new Error('Delete failed'); });
-      const handler = handlers.get(IPCChannels.Calendar.DeleteCalendarEvent);
-      const result = await handler({}, 99);
-      expect(result).toEqual({ success: false, error: 'Delete failed' });
-    });
+    await handlers.get(IPC.Calendar.UpdateCalendarEvent.channel)!({}, { id: 8, eventData: { title: 'Moved' } });
+    expect(scheduling.updateEventWithTask).toHaveBeenCalledWith(8, { title: 'Moved' });
+
+    await handlers.get(IPC.Calendar.DeleteCalendarEvent.channel)!({}, 8);
+    expect(scheduling.deleteEventWithTask).toHaveBeenCalledWith(8);
   });
 
-  test('registers all four handlers', () => {
-    expect(handlers.has(IPCChannels.Calendar.GetCalendarEvents)).toBe(true);
-    expect(handlers.has(IPCChannels.Calendar.AddCalendarEvent)).toBe(true);
-    expect(handlers.has(IPCChannels.Calendar.UpdateCalendarEvent)).toBe(true);
-    expect(handlers.has(IPCChannels.Calendar.DeleteCalendarEvent)).toBe(true);
+  test('routes atomic form saves through the scheduling owner', async () => {
+    const input = { event: { title: 'Call' }, task: { customer_id: 2 } };
+    await handlers.get(IPC.Calendar.SaveEntry.channel)!({}, input);
+    expect(scheduling.saveCalendarEntry).toHaveBeenCalledWith(input);
   });
 });

@@ -1,9 +1,8 @@
-// @ts-nocheck
 "use client"
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { type SubmitHandler, useForm } from "react-hook-form"
 import * as z from "zod"
 
 import { Button } from "@/components/ui/button"
@@ -21,27 +20,32 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Product } from "@/types"
 
-// Schema for product form validation
 const formSchema = z.object({
   name: z.string().min(1, { message: "Produktname ist erforderlich." }),
-  sku: z.string().nullable().optional(), // Allow empty string, null, or undefined
+  sku: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
-  price: z.coerce // Use coerce to handle string input from number field
-    .number({ invalid_type_error: "Preis muss eine Zahl sein." })
-    .min(0, { message: "Preis darf nicht negativ sein." })
-    .default(0),
-  isActive: z.boolean().default(true),
+  price: z.number().min(0, { message: "Preis darf nicht negativ sein." }),
+  isActive: z.boolean(),
 });
 
-type ProductFormValues = z.infer<typeof formSchema>;
+export type ProductFormValues = z.infer<typeof formSchema>;
 
 interface ProductFormProps {
-  // Optional initial product data for editing
   product?: Product | null;
-  onSubmit: (values: ProductFormValues) => Promise<void>; // Make onSubmit async
+  onSubmit: (values: ProductFormValues) => Promise<void>;
   isSubmitting: boolean;
   submitButtonText?: string;
   onCancel?: () => void;
+}
+
+function getDefaultValues(product?: Product | null): ProductFormValues {
+  return {
+    name: product?.name ?? "",
+    sku: product?.sku ?? "",
+    description: product?.description ?? "",
+    price: product?.price ?? 0,
+    isActive: product?.isActive ?? true,
+  }
 }
 
 export function ProductForm({ 
@@ -51,32 +55,14 @@ export function ProductForm({
   submitButtonText = "Speichern",
   onCancel
 }: ProductFormProps) {
-  
-  const defaultValues: Partial<ProductFormValues> = product
-    ? {
-        name: product.name,
-        sku: product.sku,
-        description: product.description,
-        price: product.price,
-        isActive: product.isActive,
-      }
-    : {
-        name: "",
-        sku: "",
-        description: "",
-        price: 0,
-        isActive: true,
-      };
-
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: getDefaultValues(product),
     mode: "onChange",
   });
 
-  const handleSubmit = async (data: ProductFormValues) => {
+  const handleSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     await onSubmit(data);
-    // Form reset can be handled in the dialog component after successful submission
   };
 
   return (
@@ -98,14 +84,13 @@ export function ProductForm({
         <FormField
           control={form.control}
           name="sku"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>SKU (Artikelnummer)</FormLabel>
-              <FormControl>
-                {/* Pass null if field value is empty string for optional fields */}
-                <Input placeholder="z.B. SWP-123" {...field} value={field.value ?? ''} />
-              </FormControl>
-              <FormMessage />
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>SKU (Artikelnummer)</FormLabel>
+                <FormControl>
+                  <Input placeholder="z.B. SWP-123" {...field} value={field.value ?? ''} />
+                </FormControl>
+                <FormMessage />
             </FormItem>
           )}
         />
@@ -130,15 +115,21 @@ export function ProductForm({
         <FormField
           control={form.control}
           name="price"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Preis (€) *</FormLabel>
-              <FormControl>
-                 {/* Ensure input type is number, handle string conversion in schema */}
-                <Input type="number" step="0.01" placeholder="0.00" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Preis (€) *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    {...field}
+                    value={field.value}
+                    onChange={(event) => field.onChange(Number(event.target.value) || 0)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
           )}
         />
         <FormField
@@ -177,4 +168,4 @@ export function ProductForm({
       </form>
     </Form>
   )
-} 
+}

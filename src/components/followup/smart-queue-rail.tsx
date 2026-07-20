@@ -16,7 +16,7 @@ const presetQueues = [
   { id: 'ueberfaellig', label: 'Überfällig', icon: <AlertTriangle className="h-4 w-4" />, urgency: 'critical' as const, countKey: 'ueberfaellig' as const, tooltip: 'Aufgaben mit abgelaufenem Fälligkeitsdatum, die noch offen sind.' },
   { id: 'diese_woche', label: 'Diese Woche', icon: <CalendarRange className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'dieseWoche' as const, tooltip: 'Aufgaben und Deals, die bis Ende dieser Woche fällig sind.' },
   { id: 'stagnierende_deals', label: 'Stagnierende Deals', icon: <TrendingDown className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'stagnierend' as const, tooltip: 'Deals ohne Aktivität seit mehr als 14 Tagen.' },
-  { id: 'high_value_risk', label: 'High Value Risk', icon: <DollarSign className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'highValueRisk' as const, tooltip: 'Hochwertige Deals mit überfälliger oder fehlender Aktion.' },
+  { id: 'high_value_risk', label: 'Großdeal-Risiko', icon: <DollarSign className="h-4 w-4" />, urgency: 'warning' as const, countKey: 'highValueRisk' as const, tooltip: 'Hochwertige Deals mit überfälliger oder fehlender Aktion.' },
 ]
 
 export function SmartQueueRail({ activeQueue, counts, savedViews, onQueueSelect }: SmartQueueRailProps) {
@@ -24,7 +24,7 @@ export function SmartQueueRail({ activeQueue, counts, savedViews, onQueueSelect 
     <div className="flex flex-col h-full">
       <div className="px-3 py-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Smart Queues
+          Priorisierte Ansichten
         </h2>
       </div>
       <div className="flex-1 overflow-y-auto px-1.5 space-y-0.5">

@@ -34,10 +34,56 @@ interface ProductComboboxProps {
   disabled?: boolean
 }
 
+interface ProductRecord {
+  id: number | string
+  name?: string | null
+  price?: number | string | null
+  description?: string
+  sku?: string | null
+  productNumber?: string | null
+  isActive?: boolean
+}
+
+const SEARCH_DELAY_MS = 300
+const SEARCH_LIMIT = 50
+
 const formatCurrency = (amount: number): string => {
   if (isNaN(amount)) return '-';
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
+
+function isActiveProduct(product: ProductRecord) {
+  return product.isActive !== false
+}
+
+function normalizeProduct(product: ProductRecord): Product {
+  return {
+    id: product.id,
+    name: product.name ?? 'Unbenanntes Produkt',
+    price: typeof product.price === 'number' ? product.price : Number(product.price) || 0,
+    description: product.description,
+    sku: product.sku ?? undefined,
+    productNumber: product.productNumber ?? product.sku ?? undefined,
+  }
+}
+
+function matchesSearch(product: ProductRecord, query: string) {
+  if (!query) {
+    return true
+  }
+
+  const normalizedQuery = query.toLowerCase()
+  const lowerName = (product.name ?? '').toLowerCase()
+  const lowerSku = (product.sku ?? '').toLowerCase()
+  return lowerName.includes(normalizedQuery) || lowerSku.includes(normalizedQuery)
+}
+
+function matchesSelectedValue(
+  optionId: Product["id"] | null | undefined,
+  value: string | number | null | undefined
+) {
+  return value != null && optionId !== undefined && String(optionId) === String(value)
+}
 
 export function ProductCombobox({
   value,
@@ -45,123 +91,99 @@ export function ProductCombobox({
   placeholder = "Produkt auswählen...",
   disabled = false
 }: ProductComboboxProps) {
-  console.log(`🔍 [ProductCombobox] Component initialized with value: ${value}`);
-  
   const [open, setOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [products, setProducts] = React.useState<Product[]>([])
   const [loading, setLoading] = React.useState(false)
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null)
 
-  // Load products with search
   React.useEffect(() => {
-    console.log(`🔍 [ProductCombobox] useEffect triggered for searchQuery: "${searchQuery}"`);
-    
-    const searchProducts = async () => {
-      console.log(`🔍 [ProductCombobox] Starting product search for: "${searchQuery}"`);
-      const startTime = Date.now();
-      
+    let cancelled = false
+
+    const timeoutId = window.setTimeout(async () => {
       setLoading(true)
       try {
-        console.log(`🔍 [ProductCombobox] Calling products:search with query: "${searchQuery}", limit: 50`);
         const results = await window.electronAPI.invoke(
           IPCChannels.Products.Search,
-          searchQuery,
-          50
-        ) as Product[]
-        console.log(`🔍 [ProductCombobox] Received ${results.length} products in ${Date.now() - startTime}ms`);
-        const normalizedResults: Product[] = results
-          .filter((p) => (p as any).isActive !== false)
-          .map((p) => ({
-            id: p.id,
-            name: p.name ?? 'Unbenanntes Produkt',
-            price: typeof p.price === 'number' ? p.price : Number(p.price) || 0,
-            description: p.description,
-            sku: p.sku ?? undefined,
-            productNumber: (p as any).productNumber ?? p.sku ?? undefined,
-          }))
-        setProducts(normalizedResults)
+          { query: searchQuery, limit: SEARCH_LIMIT }
+        ) as unknown as ProductRecord[]
+
+        if (!cancelled) {
+          setProducts(results.filter(isActiveProduct).map(normalizeProduct))
+        }
       } catch (error) {
-        console.error('🚨 [ProductCombobox] Failed to search products:', error)
-        // Fallback to get-all if search doesn't exist
+        console.error("[ProductCombobox] Failed to search products:", error)
+
         try {
-          console.log(`🔍 [ProductCombobox] Falling back to products:get-all`);
-          const allProducts = await window.electronAPI.invoke(IPCChannels.Products.GetAll) as Product[]
-          const normalizedQuery = searchQuery.toLowerCase();
-          const filteredProducts: Product[] = allProducts
-            .filter(p => (p as any).isActive !== false)
-            .filter((p) => {
-              if (!searchQuery) {
-                return true
-              }
-              const lowerName = (p.name ?? '').toLowerCase()
-              const lowerSku = (p.sku ?? '').toLowerCase()
-              return lowerName.includes(normalizedQuery) || lowerSku.includes(normalizedQuery)
-            })
-            .slice(0, 50)
-            .map((p) => ({
-              id: p.id,
-              name: p.name ?? 'Unbenanntes Produkt',
-              price: typeof p.price === 'number' ? p.price : Number(p.price) || 0,
-              description: p.description,
-              sku: p.sku ?? undefined,
-              productNumber: (p as any).productNumber ?? p.sku ?? undefined,
-            }))
-          console.log(`🔍 [ProductCombobox] Fallback: Received ${filteredProducts.length} products`);
-          setProducts(filteredProducts)
+          const allProducts = await window.electronAPI.invoke(
+            IPCChannels.Products.GetAll
+          ) as unknown as ProductRecord[]
+
+          if (!cancelled) {
+            setProducts(
+              allProducts
+                .filter(isActiveProduct)
+                .filter((product) => matchesSearch(product, searchQuery))
+                .slice(0, SEARCH_LIMIT)
+                .map(normalizeProduct)
+            )
+          }
         } catch (fallbackError) {
-          console.error('🚨 [ProductCombobox] Fallback also failed:', fallbackError)
-          setProducts([])
+          console.error("[ProductCombobox] Fallback also failed:", fallbackError)
+          if (!cancelled) {
+            setProducts([])
+          }
         }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
-    }
-
-    // Debounce search
-    const timeoutId = setTimeout(() => {
-      console.log(`🔍 [ProductCombobox] Debounce timeout reached, executing search...`);
-      searchProducts()
-    }, searchQuery ? 300 : 0)
+    }, searchQuery ? SEARCH_DELAY_MS : 0)
 
     return () => {
-      console.log(`🔍 [ProductCombobox] Cleaning up timeout for: "${searchQuery}"`);
-      clearTimeout(timeoutId)
+      cancelled = true
+      window.clearTimeout(timeoutId)
     }
   }, [searchQuery])
 
-  // Load selected product details if value is provided
   React.useEffect(() => {
-    if (value && !selectedProduct) {
-      console.log(`🔍 [ProductCombobox] Loading product details for value: ${value}`);
-      
-      const loadProduct = async () => {
-        const startTime = Date.now();
-        try {
-          console.log(`🔍 [ProductCombobox] Calling products:get-by-id for ID: ${value}`);
-          const product = await window.electronAPI.invoke(
-            IPCChannels.Products.GetById,
-            value
-          ) as any
-          console.log(`🔍 [ProductCombobox] Received product details in ${Date.now() - startTime}ms:`, product ? product.name : 'null');
-          
-          if (product) {
-            setSelectedProduct({
-              id: product.id,
-              name: product.name,
-              price: product.price || 0,
-              description: product.description,
-              sku: product.sku ?? product.productNumber ?? undefined,
-              productNumber: product.productNumber ?? product.sku ?? undefined,
-            })
-          }
-        } catch (error) {
-          console.error('🚨 [ProductCombobox] Failed to load product:', error)
+    if (value == null) {
+      setSelectedProduct(null)
+      return
+    }
+
+    if (matchesSelectedValue(selectedProduct?.id, value)) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadProduct = async () => {
+      try {
+        const product = await window.electronAPI.invoke(
+          IPCChannels.Products.GetById,
+          Number(value)
+        ) as unknown as ProductRecord | null
+
+        if (!product || cancelled) {
+          return
+        }
+
+        setSelectedProduct(normalizeProduct(product))
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[ProductCombobox] Failed to load product:", error)
         }
       }
-      loadProduct()
     }
-  }, [value, selectedProduct])
+
+    void loadProduct()
+
+    return () => {
+      cancelled = true
+    }
+  }, [value, selectedProduct?.id])
 
   const handleSelect = (product: Product) => {
     setSelectedProduct(product)
@@ -215,13 +237,13 @@ export function ProductCombobox({
                     onSelect={() => handleSelect(product)}
                     className="cursor-pointer"
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4 shrink-0",
-                        value === product.id || value === product.id.toString()
-                          ? "opacity-100"
-                          : "opacity-0"
-                      )}
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4 shrink-0",
+                            matchesSelectedValue(product.id, value)
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{product.name}</div>

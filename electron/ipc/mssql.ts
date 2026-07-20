@@ -1,4 +1,4 @@
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   saveMssqlSettingsWithKeytar,
@@ -20,7 +20,7 @@ export function registerMssqlHandlers(options: MssqlHandlersOptions) {
   const disposers: Disposer[] = [];
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Mssql.SaveSettings, async (_event, settings: any = {}) => {
+    registerIpcHandler(IPC.Mssql.SaveSettings, async (_event, settings = {}) => {
       logger.info('[IPC Main] mssql:save-settings invoked');
       try {
         const processedSettings = {
@@ -40,7 +40,7 @@ export function registerMssqlHandlers(options: MssqlHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Mssql.GetSettings, async () => {
+    registerIpcHandler(IPC.Mssql.GetSettings, async () => {
       try {
         const settings = await getMssqlSettingsWithKeytar();
         if (isDevelopment) {
@@ -55,7 +55,7 @@ export function registerMssqlHandlers(options: MssqlHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Mssql.TestConnection, async (_event, settings: any = {}) => {
+    registerIpcHandler(IPC.Mssql.TestConnection, async (_event, settings = {}) => {
       logger.info('[IPC Main] mssql:test-connection invoked');
       try {
         const processedSettings = {
@@ -82,7 +82,7 @@ export function registerMssqlHandlers(options: MssqlHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Mssql.ClearPassword, async () => {
+    registerIpcHandler(IPC.Mssql.ClearPassword, async () => {
       logger.info('[IPC Main] mssql:clear-password invoked.');
       try {
         const result = await clearMssqlPasswordFromKeytar();
@@ -100,7 +100,7 @@ export function registerMssqlHandlers(options: MssqlHandlersOptions) {
   };
 }
 
-function sanitize(settings: Record<string, any> = {}) {
+function sanitize(settings: Record<string, unknown> = {}) {
   const { password, user, ...rest } = settings;
   return {
     ...rest,

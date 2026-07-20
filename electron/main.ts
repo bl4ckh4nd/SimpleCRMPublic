@@ -3,6 +3,7 @@ import { app, BrowserWindow, dialog, globalShortcut, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import log from 'electron-log';
+import electronServe from 'electron-serve';
 import windowStateKeeper from 'electron-window-state';
 import { registerAllIpcHandlers } from './ipc/router';
 import {
@@ -10,8 +11,11 @@ import {
   checkForUpdatesAndNotify,
 } from './update-service';
 
+const isNotificationWorker = process.argv.includes('--notification-worker');
+const isE2ETest = process.env.SIMPLECRM_E2E === '1';
+
 // Configure electron-log
-log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs/main.log');
+log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs', isNotificationWorker ? 'notification-worker.log' : 'main.log');
 log.catchErrors(); // Catch unhandled errors
 Object.assign(console, log.functions); // Override console functions
 
@@ -19,7 +23,6 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 // Keep production startup diagnosable without enabling full debug logging.
 log.transports.file.level = isDevelopment ? 'debug' : 'info';
 log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB rotation cap
-log.transports.file.maxLogFiles = 3;
 
 // Secret masking and port parsing moved into dedicated IPC modules.
 
@@ -29,13 +32,16 @@ import {
   initializeMssqlService,
   closeMssqlPool,
 } from './mssql-keytar-service';
+import { runNotificationWorker, syncNotificationWorker } from './notification-digest';
 
 // Keep a global reference of the mainWindow object
 let mainWindow: BrowserWindow | null;
 let devToolsWindow: BrowserWindow | null = null;
 
 // This will hold the function to load the content into the BrowserWindow
-let loadURLFunction;
+let loadURLFunction: ((windowInstance: BrowserWindow) => Promise<void>) | undefined;
+
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 let cleanupIpcHandlers = () => {};
 
@@ -81,41 +87,34 @@ const ensureDevToolsWindow = () => {
 };
 
 // Determine mode AT THE TOP
-log.info(`\[Electron Main\] Initial check: process.env.NODE_ENV = ${process.env.NODE_ENV}, isDevelopment = ${isDevelopment}`);
+log.info(`[Electron Main] Initial check: process.env.NODE_ENV = ${process.env.NODE_ENV}, isDevelopment = ${isDevelopment}`);
 
 // --- Setup loadURLFunction based on mode ---
 // This setup, especially for electron-serve, needs to happen before 'app.ready'.
-if (isDevelopment) {
+if (isNotificationWorker) {
+  log.info('[Electron Main] Notification worker mode selected.');
+} else if (isDevelopment) {
   log.info('[Electron Main] Development mode: Setting up Vite dev server loader.');
-  loadURLFunction = async (windowInstance) => {
+  loadURLFunction = async (windowInstance: BrowserWindow) => {
     const viteDevServerUrl = new URL(process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173').toString();
-    log.info(`\[Electron Main\] Development mode: Attempting to load URL: ${viteDevServerUrl}`);
+    log.info(`[Electron Main] Development mode: Attempting to load URL: ${viteDevServerUrl}`);
     try {
       await windowInstance.loadURL(viteDevServerUrl);
       log.info('[Electron Main] Development URL loaded successfully.');
     } catch (error) {
-      log.error(`\[Electron Main\] Failed to load Vite dev server URL ${viteDevServerUrl}:`, error);
-      dialog.showErrorBox("Dev Server Load Error", `Could not connect to Vite dev server at ${viteDevServerUrl}. Please ensure it's running. Error: ${error.message}`);
+      log.error(`[Electron Main] Failed to load Vite dev server URL ${viteDevServerUrl}:`, error);
+      dialog.showErrorBox("Dev Server Load Error", `Could not connect to Vite dev server at ${viteDevServerUrl}. Please ensure it's running. Error: ${errorMessage(error)}`);
     }
   };
 } else {
   log.info('[Electron Main] Production mode: Setting up electron-serve loader before app ready.');
   try {
-    const electronServeModule = require('electron-serve');
-    const electronServeFunc = typeof electronServeModule === 'function'
-      ? electronServeModule
-      : (electronServeModule.default || null);
-
-    if (typeof electronServeFunc === 'function') {
-      const loadAppUrl = electronServeFunc({ directory: path.join(__dirname, '../dist') });
-      loadURLFunction = async (windowInstance) => {
-        log.info('[Electron Main] Production mode: Loading renderer with electron-serve.');
-        await loadAppUrl(windowInstance);
-        log.info(`[Electron Main] Content loaded successfully with electron-serve: ${getWindowUrl(windowInstance)}`);
-      };
-    } else {
-      throw new Error('electron-serve did not provide a usable function');
-    }
+    const loadAppUrl = electronServe({ directory: path.join(__dirname, '../dist') });
+    loadURLFunction = async (windowInstance: BrowserWindow) => {
+      log.info('[Electron Main] Production mode: Loading renderer with electron-serve.');
+      await loadAppUrl(windowInstance);
+      log.info(`[Electron Main] Content loaded successfully with electron-serve: ${getWindowUrl(windowInstance)}`);
+    };
   } catch (error) {
     log.error('[Electron Main] electron-serve setup failed:', error);
     throw error;
@@ -135,8 +134,10 @@ async function initializeApp() {
   try {
     log.info('[Electron Main] Initializing database and other services...');
     initializeDatabase();
-    initializeMssqlService();
-    initializeSyncService();
+    if (!isNotificationWorker) {
+      initializeMssqlService();
+      initializeSyncService();
+    }
     log.info('[Electron Main] Database and other services initialized.');
   } catch (error) {
     log.error("[Electron Main] Failed to initialize core services:", error);
@@ -166,7 +167,7 @@ async function createMainWindow() {
     y: windowState.y,
     width: windowState.width,
     height: windowState.height,
-    minWidth: 800,
+    minWidth: 1024,
     minHeight: 600,
     webPreferences: {
       nodeIntegration: false,
@@ -194,7 +195,7 @@ async function createMainWindow() {
         mainWindow.webContents.openDevTools({ mode: 'detach', activate: true });
         log.info('[Electron Main] DevTools opened (detach mode).');
       } else {
-        mainWindow.webContents.focusDevTools();
+        toolsWindow?.focus();
         log.info('[Electron Main] DevTools focused.');
       }
       if (toolsWindow && !toolsWindow.isDestroyed()) {
@@ -224,11 +225,6 @@ async function createMainWindow() {
 
   mainWindow.webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
     log.info(`[Electron Main] did-navigate-in-page: url=${url} isMainFrame=${isMainFrame}`);
-  });
-
-  // Catch preload errors specifically
-  mainWindow.webContents.on('crashed', () => {
-    log.error('[Preload/Renderer] Renderer process crashed');
   });
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
@@ -285,14 +281,16 @@ async function createMainWindow() {
   mainWindow.webContents.once('did-finish-load', () => {
     log.debug(`[Electron Main] Renderer finished loading at ${getWindowUrl(mainWindow!)}, sending initial window state.`);
     emitWindowState();
-    openDevToolsBar();
-    setTimeout(openDevToolsBar, 1000);
+    if (!isE2ETest) {
+      openDevToolsBar();
+      setTimeout(openDevToolsBar, 1000);
+    }
   });
 
   if (!loadURLFunction) {
     log.error('[Electron Main] ERROR in createMainWindow: loadURLFunction is not defined. Cannot load frontend.');
     dialog.showErrorBox("Application Load Error", "Frontend loader not configured. This usually means a critical error occurred during initial setup.");
-    if (app && typeof app.isQuitting === 'function' && !app.isQuitting()) { app.quit(); } // Ensure app quits if critical error
+    app.quit();
     return;
   }
 
@@ -302,7 +300,7 @@ async function createMainWindow() {
     log.info(`[Electron Main] Content loaded into mainWindow successfully at ${getWindowUrl(mainWindow)}.`);
   } catch (error) {
     log.error('[Electron Main] Failed to load URL using loadURLFunction:', error);
-    const errorMsg = `Failed to load application content. Error: ${error.message}\nURL: ${error.url || (isDevelopment ? 'http://localhost:5173' : 'app://- (electron-serve)') }`;
+    const errorMsg = `Failed to load application content. Error: ${errorMessage(error)}\nURL: ${isDevelopment ? 'http://localhost:5173' : 'app://- (electron-serve)'}`;
     dialog.showErrorBox("Application Load Error", errorMsg);
   }
 
@@ -321,13 +319,22 @@ initializeApp()
     app.whenReady().then(async () => { // Added async here
       log.info('[Electron Main] App is ready (after initializeApp).');
 
+      if (isNotificationWorker) {
+        const started = await runNotificationWorker(log);
+        if (!started) app.quit();
+        return;
+      }
+
       cleanupIpcHandlers = registerAllIpcHandlers({
         logger: log,
         isDevelopment,
         getMainWindow: () => mainWindow,
       });
+      if (!isE2ETest) {
+        await syncNotificationWorker();
+      }
 
-      if (!isDevelopment) {
+      if (!isDevelopment && !isE2ETest && process.platform !== 'darwin') {
         try {
           initializeAutoUpdater({
             logger: log,
@@ -370,7 +377,7 @@ initializeApp()
     }).catch(err => {
       log.error('[Electron Main] Error during app.whenReady:', err);
       // Optionally, show a dialog to the user or quit the app
-      dialog.showErrorBox("Application Startup Error", `A critical error occurred during application startup: ${err.message}. The application will now close.`);
+      dialog.showErrorBox("Application Startup Error", `A critical error occurred during application startup: ${errorMessage(err)}. The application will now close.`);
       app.quit();
     });
   })
@@ -380,7 +387,7 @@ initializeApp()
     // Note: app might not be ready here, so dialog might not work as expected
     // but it's worth a try.
     if (app && typeof dialog.showErrorBox === 'function') {
-      dialog.showErrorBox("Application Initialization Error", `A critical error occurred during application initialization: ${err.message}. The application will now close.`);
+      dialog.showErrorBox("Application Initialization Error", `A critical error occurred during application initialization: ${errorMessage(err)}. The application will now close.`);
     }
     // Ensure the app quits if initialization fails critically
     if (app && typeof app.quit === 'function') {

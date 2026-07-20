@@ -17,59 +17,95 @@ interface UpdateStatusPayload {
   error?: string;
 }
 
+function getUpdatesApi() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.electron?.updates ?? null;
+}
+
+function isUpdateStatusPayload(value: unknown): value is UpdateStatusPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "status" in value &&
+    typeof value.status === "string"
+  );
+}
+
+function getStatusLabel(status: UpdateStatusPayload | null) {
+  if (!status) return "Keine Aktualisierungsinformationen";
+
+  switch (status.status) {
+    case "checking":
+      return "Suche nach Updates…";
+    case "available":
+      return "Update verfügbar – Download läuft…";
+    case "not-available":
+      return "Keine Updates verfügbar";
+    case "downloading":
+      return "Update wird heruntergeladen…";
+    case "downloaded":
+      return "Update heruntergeladen – Neustart zum Anwenden";
+    case "error":
+      return status.error || "Fehler bei der Updateprüfung";
+    case "idle":
+    default:
+      return "Update-Status unbekannt";
+  }
+}
+
 export function UpdateStatusDisplay() {
   const [status, setStatus] = useState<UpdateStatusPayload | null>(null);
   const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const updates = getUpdatesApi();
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.electron?.updates) {
+    const currentUpdates = getUpdatesApi();
+    if (!currentUpdates) {
       return;
     }
 
-    let cleanStatusListener: (() => void) | undefined;
-    let cleanProgressListener: (() => void) | undefined;
-
-    const updates = window.electron.updates;
-
-    updates
+    void currentUpdates
       .getStatus()
-      .then((current: any) => {
-        if (current && typeof current.status === "string") {
-          setStatus(current as UpdateStatusPayload);
+      .then((current: unknown) => {
+        if (isUpdateStatusPayload(current)) {
+          setStatus(current);
         }
       })
-      .catch((error: any) => {
+      .catch((error: unknown) => {
         console.error("[UpdateStatusDisplay] Failed to get update status:", error);
       });
 
-    cleanStatusListener = updates.onStatusChange((nextStatus: any) => {
-      if (nextStatus && typeof nextStatus.status === "string") {
-        setStatus(nextStatus as UpdateStatusPayload);
+    const disposeStatusListener = currentUpdates.onStatusChange((nextStatus: unknown) => {
+      if (isUpdateStatusPayload(nextStatus)) {
+        setStatus(nextStatus);
       }
     });
 
-    cleanProgressListener = updates.onDownloadProgress((progress: any) => {
-      if (typeof progress?.percent === "number") {
+    const disposeProgressListener = currentUpdates.onDownloadProgress((progress: unknown) => {
+      if (typeof progress === "object" && progress !== null && "percent" in progress && typeof progress.percent === "number") {
         setDownloadPercent(progress.percent);
       }
     });
 
     return () => {
-      cleanStatusListener && cleanStatusListener();
-      cleanProgressListener && cleanProgressListener();
+      disposeStatusListener?.();
+      disposeProgressListener?.();
     };
   }, []);
 
   const handleCheckForUpdates = async () => {
-    if (typeof window === "undefined" || !window.electron?.updates) {
+    if (!updates) {
       return;
     }
 
     try {
       setIsChecking(true);
-      await window.electron.updates.checkForUpdates();
-    } catch (error: any) {
+      await updates.checkForUpdates();
+    } catch (error: unknown) {
       console.error("[UpdateStatusDisplay] Error checking for updates:", error);
     } finally {
       setIsChecking(false);
@@ -77,41 +113,21 @@ export function UpdateStatusDisplay() {
   };
 
   const handleInstallUpdate = async () => {
-    if (typeof window === "undefined" || !window.electron?.updates) {
+    if (!updates) {
       return;
     }
 
     try {
-      await window.electron.updates.installUpdate();
-    } catch (error: any) {
+      await updates.installUpdate();
+    } catch (error: unknown) {
       console.error("[UpdateStatusDisplay] Error installing update:", error);
     }
   };
 
-  const statusLabel = (() => {
-    if (!status) return "Keine Aktualisierungsinformationen";
-    switch (status.status) {
-      case "checking":
-        return "Suche nach Updates…";
-      case "available":
-        return "Update verfügbar – Download läuft…";
-      case "not-available":
-        return "Keine Updates verfügbar";
-      case "downloading":
-        return "Update wird heruntergeladen…";
-      case "downloaded":
-        return "Update heruntergeladen – Neustart zum Anwenden";
-      case "error":
-        return status.error || "Fehler bei der Updateprüfung";
-      case "idle":
-      default:
-        return "Update-Status unbekannt";
-    }
-  })();
+  const statusLabel = getStatusLabel(status);
 
   const showBanner =
-    typeof window !== "undefined" &&
-    !!window.electron?.updates &&
+    !!updates &&
     (isChecking ||
       status?.status === "available" ||
       status?.status === "downloading" ||

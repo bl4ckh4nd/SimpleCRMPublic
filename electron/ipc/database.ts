@@ -1,12 +1,12 @@
 import { IpcMainInvokeEvent } from 'electron';
-import { IPCChannels } from '../../shared/ipc/channels';
+import { IPC } from '../../shared/ipc/channels';
 import { registerIpcHandler } from './register';
 import {
   getAllCustomers,
   getCustomerById,
   createCustomer,
   updateCustomer,
-  deleteCustomer,
+  deleteCustomers,
   getDealsForCustomer,
   getTasksForCustomer,
   searchCustomers,
@@ -31,12 +31,12 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   const disposers: Disposer[] = [];
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.GetCustomers, async (_event: IpcMainInvokeEvent, includeCustomFields?: boolean) => {
+    registerIpcHandler(IPC.Db.GetCustomers, async (_event: IpcMainInvokeEvent, { includeCustomFields }) => {
       try {
         if (isDevelopment) {
           logger.debug('[IPC] db:get-customers', { includeCustomFields });
         }
-        return getAllCustomers(Boolean(includeCustomFields));
+        return getAllCustomers(includeCustomFields);
       } catch (error) {
         logger.error('IPC Error getting customers:', error);
         throw error;
@@ -45,7 +45,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.GetCustomersDropdown, async () => {
+    registerIpcHandler(IPC.Db.GetCustomersDropdown, async () => {
       try {
         if (isDevelopment) {
           logger.debug('[IPC] db:get-customers-dropdown invoked');
@@ -59,7 +59,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.SearchCustomers, async (_event: IpcMainInvokeEvent, query: string, limit: number = 20) => {
+    registerIpcHandler(IPC.Db.SearchCustomers, async (_event: IpcMainInvokeEvent, { query, limit = 20 }) => {
       try {
         if (isDevelopment) {
           logger.debug('[IPC] db:search-customers', { query, limit });
@@ -78,7 +78,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.GetCustomer, async (_event, customerId: number) => {
+    registerIpcHandler(IPC.Db.GetCustomer, async (_event, customerId: number) => {
       try {
         return getCustomerById(customerId);
       } catch (error) {
@@ -89,7 +89,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.CreateCustomer, async (_event, customerData: any) => {
+    registerIpcHandler(IPC.Db.CreateCustomer, async (_event, customerData) => {
       try {
         const customer = createCustomer(customerData);
         return { success: true, customer };
@@ -101,7 +101,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.UpdateCustomer, async (_event, payload: any) => {
+    registerIpcHandler(IPC.Db.UpdateCustomer, async (_event, payload) => {
       try {
         const updatedCustomer = updateCustomer(payload?.id, payload?.customerData);
         return { success: Boolean(updatedCustomer), customer: updatedCustomer };
@@ -113,10 +113,9 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.DeleteCustomer, async (_event, customerId: number) => {
+    registerIpcHandler(IPC.Db.DeleteCustomer, async (_event, customerId: number) => {
       try {
-        const result = deleteCustomer(customerId);
-        return { success: result };
+        return deleteCustomers([customerId]);
       } catch (error) {
         logger.error(`IPC Error deleting customer ${customerId}:`, error);
         return { success: false, error: (error as Error).message };
@@ -125,7 +124,18 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.GetDealsForCustomer, async (_event, customerId: number) => {
+    registerIpcHandler(IPC.Db.DeleteCustomers, async (_event, { customerIds }) => {
+      try {
+        return deleteCustomers(customerIds);
+      } catch (error) {
+        logger.error('IPC Error deleting customers:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    }, { logger })
+  );
+
+  disposers.push(
+    registerIpcHandler(IPC.Db.GetDealsForCustomer, async (_event, customerId: number) => {
       try {
         return getDealsForCustomer(customerId);
       } catch (error) {
@@ -136,7 +146,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Db.GetTasksForCustomer, async (_event, customerId: number) => {
+    registerIpcHandler(IPC.Db.GetTasksForCustomer, async (_event, customerId: number) => {
       try {
         return getTasksForCustomer(customerId);
       } catch (error) {
@@ -148,7 +158,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
 
   // --- Products ---
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.GetAll, async () => {
+    registerIpcHandler(IPC.Products.GetAll, async () => {
       try {
         return getAllProducts();
       } catch (error) {
@@ -159,7 +169,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.Search, async (_event: IpcMainInvokeEvent, query: string = '', limit: number = 20) => {
+    registerIpcHandler(IPC.Products.Search, async (_event: IpcMainInvokeEvent, { query, limit = 20 }) => {
       try {
         return searchProducts(query, limit);
       } catch (error) {
@@ -170,7 +180,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.GetById, async (_event, productId: number) => {
+    registerIpcHandler(IPC.Products.GetById, async (_event, productId: number) => {
       try {
         return getProductById(productId);
       } catch (error) {
@@ -181,7 +191,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.Create, async (_event, productData: any) => {
+    registerIpcHandler(IPC.Products.Create, async (_event, productData) => {
       try {
         const result = createProduct(productData);
         return { success: true, productId: result.lastInsertRowid };
@@ -193,7 +203,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.Update, async (_event, payload: any) => {
+    registerIpcHandler(IPC.Products.Update, async (_event, payload) => {
       try {
         const { id, productData } = payload ?? {};
         const result = updateProduct(id, productData);
@@ -206,7 +216,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
   );
 
   disposers.push(
-    registerIpcHandler(IPCChannels.Products.Delete, async (_event, productId: number) => {
+    registerIpcHandler(IPC.Products.Delete, async (_event, productId: number) => {
       try {
         const result = deleteProduct(productId);
         return { success: result.changes > 0, changes: result.changes };

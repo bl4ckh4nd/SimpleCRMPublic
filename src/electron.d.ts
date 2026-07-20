@@ -22,7 +22,7 @@ interface WindowState {
 
 interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
-  info?: unknown;
+  info?: any;
   error?: string;
 }
 
@@ -37,11 +37,11 @@ declare global {
             getWindowState?: () => Promise<WindowState>;
             onWindowStateChange?: (callback: (state: WindowState) => void) => () => void;
             updates?: {
-              checkForUpdates: () => Promise<unknown>;
+              checkForUpdates: () => Promise<any>;
               getStatus: () => Promise<UpdateStatus>;
-              installUpdate: () => Promise<unknown>;
+              installUpdate: () => Promise<any>;
               onStatusChange: (callback: (status: UpdateStatus) => void) => () => void;
-              onDownloadProgress: (callback: (progress: unknown) => void) => () => void;
+              onDownloadProgress: (callback: (progress: any) => void) => () => void;
             };
         };
     }
