@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Calendar, dateFnsLocalizer, Views, EventProps, View, SlotInfo } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer, Views, EventProps, View, SlotInfo, type CalendarProps } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import type { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { format } from 'date-fns/format';
@@ -55,7 +56,9 @@ const localizer = dateFnsLocalizer({
 
 // Create DnD calendar component
 const DnDCalendar = withDragAndDrop<CalendarRBCEvent>(Calendar);
-const TypedDnDCalendar = DnDCalendar as React.ComponentType<any>;
+const TypedDnDCalendar = DnDCalendar as React.ComponentType<
+  CalendarProps<CalendarRBCEvent> & withDragAndDropProps<CalendarRBCEvent>
+>;
 
 // Constants for retry logic
 const MAX_FETCH_RETRIES = 3;
@@ -71,7 +74,7 @@ type CalendarWriteEvent = Partial<CalendarEvent & CalendarRBCEvent> & {
 
 interface DatabaseAPI {
   getCalendarEvents: () => Promise<CalendarEvent[]>;
-  addCalendarEvent: (event: CalendarWriteEvent) => Promise<any>;
+  addCalendarEvent: (event: CalendarWriteEvent) => Promise<unknown>;
   updateCalendarEvent: (event: CalendarWriteEvent) => Promise<void>;
   deleteCalendarEvent: (id: number) => Promise<void>;
 }
@@ -255,7 +258,7 @@ export default function CalendarPage() {
         }
         return await window.electronAPI.invoke(
           IPCChannels.Calendar.GetCalendarEvents
-        ) as any as CalendarEvent[];
+        ) as unknown as CalendarEvent[];
       } catch (error) {
         console.error('Error fetching calendar events:', error);
         toast({
@@ -272,7 +275,7 @@ export default function CalendarPage() {
         console.log('Calendar event data being sent to SQLite:', JSON.stringify(event, null, 2));
 
         // Convert date objects to ISO strings to avoid SQLite binding issues
-        const sqliteCompatibleEvent: Record<string, any> = {
+        const sqliteCompatibleEvent: Record<string, unknown> = {
           title: event.title,
           description: event.description || '',
           // Ensure start and end are Dates before calling toISOString()
@@ -311,7 +314,7 @@ export default function CalendarPage() {
         console.log('Updating calendar event:', JSON.stringify(event, null, 2));
 
         // Convert date objects to ISO strings
-        const sqliteCompatibleEvent: Record<string, any> = {
+        const sqliteCompatibleEvent: Record<string, unknown> = {
           id: event.id,
           title: event.title,
           description: event.description || '',
@@ -888,8 +891,8 @@ export default function CalendarPage() {
               dayPropGetter={(date: Date) => ({
                 className: `rbc-day ${date.getDay() === 0 || date.getDay() === 6 ? 'rbc-weekend' : ''}`,
               })}
-              onEventDrop={handleEventDrop as any}
-              onEventResize={handleEventResize as any}
+              onEventDrop={handleEventDrop}
+              onEventResize={handleEventResize}
               messages={{
                 next: "Weiter",
                 previous: "Zurück",

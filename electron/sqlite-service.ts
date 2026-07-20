@@ -40,12 +40,79 @@ import {
 import { Product, DealProduct } from './types';
 // Optional: import Knex from 'knex';
 
+type SqlScalar = string | number | bigint | Buffer | null;
+type SqlParams = Record<string, SqlScalar>;
+type CustomFieldValue = string | number | boolean | null;
+
+interface CustomFieldWrite {
+    name?: string;
+    label?: string;
+    type?: string;
+    required?: boolean;
+    options?: string | unknown[];
+    default_value?: string | null;
+    placeholder?: string | null;
+    description?: string | null;
+    display_order?: number;
+    active?: boolean;
+}
+
+export interface CustomerRecord extends Record<string, unknown> {
+    id: number;
+    jtl_kKunde?: number | null;
+    name?: string | null;
+    firstName?: string | null;
+    company?: string | null;
+    company_name?: string | null;
+    is_company?: boolean | number | null;
+    contact_person_name?: string | null;
+    salutation?: string | null;
+    street?: string | null;
+    zip?: string | null;
+    city?: string | null;
+    country?: string | null;
+    country_iso?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    notes?: string | null;
+    customerNumber?: string | null;
+    customFields?: Record<string, CustomFieldValue>;
+}
+
+interface CustomerWrite extends Record<string, unknown> {
+    customFields?: Record<string, unknown>;
+    zip?: string;
+    status?: string;
+    jtl_kKunde?: number | null;
+}
+
+interface DealWrite extends Record<string, unknown> {
+    customer_id: number;
+    name: string;
+    value?: number;
+    value_calculation_method?: string;
+    stage?: string;
+    notes?: string;
+    expected_close_date?: string | null;
+    last_modified?: string;
+}
+
+interface ProductSyncWrite extends Record<string, unknown> {
+    jtl_kArtikel: number;
+    sku?: string | null;
+    name: string;
+    description?: string | null;
+    price: number;
+    isActive: boolean | number;
+    jtl_dateCreated?: string | null;
+}
+
 const dbPath = path.join(app.getPath('userData'), 'database.sqlite');
 let db: Database.Database;
 // Optional: let knex: Knex.Knex;
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-const sqliteVerboseLogger = (...args: any[]) => {
+const sqliteVerboseLogger = (...args: unknown[]) => {
     if (isDevelopment) {
         console.debug('[SQLite]', ...args);
     }
@@ -210,7 +277,7 @@ function runMigrations() {
         const columns = checkColumnStmt.all();
 
         // Check if value_calculation_method column exists
-        const hasValueCalculationMethod = columns.some((col: any) => col.name === 'value_calculation_method');
+        const hasValueCalculationMethod = (columns as Array<{ name: string }>).some((col) => col.name === 'value_calculation_method');
 
         if (!hasValueCalculationMethod) {
             console.log('Adding value_calculation_method column to deals table...');
@@ -224,7 +291,7 @@ function runMigrations() {
         // Migration: Add task_id column to calendar events table if it doesn't exist
         const calendarColumnsStmt = db.prepare(`PRAGMA table_info(${CALENDAR_EVENTS_TABLE})`);
         const calendarColumns = calendarColumnsStmt.all();
-        const hasTaskId = calendarColumns.some((col: any) => col.name === 'task_id');
+        const hasTaskId = (calendarColumns as Array<{ name: string }>).some((col) => col.name === 'task_id');
 
         if (!hasTaskId) {
             console.log('Adding task_id column to calendar events table...');
@@ -264,7 +331,7 @@ function runMigrations() {
 
         // Migration: Add customerNumber column to customers table if it doesn't exist
         const customerColumns = db.prepare(`PRAGMA table_info(${CUSTOMERS_TABLE})`).all();
-        const hasCustomerNumber = customerColumns.some((col: any) => col.name === 'customerNumber');
+        const hasCustomerNumber = (customerColumns as Array<{ name: string }>).some((col) => col.name === 'customerNumber');
 
         if (!hasCustomerNumber) {
             console.log('Adding customerNumber column to customers table...');
@@ -274,7 +341,7 @@ function runMigrations() {
 
         // Migration: Add snoozed_until column to tasks table if it doesn't exist
         const taskColsForSnooze = db.prepare(`PRAGMA table_info(${TASKS_TABLE})`).all();
-        const hasSnoozedUntil = taskColsForSnooze.some((col: any) => col.name === 'snoozed_until');
+        const hasSnoozedUntil = (taskColsForSnooze as Array<{ name: string }>).some((col) => col.name === 'snoozed_until');
 
         if (!hasSnoozedUntil) {
             console.log('Adding snoozed_until column to tasks table...');
@@ -348,7 +415,7 @@ export function getCustomFieldById(id: number) {
 }
 
 // Create a new custom field
-export function createCustomField(fieldData: any) {
+export function createCustomField(fieldData: CustomFieldWrite) {
     const now = new Date().toISOString();
     const stmt = getDb().prepare(`
         INSERT INTO ${CUSTOMER_CUSTOM_FIELDS_TABLE} (
@@ -386,7 +453,7 @@ export function createCustomField(fieldData: any) {
 }
 
 // Update an existing custom field
-export function updateCustomField(id: number, fieldData: any) {
+export function updateCustomField(id: number, fieldData: CustomFieldWrite) {
     const now = new Date().toISOString();
     const existingField = getCustomFieldById(id);
 
@@ -394,7 +461,7 @@ export function updateCustomField(id: number, fieldData: any) {
         throw new Error(`Custom field with ID ${id} not found`);
     }    // Build update assignments dynamically based on provided data
     const updateAssignments: string[] = [];
-    const params: any = { id, now };
+    const params: SqlParams = { id, now };
 
     // Handle each field that might be updated
     if (fieldData.name !== undefined) {
@@ -534,7 +601,7 @@ export function getCustomFieldValuesForAllCustomers(): Map<number, CustomFieldVa
 }
 
 // Set a custom field value for a customer
-export function setCustomFieldValue(customerId: number, fieldId: number, value: any) {
+export function setCustomFieldValue(customerId: number, fieldId: number, value: unknown) {
     const now = new Date().toISOString();
 
     // Check if the field exists
@@ -653,14 +720,14 @@ interface CustomFieldValueRecord {
 // --- Customer Operations ---
 
 // Lightweight function for dropdown population - no custom fields
-export function getCustomersForDropdown(): any[] {
+export function getCustomersForDropdown(): Array<Pick<CustomerRecord, 'id' | 'name' | 'customerNumber'>> {
     const stmt = getDb().prepare(`
         SELECT id, name, firstName, company, customerNumber 
         FROM ${CUSTOMERS_TABLE} 
         ORDER BY name
         LIMIT 100
     `);
-    return stmt.all().map((customer: any) => ({
+    return (stmt.all() as CustomerRecord[]).map((customer) => ({
         id: customer.id,
         name: customer.name || customer.firstName || customer.company || 'Unknown',
         customerNumber: customer.customerNumber
@@ -668,7 +735,7 @@ export function getCustomersForDropdown(): any[] {
 }
 
 // Search customers with limit for autocomplete/combobox
-export function searchCustomers(query: string = '', limit: number = 20): any[] {
+export function searchCustomers(query: string = '', limit: number = 20): CustomerRecord[] {
     console.log(`🔍 [SQLite] searchCustomers() called with query: "${query}", limit: ${limit}`);
     console.log(`🔍 [SQLite] SearchCustomers call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
     
@@ -678,7 +745,7 @@ export function searchCustomers(query: string = '', limit: number = 20): any[] {
         FROM ${CUSTOMERS_TABLE}
     `;
     
-    const params: any[] = [];
+    const params: Array<string | number> = [];
     
     if (query && query.trim() !== '') {
         console.log(`🔍 [SQLite] Building search query with term: "${query}"`);
@@ -727,7 +794,7 @@ export function searchCustomers(query: string = '', limit: number = 20): any[] {
         console.debug(`🔍 [SQLite] searchCustomers() found ${results.length} customers in ${loadTime}ms`);
     }
     
-    return results.map((customer: any) => ({
+    return (results as CustomerRecord[]).map((customer) => ({
         id: customer.id,
         name: customer.name || customer.firstName || customer.company || 'Unknown',
         customerNumber: customer.customerNumber,
@@ -735,14 +802,14 @@ export function searchCustomers(query: string = '', limit: number = 20): any[] {
     }));
 }
 
-export function getAllCustomers(includeCustomFields: boolean = false): any[] {
+export function getAllCustomers(includeCustomFields: boolean = false): CustomerRecord[] {
     if (isDevelopment) {
         console.debug(`🔍 [SQLite] getAllCustomers() called with includeCustomFields=${includeCustomFields}`);
     }
     
     const startTime = Date.now();
     const stmt = getDb().prepare(`SELECT * FROM ${CUSTOMERS_TABLE} ORDER BY name`);
-    const customers = stmt.all();
+    const customers = stmt.all() as CustomerRecord[];
     if (isDevelopment) {
         console.debug(`🔍 [SQLite] Loaded ${customers.length} customers in ${Date.now() - startTime}ms`);
     }
@@ -769,7 +836,7 @@ export function getAllCustomers(includeCustomFields: boolean = false): any[] {
     const customFieldValuesByCustomer = getCustomFieldValuesForAllCustomers();
 
     // For each customer, attach custom field values from the batch-loaded data
-    return customers.map((customer: any) => {
+    return customers.map((customer) => {
         if (!customer || typeof customer.id === 'undefined') {
             return customer; // Skip if customer is invalid
         }
@@ -777,10 +844,10 @@ export function getAllCustomers(includeCustomFields: boolean = false): any[] {
         const customFieldValues = customFieldValuesByCustomer.get(customer.id) || [];
 
         // Create a customFields object with field name as key and value as value
-        const customFields: Record<string, any> = {};
+        const customFields: Record<string, CustomFieldValue> = {};
         customFieldValues.forEach((field: CustomFieldValueRecord) => {
             // Parse value based on field type
-            let parsedValue: any = field.value;
+            let parsedValue: CustomFieldValue = field.value;
             if (field.type === 'number' && parsedValue !== null) {
                 parsedValue = parseFloat(parsedValue);
             } else if (field.type === 'boolean' && parsedValue !== null) {
@@ -804,7 +871,7 @@ export function getAllCustomers(includeCustomFields: boolean = false): any[] {
 }
 
 // Add a function to get a single customer by ID
-export function getCustomerById(id: number | string): any {
+export function getCustomerById(id: number | string): CustomerRecord | null {
     const stmt = getDb().prepare(`
         SELECT id, jtl_kKunde, customerNumber, name, firstName, company, email, phone, mobile,
                street, city, country, status, notes, affiliateLink,
@@ -813,7 +880,7 @@ export function getCustomerById(id: number | string): any {
         FROM ${CUSTOMERS_TABLE}
         WHERE id = ?
     `);
-    const customer = stmt.get(id) as { id: number; [key: string]: any };
+    const customer = stmt.get(id) as CustomerRecord | undefined;
 
     if (!customer) {
         return null;
@@ -823,10 +890,10 @@ export function getCustomerById(id: number | string): any {
     const customFieldValues = getCustomFieldValuesForCustomer(customer.id) as CustomFieldValueRecord[];
 
     // Create a customFields object with field name as key and value as value
-    const customFields: Record<string, any> = {};
+    const customFields: Record<string, CustomFieldValue> = {};
     customFieldValues.forEach((field: CustomFieldValueRecord) => {
         // Parse value based on field type
-        let parsedValue: any = field.value;
+        let parsedValue: CustomFieldValue = field.value;
         if (field.type === 'number' && parsedValue !== null) {
             parsedValue = parseFloat(parsedValue);
         } else if (field.type === 'boolean' && parsedValue !== null) {
@@ -851,7 +918,7 @@ export function getCustomerById(id: number | string): any {
 }
 
 // Example: Upsert using raw SQL (adapt based on actual JTL fields)
-export function upsertCustomer(customerData: any): void {
+export function upsertCustomer(customerData: CustomerWrite): void {
     const stmt = getDb().prepare(`
         INSERT INTO ${CUSTOMERS_TABLE} (
             jtl_kKunde, name, firstName, company, email, phone, mobile,
@@ -894,7 +961,7 @@ export function upsertCustomer(customerData: any): void {
 }
 
 // Add a function to create a new customer
-export function createCustomer(customerData: any): any {
+export function createCustomer(customerData: CustomerWrite): CustomerRecord | null {
     const now = new Date().toISOString();
 
     // Extract custom fields from customer data
@@ -912,7 +979,7 @@ export function createCustomer(customerData: any): any {
         '@affiliateLink', '@now'
     ];
 
-    const dataToInsert: any = {
+    const dataToInsert: Record<string, unknown> = {
         ...standardCustomerData,
         now: now,
         status: standardCustomerData.status || 'Active'
@@ -968,7 +1035,7 @@ export function createCustomer(customerData: any): any {
     }
 }
 
-export function updateCustomer(id: number, customerData: any): any {
+export function updateCustomer(id: number, customerData: CustomerWrite): CustomerRecord | null {
     const now = new Date().toISOString();
 
     // Extract custom fields from customer data
@@ -999,7 +1066,7 @@ export function updateCustomer(id: number, customerData: any): any {
         `;
 
         const stmt = db.prepare(query);
-        const paramsToRun: any = {
+        const paramsToRun: Record<string, unknown> = {
             ...otherCustomerData,
             id: id,
             now: now
@@ -1175,7 +1242,7 @@ export function updateProduct(id: number, productData: Partial<Omit<Product, 'id
     `);
 
     // Ensure isActive is converted if present
-    const dataToRun: any = { ...productData, id: id, now: now };
+    const dataToRun: Record<string, unknown> = { ...productData, id: id, now: now };
     if (productData.isActive !== undefined) {
         dataToRun.isActive = productData.isActive ? 1 : 0;
     }
@@ -1199,7 +1266,7 @@ export function deleteProduct(id: number): Database.RunResult {
 }
 
 // Upsert for SYNCING from JTL (adjust mapping based on sync-service)
-export function upsertProduct(productData: any): void {
+export function upsertProduct(productData: ProductSyncWrite): void {
     const now = new Date().toISOString();
     const stmt = getDb().prepare(`
         INSERT INTO ${PRODUCTS_TABLE} (
@@ -1393,16 +1460,16 @@ interface CalendarEventData {
     description?: string;
     start_date: string; // ISO String
     end_date: string; // ISO String
-    all_day: number; // 0 or 1
+    all_day: number | boolean; // Converted to 0/1 before persistence
     color_code?: string;
     event_type?: string;
-    recurrence_rule?: string; // Store as JSON string
+    recurrence_rule?: string | object | null; // Stored as JSON string
     task_id?: number | null; // Optional link to a task row
 }
 
-export function getAllCalendarEvents(startDate?: string, endDate?: string): any[] { // Return type matches structure from DB
+export function getAllCalendarEvents(startDate?: string, endDate?: string): CalendarEventData[] {
     let query = `SELECT * FROM ${CALENDAR_EVENTS_TABLE}`;
-    const params: any[] = [];
+    const params: string[] = [];
 
     if (startDate || endDate) {
         query += ' WHERE';
@@ -1422,8 +1489,8 @@ export function getAllCalendarEvents(startDate?: string, endDate?: string): any[
     const stmt = getDb().prepare(query);
     const events = params.length > 0 ? stmt.all(...params) : stmt.all();
 
-    // Parse recurrence_rule JSON for any events
-    return events.map((event: any) => {
+    // Parse recurrence_rule JSON for unknown events
+    return (events as CalendarEventData[]).map((event) => {
         if (event.recurrence_rule && typeof event.recurrence_rule === 'string') {
             try {
                 event.recurrence_rule = JSON.parse(event.recurrence_rule);
@@ -1435,13 +1502,13 @@ export function getAllCalendarEvents(startDate?: string, endDate?: string): any[
     });
 }
 
-export function createCalendarEvent(eventData: any): Database.RunResult {
+export function createCalendarEvent(eventData: CalendarEventData): Database.RunResult {
     console.log('Creating calendar event with data:', eventData);
     try {
         const now = new Date().toISOString();
 
         // Prepare a clean object with only the required fields
-        const cleanData: Record<string, any> = {
+        const cleanData: Record<string, SqlScalar> = {
             title: String(eventData.title || ''),
             description: String(eventData.description || ''),
             start_date: String(eventData.start_date || now),
@@ -1484,7 +1551,7 @@ export function updateCalendarEvent(id: number, eventData: Partial<Omit<Calendar
     console.log('Updating calendar event with data:', id, eventData);
     try {
         const now = new Date().toISOString();
-        const cleanData: Record<string, any> = { ...eventData, id, now };
+        const cleanData: Record<string, unknown> = { ...eventData, id, now };
 
         // Convert boolean to integer for SQLite
         if (typeof eventData.all_day === 'boolean') {
@@ -1546,7 +1613,7 @@ export function getAllDeals(
   limit: number = 100,
   offset: number = 0,
   filter: { stage?: string; query?: string } = {}
-): any[] {
+): unknown[] {
   let sql = `
     SELECT d.*, c.name as customer_name
     FROM ${DEALS_TABLE} d
@@ -1554,7 +1621,7 @@ export function getAllDeals(
     WHERE 1=1
   `;
 
-  const params: any[] = [];
+  const params: Array<string | number> = [];
 
   // Add stage filter if provided
   if (filter.stage) {
@@ -1576,7 +1643,7 @@ export function getAllDeals(
   return stmt.all(...params);
 }
 
-export function getDealById(dealId: number): any {
+export function getDealById(dealId: number): unknown {
   const stmt = getDb().prepare(`
     SELECT d.*, c.name as customer_name
     FROM ${DEALS_TABLE} d
@@ -1586,7 +1653,7 @@ export function getDealById(dealId: number): any {
   return stmt.get(dealId);
 }
 
-export function createDeal(dealData: any): { success: boolean; id?: number; error?: string } {
+export function createDeal(dealData: DealWrite): { success: boolean; id?: number; error?: string } {
   try {
     // Prepare timestamp
     const now = new Date().toISOString();
@@ -1632,7 +1699,7 @@ export function createDeal(dealData: any): { success: boolean; id?: number; erro
   }
 }
 
-export function updateDeal(dealId: number, dealData: any): { success: boolean; error?: string } {
+export function updateDeal(dealId: number, dealData: Partial<DealWrite>): { success: boolean; error?: string } {
   try {
     // Update last_modified timestamp
     dealData.last_modified = new Date().toISOString();
@@ -1669,7 +1736,7 @@ export function updateDeal(dealId: number, dealData: any): { success: boolean; e
 export function updateDealStage(dealId: number, newStage: string): { success: boolean; error?: string } {
   try {
     // Get old stage for activity log
-    const deal = getDb().prepare(`SELECT stage, customer_id FROM ${DEALS_TABLE} WHERE id = ?`).get(dealId) as any;
+    const deal = getDb().prepare(`SELECT stage, customer_id FROM ${DEALS_TABLE} WHERE id = ?`).get(dealId) as { stage: string; customer_id: number } | undefined;
     const oldStage = deal?.stage;
 
     const now = new Date().toISOString();
@@ -1703,7 +1770,7 @@ export function updateDealStage(dealId: number, newStage: string): { success: bo
   }
 }
 
-export function getTasksForDeal(dealId: number): any[] {
+export function getTasksForDeal(dealId: number): unknown[] {
   // Returns all tasks for the customer associated with this deal
   const stmt = getDb().prepare(`
     SELECT t.*, c.name as customer_name,
@@ -1730,7 +1797,7 @@ export function deleteDeal(dealId: number): { success: boolean; error?: string }
 }
 
 // --- Deal Operations for Customer ---
-export function getDealsForCustomer(customerId: number): any[] {
+export function getDealsForCustomer(customerId: number): unknown[] {
     // This assumes a 'deals' table with a customer_id field
     const stmt = getDb().prepare(`
         SELECT * FROM deals
@@ -1741,7 +1808,7 @@ export function getDealsForCustomer(customerId: number): any[] {
 }
 
 // --- Task Operations for Customer ---
-export function getTasksForCustomer(customerId: number): any[] {
+export function getTasksForCustomer(customerId: number): unknown[] {
     // This assumes a 'tasks' table with a customer_id field
     const stmt = getDb().prepare(`
         SELECT t.*,
@@ -1916,7 +1983,7 @@ export function getDashboardStats(): {
 /**
  * Get recent customers with basic information
  */
-export function getRecentCustomers(limit: number = 5): any[] {
+export function getRecentCustomers(limit: number = 5): unknown[] {
     try {
         const stmt = getDb().prepare(`
             SELECT id, customerNumber, name, email, dateAdded, jtl_dateCreated
@@ -1934,7 +2001,7 @@ export function getRecentCustomers(limit: number = 5): any[] {
 /**
  * Get upcoming tasks with customer information
  */
-export function getUpcomingTasks(limit: number = 5): any[] {
+export function getUpcomingTasks(limit: number = 5): unknown[] {
     try {
         const stmt = getDb().prepare(`
             SELECT t.id, t.title, t.priority, t.customer_id, t.due_date,
@@ -1985,7 +2052,7 @@ export function createActivityLog(data: {
     }
 }
 
-export function getActivityLogForCustomer(customerId: number, limit: number = 50, offset: number = 0): any[] {
+export function getActivityLogForCustomer(customerId: number, limit: number = 50, offset: number = 0): unknown[] {
     const stmt = getDb().prepare(`
         SELECT * FROM ${ACTIVITY_LOG_TABLE}
         WHERE customer_id = ?
@@ -1995,7 +2062,7 @@ export function getActivityLogForCustomer(customerId: number, limit: number = 50
     return stmt.all(customerId, limit, offset);
 }
 
-export function getActivityLogForDeal(dealId: number, limit: number = 50, offset: number = 0): any[] {
+export function getActivityLogForDeal(dealId: number, limit: number = 50, offset: number = 0): unknown[] {
     const stmt = getDb().prepare(`
         SELECT * FROM ${ACTIVITY_LOG_TABLE}
         WHERE deal_id = ?
@@ -2005,12 +2072,12 @@ export function getActivityLogForDeal(dealId: number, limit: number = 50, offset
     return stmt.all(dealId, limit, offset);
 }
 
-export function getTimeline(customerId: number, filter?: string, limit: number = 50, offset: number = 0): any[] {
+export function getTimeline(customerId: number, filter?: string, limit: number = 50, offset: number = 0): unknown[] {
     let sql = `
         SELECT * FROM ${ACTIVITY_LOG_TABLE}
         WHERE customer_id = ?
     `;
-    const params: any[] = [customerId];
+    const params: unknown[] = [customerId];
 
     if (filter === 'tasks') {
         sql += ` AND activity_type IN ('task_created', 'task_completed')`;
@@ -2074,7 +2141,13 @@ export function getFollowUpQueueCounts(): {
         today, weekFromNow, nowISO,
         fourteenDaysAgo,
         weekFromNow, sevenDaysAgo
-    ) as any;
+    ) as {
+        heute: number;
+        ueberfaellig: number;
+        dieseWoche: number;
+        stagnierend: number;
+        highValueRisk: number;
+    };
 
     return {
         heute: row.heute ?? 0,
@@ -2090,15 +2163,15 @@ export function getFollowUpItems(
     filters: { query?: string; priority?: string } = {},
     limit: number = 100,
     offset: number = 0
-): any[] {
+): Array<Record<string, unknown> & { reason: string }> {
     const today = new Date().toISOString().slice(0, 10);
     const weekFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const nowISO = new Date().toISOString();
 
-    let sql = '';
-    const params: any[] = [];
+    let sql: string;
+    const params: SqlScalar[] = [];
 
     if (queue === 'stagnierende_deals' || queue === 'high_value_risk') {
         // Deal-based queues
@@ -2206,24 +2279,24 @@ export function getFollowUpItems(
 
     const stmt = getDb().prepare(sql);
     // Add reason field after query
-    const items = stmt.all(...params);
-    return (items as any[]).map(item => ({
+    const items = stmt.all(...params) as Array<Record<string, unknown>>;
+    return items.map(item => ({
         ...item,
         reason: getQueueReason(queue, item),
     }));
 }
 
-function getQueueReason(queue: string, item: any): string {
+function getQueueReason(queue: string, item: Record<string, unknown>): string {
     if (queue === 'heute') return 'Heute fällig';
     if (queue === 'ueberfaellig') {
-        const daysOverdue = item.due_date
+        const daysOverdue = typeof item.due_date === 'string'
             ? Math.floor((Date.now() - new Date(item.due_date).getTime()) / (1000 * 60 * 60 * 24))
             : 0;
         return daysOverdue > 1 ? `${daysOverdue} Tage überfällig` : '1 Tag überfällig';
     }
     if (queue === 'diese_woche') return 'Diese Woche fällig';
     if (queue === 'stagnierende_deals') {
-        const daysSince = item.snoozed_until
+        const daysSince = typeof item.snoozed_until === 'string'
             ? Math.floor((Date.now() - new Date(item.snoozed_until).getTime()) / (1000 * 60 * 60 * 24))
             : 0;
         return `Deal stagniert (${daysSince} Tage)`;
@@ -2250,7 +2323,7 @@ export function snoozeTask(taskId: number, snoozedUntil: string): { success: boo
 
 // --- Saved Views ---
 
-export function getSavedViews(): any[] {
+export function getSavedViews(): unknown[] {
     const stmt = getDb().prepare(`
         SELECT * FROM ${SAVED_VIEWS_TABLE}
         ORDER BY display_order ASC, created_at ASC

@@ -1,13 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
 jest.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to }: any) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: unknown) => <a href={to}>{children}</a>,
 }));
 
 jest.mock('@/lib/utils', () => ({
-  cn: (...c: any[]) => c.filter(Boolean).join(' '),
+  cn: (...c: unknown[]) => c.filter(Boolean).join(' '),
 }));
 
 const mockDashboardService = {
@@ -22,23 +21,23 @@ jest.mock('@/services/data/dashboardService', () => ({
 
 // Suppress skeleton/card/button imports
 jest.mock('@/components/ui/skeleton', () => ({
-  Skeleton: ({ className }: any) => <div data-testid="skeleton" className={className} />,
+  Skeleton: ({ className }: unknown) => <div data-testid="skeleton" className={className} />,
 }));
 
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, variant, asChild }: any) =>
+  Button: ({ children, onClick, asChild }: { children: React.ReactNode; onClick?: () => void; asChild?: boolean }) =>
     asChild
       ? <div>{children}</div>
       : <button onClick={onClick}>{children}</button>,
 }));
 
 jest.mock('@/components/ui/card', () => ({
-  Card: ({ children }: any) => <div>{children}</div>,
-  CardContent: ({ children }: any) => <div>{children}</div>,
-  CardDescription: ({ children }: any) => <div>{children}</div>,
-  CardFooter: ({ children }: any) => <div>{children}</div>,
-  CardHeader: ({ children }: any) => <div>{children}</div>,
-  CardTitle: ({ children }: any) => <div>{children}</div>,
+  Card: ({ children }: unknown) => <div>{children}</div>,
+  CardContent: ({ children }: unknown) => <div>{children}</div>,
+  CardDescription: ({ children }: unknown) => <div>{children}</div>,
+  CardFooter: ({ children }: unknown) => <div>{children}</div>,
+  CardHeader: ({ children }: unknown) => <div>{children}</div>,
+  CardTitle: ({ children }: unknown) => <div>{children}</div>,
 }));
 
 import DashboardPage from '@/app/page';

@@ -102,13 +102,21 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
+type ChartPayloadItem = {
+  dataKey?: string | number
+  name?: string | number
+  value?: string | number
+  color?: string
+  payload?: Record<string, unknown> & { fill?: string }
+}
+
 type ChartTooltipContentProps = React.ComponentProps<"div"> & {
   active?: boolean
-  payload?: any[]
+  payload?: ChartPayloadItem[]
   label?: React.ReactNode
-  labelFormatter?: (...args: any[]) => React.ReactNode
+  labelFormatter?: (value: React.ReactNode, payload: ChartPayloadItem[]) => React.ReactNode
   labelClassName?: string
-  formatter?: (...args: any[]) => React.ReactNode
+  formatter?: (value: string | number, name: string | number, item: ChartPayloadItem, index: number, payload?: Record<string, unknown>) => React.ReactNode
   color?: string
   hideLabel?: boolean
   hideIndicator?: boolean
@@ -196,7 +204,7 @@ const ChartTooltipContent = React.forwardRef<
           {payload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
-            const indicatorColor = color || item.payload.fill || item.color
+            const indicatorColor = color || item.payload?.fill || item.color
 
             return (
               <div
@@ -267,7 +275,7 @@ ChartTooltipContent.displayName = "ChartTooltip"
 const ChartLegend = RechartsPrimitive.Legend
 
 type ChartLegendContentProps = React.ComponentProps<"div"> & {
-  payload?: any[]
+  payload?: ChartPayloadItem[]
   verticalAlign?: "top" | "middle" | "bottom"
   hideIcon?: boolean
   nameKey?: string
@@ -330,7 +338,7 @@ ChartLegendContent.displayName = "ChartLegend"
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
-  payload: any,
+  payload: unknown,
   key: string
 ) {
   if (typeof payload !== "object" || payload === null) {

@@ -9,61 +9,56 @@ import {
   saveDataToDesktop,
 } from '@/lib/electron-utils';
 
-// Helper to set up a mock window.electron
-function setWindowElectron(api: Record<string, any> | undefined) {
-  (global as any).window = api !== undefined ? { electron: api } : { electron: undefined };
-}
-
 describe('isElectron', () => {
   afterEach(() => {
     // Restore jsdom's window (no .electron property)
-    delete (window as any).electron;
+    delete (window as unknown).electron;
   });
 
   test('returns false when window.electron is undefined', () => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     expect(isElectron()).toBe(false);
   });
 
   test('returns true when window.electron is set', () => {
-    (window as any).electron = { send: jest.fn() };
+    (window as unknown).electron = { send: jest.fn() };
     expect(isElectron()).toBe(true);
-    delete (window as any).electron;
+    delete (window as unknown).electron;
   });
 });
 
 describe('electronAPI', () => {
   afterEach(() => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
   });
 
   test('returns null when not in Electron', () => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     expect(electronAPI()).toBeNull();
   });
 
   test('returns window.electron when in Electron', () => {
     const api = { send: jest.fn(), receive: jest.fn() };
-    (window as any).electron = api;
+    (window as unknown).electron = api;
     expect(electronAPI()).toBe(api);
   });
 });
 
 describe('sendToMain', () => {
   afterEach(() => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     jest.restoreAllMocks();
   });
 
   test('calls api.send when in Electron', () => {
     const sendMock = jest.fn();
-    (window as any).electron = { send: sendMock };
+    (window as unknown).electron = { send: sendMock };
     sendToMain('test-channel', { foo: 'bar' });
     expect(sendMock).toHaveBeenCalledWith('test-channel', { foo: 'bar' });
   });
 
   test('logs to console when not in Electron', () => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     sendToMain('some-channel', 42);
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('some-channel'), 42);
@@ -72,20 +67,20 @@ describe('sendToMain', () => {
 
 describe('receiveFromMain', () => {
   afterEach(() => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     jest.restoreAllMocks();
   });
 
   test('calls api.receive when in Electron', () => {
     const receiveMock = jest.fn();
-    (window as any).electron = { receive: receiveMock };
+    (window as unknown).electron = { receive: receiveMock };
     const cb = jest.fn();
     receiveFromMain('reply-channel', cb);
     expect(receiveMock).toHaveBeenCalledWith('reply-channel', cb);
   });
 
   test('logs to console when not in Electron', () => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     receiveFromMain('reply-channel', jest.fn());
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('reply-channel'));
@@ -94,31 +89,31 @@ describe('receiveFromMain', () => {
 
 describe('getAppInfo', () => {
   afterEach(() => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
   });
 
   test('returns web fallback when not in Electron', () => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     const info = getAppInfo();
     expect(info).toEqual({ name: 'SimpleCRM (Web)', version: 'web' });
   });
 
   test('returns api.appInfo when in Electron', () => {
     const appInfo = { name: 'SimpleCRM', version: '1.2.3' };
-    (window as any).electron = { appInfo };
+    (window as unknown).electron = { appInfo };
     expect(getAppInfo()).toEqual(appInfo);
   });
 });
 
 describe('saveDataToDesktop (Electron path)', () => {
   afterEach(() => {
-    delete (window as any).electron;
+    delete (window as unknown).electron;
     jest.restoreAllMocks();
   });
 
   test('calls api.send with save-data channel when in Electron and returns true', () => {
     const sendMock = jest.fn();
-    (window as any).electron = { send: sendMock };
+    (window as unknown).electron = { send: sendMock };
     const result = saveDataToDesktop([{ id: 1 }], 'export.json');
     expect(result).toBe(true);
     expect(sendMock).toHaveBeenCalledWith('save-data', { data: [{ id: 1 }], fileName: 'export.json' });
@@ -131,8 +126,8 @@ describe('arrayToCSV', () => {
   });
 
   test('returns empty string for null/undefined input', () => {
-    expect(arrayToCSV(null as any)).toBe('');
-    expect(arrayToCSV(undefined as any)).toBe('');
+    expect(arrayToCSV(null as unknown)).toBe('');
+    expect(arrayToCSV(undefined as unknown)).toBe('');
   });
 
   test('generates header row from object keys', () => {
@@ -218,7 +213,7 @@ describe('saveCSVToDesktop', () => {
     createElementSpy = jest
       .spyOn(document, 'createElement')
       .mockImplementation((tag: string) => {
-        if (tag === 'a') return fakeAnchor as any as HTMLElement;
+        if (tag === 'a') return fakeAnchor as unknown as HTMLElement;
         return document.createElement(tag);
       });
   });
@@ -256,7 +251,7 @@ describe('saveCSVToDesktop', () => {
   test('sets correct download filename', () => {
     const fakeAnchor = { href: '', download: '', click: jest.fn() };
     createElementSpy.mockImplementation((tag: string) => {
-      if (tag === 'a') return fakeAnchor as any as HTMLElement;
+      if (tag === 'a') return fakeAnchor as unknown as HTMLElement;
       return document.createElement(tag);
     });
 
@@ -288,7 +283,7 @@ describe('saveDataToDesktop (JSON fallback)', () => {
 
     jest.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       if (tag === 'a')
-        return { href: '', download: '', click: clickSpy } as any as HTMLElement;
+        return { href: '', download: '', click: clickSpy } as unknown as HTMLElement;
       return document.createElement(tag);
     });
   });

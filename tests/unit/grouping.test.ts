@@ -60,7 +60,7 @@ describe('grouping helpers', () => {
     const nestedAccessor = getFieldAccessor<{ a: { b: string } }>('a.b');
     expect(nestedAccessor({ a: { b: 'x' } })).toBe('x');
 
-    const customAccessor = getFieldAccessor<{ customFields: Record<string, any> }>('custom_customType');
+    const customAccessor = getFieldAccessor<{ customFields: Record<string, unknown> }>('custom_customType');
     expect(customAccessor({ customFields: { customType: 'VIP' } })).toBe('VIP');
   });
 
@@ -218,7 +218,7 @@ describe('grouping helpers', () => {
     expect(quarterAccessor({ createdDate: '2026-01-15' })).toBe('2026-01-15');
 
     // Custom field accessor when item has no customFields property
-    const customAccessor = getFieldAccessor<{}>('custom_missing');
+    const customAccessor = getFieldAccessor<Record<string, never>>('custom_missing');
     expect(customAccessor({})).toBeUndefined();
   });
 
@@ -236,7 +236,7 @@ describe('grouping helpers', () => {
       { id: 3, name: 'date_field', label: 'Date', type: 'date', required: false, display_order: 2, active: true, created_at: '', updated_at: '' },
       { id: 4, name: 'bool_field', label: 'Bool', type: 'boolean', required: false, display_order: 3, active: true, created_at: '', updated_at: '' },
       { id: 5, name: 'sel_field', label: 'Select', type: 'select', required: false, display_order: 4, active: true, created_at: '', updated_at: '' },
-      { id: 6, name: 'unknown_field', label: 'Other', type: 'textarea' as any, required: false, display_order: 5, active: true, created_at: '', updated_at: '' },
+      { id: 6, name: 'unknown_field', label: 'Other', type: 'textarea' as unknown, required: false, display_order: 5, active: true, created_at: '', updated_at: '' },
     ];
     const spy = jest.spyOn(customFieldService, 'getActiveCustomFields').mockResolvedValue(fields);
 
@@ -245,7 +245,7 @@ describe('grouping helpers', () => {
     // Verify groupingFn works for each type
     const items = [{ val: 'a' }, { val: 'b' }];
     for (const option of options) {
-      expect(() => option.groupingFn(items, (i: any) => i.val)).not.toThrow();
+      expect(() => option.groupingFn(items, (i: unknown) => i.val)).not.toThrow();
     }
     spy.mockRestore();
   });

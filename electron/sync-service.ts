@@ -20,8 +20,36 @@ import {
 
 let isSyncing = false;
 
+interface JtlCustomerRow {
+    kKunde: number;
+    CustomerDateCreated?: Date | string | null;
+    CustomerNumber?: string | null;
+    AddressLastName?: string | null;
+    AddressFirstName?: string | null;
+    AddressCompany?: string | null;
+    AddressEmail?: string | null;
+    AddressPhone?: string | null;
+    AddressMobile?: string | null;
+    AddressStreet?: string | null;
+    AddressZipCode?: string | null;
+    AddressCity?: string | null;
+    AddressCountry?: string | null;
+    CustomerBlocked?: string | number | null;
+}
+
+interface JtlProductRow {
+    kArtikel: number;
+    ProductDateCreated?: Date | string | null;
+    Sku?: string | null;
+    Name?: string | null;
+    Description?: string | null;
+    PriceNet?: number | null;
+    PriceGross?: number | null;
+    IsActive?: string | number | boolean | null;
+}
+
 // Function to map JTL Customer data to SQLite schema
-function mapJtlCustomerToSqlite(jtlCustomer: any): any {
+function mapJtlCustomerToSqlite(jtlCustomer: JtlCustomerRow) {
     console.log(`[Sync] Mapping customer kKunde: ${jtlCustomer?.kKunde}`);
     // Explicitly handle potential null/undefined values from DB
 
@@ -61,7 +89,7 @@ function mapJtlCustomerToSqlite(jtlCustomer: any): any {
 }
 
 // Function to map JTL Product data to SQLite schema
-function mapJtlProductToSqlite(jtlProduct: any): any {
+function mapJtlProductToSqlite(jtlProduct: JtlProductRow) {
     console.log(`[Sync] Mapping product kArtikel: ${jtlProduct?.kArtikel}`);
 
     // Convert potential Date object for jtl_dateCreated (assuming input field is ProductDateCreated)
@@ -228,7 +256,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         `);
 
         // Process customers in chunks to prevent UI freezing
-        const customerChunkProcessor = db.transaction((customers: any[]) => {
+        const customerChunkProcessor = db.transaction((customers: JtlCustomerRow[]) => {
             const transactionStartTime = performance.now();
             for (const jtlCustomer of customers) {
                 try {
@@ -263,7 +291,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         // const productUpsertStmt = db.prepare(...);
 
         // Process products in chunks to prevent UI freezing
-        const productChunkProcessor = db.transaction((products: any[]) => {
+        const productChunkProcessor = db.transaction((products: JtlProductRow[]) => {
             const transactionStartTime = performance.now();
             for (const jtlProduct of products) {
                 try {
@@ -345,8 +373,12 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         console.error('Synchronization failed:', error);
         
         // Extract detailed error information if available
-        const detailedError = (error as any)?.detailedError;
-        const context = (error as any)?.context || 'any operation';
+        const enhancedError = error as Error & {
+            detailedError?: { userMessage?: string; suggestion?: string };
+            context?: string;
+        };
+        const detailedError = enhancedError.detailedError;
+        const context = enhancedError.context || 'unknown operation';
         
         let errorMessage = `Sync failed: ${(error as Error).message}`;
         
@@ -384,7 +416,7 @@ export async function getLastSyncStatus() {
 
 export function initializeSyncService() {
     console.log("Sync Service Initialized.");
-    // Set up any listeners or initial state if needed
+    // Set up unknown listeners or initial state if needed
     // Maybe set initial status if DB is empty?
     try {
         if (!getSyncInfo('lastSyncStatus')) {

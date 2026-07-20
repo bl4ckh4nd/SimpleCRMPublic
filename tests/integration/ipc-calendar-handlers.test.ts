@@ -1,9 +1,9 @@
 import { IPC } from '../../shared/ipc/channels';
 
-const handlers = new Map<string, (...args: any[]) => any>();
+const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
 jest.mock('../../electron/ipc/register', () => ({
-  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: (...args: any[]) => any) => {
+  registerIpcHandler: jest.fn((endpoint: { channel: string }, handler: (...args: unknown[]) => unknown) => {
     handlers.set(endpoint.channel, handler);
     return () => undefined;
   }),

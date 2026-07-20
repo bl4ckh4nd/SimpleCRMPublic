@@ -1,4 +1,4 @@
-// Mock electron and fs BEFORE any imports (jest.mock is hoisted)
+// Mock electron and fs BEFORE unknown imports (jest.mock is hoisted)
 jest.mock('electron', () => ({
   app: { getPath: jest.fn(() => '/tmp/test-crm') },
 }));
@@ -9,7 +9,7 @@ jest.mock('fs', () => ({
 }));
 
 // Build a reusable mock statement factory
-function makeStmt(returnValue?: any) {
+function makeStmt(returnValue?: unknown) {
   return {
     all: jest.fn(() => (returnValue !== undefined ? returnValue : [])),
     get: jest.fn(() => returnValue),
@@ -22,7 +22,7 @@ const mockDb = {
   prepare: jest.fn(),
   exec: jest.fn(),
   pragma: jest.fn(),
-  transaction: jest.fn((fn: Function) => fn), // returns fn directly
+  transaction: jest.fn((fn: (...args: unknown[]) => unknown) => fn), // returns fn directly
   isDestroyed: jest.fn(() => false),
 };
 

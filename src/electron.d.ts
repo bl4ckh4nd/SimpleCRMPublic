@@ -1,20 +1,3 @@
-interface MssqlSettings {
-  server: string;
-  database: string;
-  user: string;
-  password: string;
-  port: number;
-  encrypt: boolean;
-  trustServerCertificate: boolean;
-}
-
-interface SyncStatus {
-    status: 'Idle' | 'Running' | 'Success' | 'Error' | 'Skipped' | 'Never' | 'Unknown';
-    message?: string;
-    progress?: number; // 0-100
-    timestamp?: string; // ISO string
-}
-
 interface WindowState {
   isMaximized: boolean;
   isFullScreen: boolean;
@@ -22,7 +5,7 @@ interface WindowState {
 
 interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
-  info?: any;
+  info?: unknown;
   error?: string;
 }
 
@@ -37,11 +20,11 @@ declare global {
             getWindowState?: () => Promise<WindowState>;
             onWindowStateChange?: (callback: (state: WindowState) => void) => () => void;
             updates?: {
-              checkForUpdates: () => Promise<any>;
+              checkForUpdates: () => Promise<unknown>;
               getStatus: () => Promise<UpdateStatus>;
-              installUpdate: () => Promise<any>;
+              installUpdate: () => Promise<unknown>;
               onStatusChange: (callback: (status: UpdateStatus) => void) => () => void;
-              onDownloadProgress: (callback: (progress: any) => void) => () => void;
+              onDownloadProgress: (callback: (progress: unknown) => void) => () => void;
             };
         };
     }

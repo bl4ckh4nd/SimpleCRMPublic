@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { useDroppable } from '@dnd-kit/core';
 
 jest.mock('@dnd-kit/core', () => ({
   useDroppable: jest.fn(() => ({
@@ -9,7 +10,7 @@ jest.mock('@dnd-kit/core', () => ({
 }));
 
 jest.mock('@dnd-kit/sortable', () => ({
-  SortableContext: ({ children }: any) => <div data-testid="sortable-context">{children}</div>,
+  SortableContext: ({ children }: unknown) => <div data-testid="sortable-context">{children}</div>,
   verticalListSortingStrategy: {},
   useSortable: jest.fn(() => ({
     attributes: {},
@@ -26,16 +27,16 @@ jest.mock('@dnd-kit/utilities', () => ({
 }));
 
 jest.mock('@tanstack/react-router', () => ({
-  Link: ({ children }: any) => <a>{children}</a>,
+  Link: ({ children }: unknown) => <a>{children}</a>,
 }));
 
 // Mock Select components used inside KanbanCard
 jest.mock('@/components/ui/select', () => ({
-  Select: ({ children }: any) => <div>{children}</div>,
-  SelectTrigger: ({ children }: any) => <button>{children}</button>,
+  Select: ({ children }: unknown) => <div>{children}</div>,
+  SelectTrigger: ({ children }: unknown) => <button>{children}</button>,
   SelectValue: () => <span />,
-  SelectContent: ({ children }: any) => <div>{children}</div>,
-  SelectItem: ({ children }: any) => <div role="option">{children}</div>,
+  SelectContent: ({ children }: unknown) => <div>{children}</div>,
+  SelectItem: ({ children }: unknown) => <div role="option">{children}</div>,
 }));
 
 import { KanbanColumn } from '@/components/deal/kanban-column';
@@ -82,8 +83,7 @@ describe('KanbanColumn', () => {
   });
 
   test('applies isOver styling when dragging over', () => {
-    const { useDroppable } = require('@dnd-kit/core');
-    useDroppable.mockReturnValue({ setNodeRef: jest.fn(), isOver: true });
+    jest.mocked(useDroppable).mockReturnValue({ setNodeRef: jest.fn(), isOver: true });
 
     const { container } = render(
       <KanbanColumn id="qualifiziert" title="Qualifiziert" deals={[]} />

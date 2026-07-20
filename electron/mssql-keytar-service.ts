@@ -22,7 +22,13 @@ interface DetailedMssqlError {
     docsUrl?: string;
 }
 
-function categorizeAndTranslateMssqlError(error: any): DetailedMssqlError {
+interface EnhancedMssqlError extends Error {
+    detailedError?: DetailedMssqlError;
+    context?: string;
+    originalError?: { message?: string };
+}
+
+function categorizeAndTranslateMssqlError(error: unknown): DetailedMssqlError {
     const parsed = getFriendlyMssqlError(error, 'de');
 
     const category: MssqlErrorCategory = parsed.category ?? 'unknown';
@@ -30,8 +36,8 @@ function categorizeAndTranslateMssqlError(error: any): DetailedMssqlError {
 
     const originalMessage =
         parsed.originalMessage ||
-        (error && typeof error === 'object' && 'message' in (error as any)
-            ? String((error as any).message)
+        (error && typeof error === 'object' && 'message' in error
+            ? String(error.message)
             : typeof error === 'string'
                 ? error
                 : 'Unknown error');
@@ -199,7 +205,9 @@ export async function saveMssqlSettingsWithKeytar(settings: MssqlSettings): Prom
         await closeMssqlPool(); // Reset pool as settings changed
     } catch (error) {
         console.error('Failed to save MSSQL settings or password:', error);
-        throw new Error(`Failed to save settings securely: ${(error as Error).message}`);
+        const saveError = new Error(`Failed to save settings securely: ${error instanceof Error ? error.message : String(error)}`) as Error & { cause?: unknown };
+        saveError.cause = error;
+        throw saveError;
     }
 }
 
@@ -244,7 +252,7 @@ export async function clearMssqlPasswordFromKeytar(): Promise<{ success: boolean
             const wasPasswordDeleted = await keytar.deletePassword(KEYTAR_SERVICE, account);
             if (wasPasswordDeleted) {
                 console.log('[MSSQL Keytar] Password successfully deleted from keychain for account:', account);
-                // After clearing the password, it's a good idea to close any existing connection pool
+                // After clearing the password, it's a good idea to close unknown existing connection pool
                 // as it might be using outdated (now cleared) credentials.
                 // The next connection attempt will fail or prompt for a password if getMssqlSettingsWithKeytar is used and password is required.
                 await closeMssqlPool();
@@ -295,7 +303,7 @@ export async function testConnectionWithKeytar(settings: MssqlSettings): Promise
     const initialConfig = buildConnectionConfig({ ...settings, password: effectivePassword });
     let testPool: sql.ConnectionPool | null = null;
     try {
-        console.log(`[MSSQL Keytar] Test Connection: Attempting with config:`, JSON.stringify({ server: initialConfig.server, port: (initialConfig as any).port, options: (initialConfig as any).options }));
+        console.log(`[MSSQL Keytar] Test Connection: Attempting with config:`, JSON.stringify({ server: initialConfig.server, port: initialConfig.port, options: initialConfig.options }));
         testPool = new sql.ConnectionPool({ ...initialConfig, pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }, connectionTimeout: 10000, requestTimeout: 10000 });
         await testPool.connect();
         console.log('[MSSQL Keytar] Connection test successful.');
@@ -345,7 +353,7 @@ async function getConnectionPool(): Promise<sql.ConnectionPool> {
 
     try {
          const initialConfig = buildConnectionConfig(settings);
-         console.log(`[MSSQL Keytar] Pool: Attempt with`, JSON.stringify({ server: initialConfig.server, port: (initialConfig as any).port, options: (initialConfig as any).options }));
+        console.log(`[MSSQL Keytar] Pool: Attempt with`, JSON.stringify({ server: initialConfig.server, port: initialConfig.port, options: initialConfig.options }));
          pool = new sql.ConnectionPool(initialConfig);
 
         await pool.connect();
@@ -382,8 +390,8 @@ async function getConnectionPool(): Promise<sql.ConnectionPool> {
                 console.error('[MSSQL Keytar] Fallback pool connect failed:', detailedFallback.originalMessage);
                 pool = null;
                 const errorMessage = `${detailedFallback.userMessage} - ${detailedFallback.suggestion}`;
-                const error_to_throw = new Error(errorMessage);
-                (error_to_throw as any).detailedError = detailedFallback;
+                const error_to_throw = new Error(errorMessage) as EnhancedMssqlError;
+                error_to_throw.detailedError = detailedFallback;
                 throw error_to_throw;
             }
         }
@@ -392,8 +400,8 @@ async function getConnectionPool(): Promise<sql.ConnectionPool> {
         console.log('[MSSQL Keytar] Pool Creation Error Details:', detailedError);
         pool = null; // Ensure pool is null on failure
         const errorMessage = `${detailedError.userMessage} - ${detailedError.suggestion}`;
-        const error_to_throw = new Error(errorMessage);
-        (error_to_throw as any).detailedError = detailedError;
+        const error_to_throw = new Error(errorMessage) as EnhancedMssqlError;
+        error_to_throw.detailedError = detailedError;
         throw error_to_throw;
     }
 }
@@ -447,9 +455,9 @@ export async function fetchJtlCustomers() {
         console.log('Customer fetch error details:', detailedError);
         
         // Create enhanced error for sync service
-        const enhancedError = new Error(`Fehler beim Laden der Kunden: ${detailedError.userMessage}`);
-        (enhancedError as any).detailedError = detailedError;
-        (enhancedError as any).context = 'fetchJtlCustomers';
+        const enhancedError = new Error(`Fehler beim Laden der Kunden: ${detailedError.userMessage}`) as EnhancedMssqlError;
+        enhancedError.detailedError = detailedError;
+        enhancedError.context = 'fetchJtlCustomers';
         throw enhancedError;
     }
 }
@@ -558,7 +566,7 @@ export function initializeMssqlService() {
 // Exported function to execute transactional queries
 export async function executeTransactionalQuery(
     sqlQuery: string,
-    params: { name: string; type: any; value: any }[]
+    params: { name: string; type: sql.ISqlType | (() => sql.ISqlType); value: unknown }[]
 ): Promise<{ success: boolean; kAuftrag?: number; cAuftragsNr?: string; error?: string }> {
     let transaction: sql.Transaction | null = null;
     try {
@@ -586,7 +594,7 @@ export async function executeTransactionalQuery(
         }
         return { success: true }; // For transactions that don't return specific IDs
 
-    } catch (error: any) {
+    } catch (error) {
         if (transaction) {
             try {
                 await transaction.rollback();
@@ -596,7 +604,8 @@ export async function executeTransactionalQuery(
         }
         console.error('[MSSQL Keytar] Error in executeTransactionalQuery:', error);
         // Try to provide a more specific error message if available
-        const errorMessage = error.originalError?.message || error.message || 'Unknown transaction error';
+        const enhancedError = error as EnhancedMssqlError;
+        const errorMessage = enhancedError.originalError?.message || enhancedError.message || 'Unknown transaction error';
         return { success: false, error: errorMessage };
     }
 }

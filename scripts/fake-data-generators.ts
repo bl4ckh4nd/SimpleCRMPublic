@@ -81,12 +81,6 @@ const streetNames = [
     'Friedrichstraße', 'Wilhelmstraße', 'Kaiserstraße', 'Königstraße', 'Bismarckstraße', 'Am Markt'
 ];
 
-// Product categories and names
-const productCategories = [
-    'Computer & Zubehör', 'Büroausstattung', 'Software', 'Elektronik', 'Möbel', 'Werkzeuge',
-    'Fahrzeuge', 'Maschinen', 'Materialien', 'Dienstleistungen', 'Beratung', 'Schulungen'
-];
-
 const productNames = [
     // Computer & Electronics
     'Desktop Computer', 'Laptop', 'Monitor', 'Tastatur', 'Maus', 'Drucker', 'Scanner', 'Tablet',

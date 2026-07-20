@@ -78,7 +78,7 @@ export async function createJtlOrder(orderInput: SimpleCrmOrderInput): Promise<J
             return { success: false, error: 'No valid products with JTL kArtikel and price found to create an order.' };
         }
 
-        const params: { name: string, type: any, value: any }[] = [
+        const params: { name: string; type: sql.ISqlType | (() => sql.ISqlType); value: unknown }[] = [
             { name: 'App_kKunde', type: sql.Int, value: jtlKundeId },
             { name: 'App_kBenutzer', type: sql.Int, value: kBenutzer },
             { name: 'App_kShop', type: sql.Int, value: kShop },
@@ -285,7 +285,7 @@ export async function createJtlOrder(orderInput: SimpleCrmOrderInput): Promise<J
         console.log('--- DEBUG: Generated SQL Query ---');
         console.log(sqlQuery.replace(/;/g, '\n'));
         console.log('--- DEBUG: SQL Parameters ---');
-        console.log(params.map(p => `${p.name} (${p.type.name}): ${p.value}`).join('\n'));
+        console.log(params.map(p => `${p.name}: ${String(p.value)}`).join('\n'));
 
         let transactionResult;
         try {
@@ -315,8 +315,8 @@ export async function createJtlOrder(orderInput: SimpleCrmOrderInput): Promise<J
             return { success: false, error: transactionResult.error || 'JTL order creation failed due to a SQL error.' };
         }
 
-    } catch (error: any) {
+    } catch (error) {
         console.error('Error in createJtlOrder service:', error);
-        return { success: false, error: error.message || 'An unexpected error occurred in the JTL order service.' };
+        return { success: false, error: error instanceof Error ? error.message : 'An unexpected error occurred in the JTL order service.' };
     }
 }

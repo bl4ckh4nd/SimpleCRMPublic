@@ -23,7 +23,7 @@ describe('taskService', () => {
 
   test('creates a task and optional schedule in one invoke', async () => {
     invoke.mockResolvedValueOnce({ success: true, id: 3, eventId: 9 });
-    const task = { customer_id: 1, title: 'Call', priority: 'High', completed: false } as any;
+    const task = { customer_id: 1, title: 'Call', priority: 'High', completed: false } as unknown;
     const schedule = { startDate: '2026-07-16', endDate: '2026-07-17', allDay: true };
     await taskService.createTask(task, schedule);
     expect(invoke).toHaveBeenCalledWith(IPCChannels.Tasks.Create, { task, schedule });

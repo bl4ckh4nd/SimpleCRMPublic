@@ -2,15 +2,15 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 jest.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, activeProps, inactiveProps, ...rest }: any) => (
-    <a href={to} {...rest}>
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>
       {children}
     </a>
   ),
 }));
 
 jest.mock('@/lib/utils', () => ({
-  cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
+  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
 }));
 
 import { MainNav } from '@/components/main-nav';

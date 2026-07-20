@@ -115,7 +115,7 @@ export default function CustomerDetailPage() {
       try {
         // Pass customerId string directly to the service
         const api = window.electronAPI;
-        const dbCustomer = await api.invoke('db:get-customer', Number(customerId)) as any as Customer | null;
+        const dbCustomer = await api.invoke('db:get-customer', Number(customerId)) as unknown as Customer | null;
         console.log('Fetched customer data in component:', dbCustomer); // Log fetched data
 
         if (dbCustomer) {
@@ -165,11 +165,11 @@ export default function CustomerDetailPage() {
         const api = window.electronAPI;
 
         // Fetch deals for this customer
-        const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as any as Deal[];
+        const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as unknown as Deal[];
         setDeals(customerDeals || []);
 
         // Fetch tasks for this customer
-        const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as any as Task[];
+        const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as unknown as Task[];
         setTasks(customerTasks || []);
       } catch (error) {
         console.error('Failed to fetch related items:', error);
@@ -262,12 +262,12 @@ export default function CustomerDetailPage() {
         setNewDealName('');
         setNewDealValue('');
         setNewDealStage('Interessent');
-        const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as any as Deal[];
+        const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as unknown as Deal[];
         setDeals(customerDeals || []);
       } else {
         toast.error('Fehler beim Erstellen des Deals');
       }
-    } catch (error) {
+    } catch {
       toast.error('Fehler beim Erstellen des Deals');
     } finally {
       setIsSubmittingDeal(false);
@@ -294,12 +294,12 @@ export default function CustomerDetailPage() {
         setNewTaskTitle('');
         setNewTaskDueDate('');
         setNewTaskPriority('Medium');
-        const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as any as Task[];
+        const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as unknown as Task[];
         setTasks(customerTasks || []);
       } else {
         toast.error('Fehler beim Erstellen der Aufgabe');
       }
-    } catch (error) {
+    } catch {
       toast.error('Fehler beim Erstellen der Aufgabe');
     } finally {
       setIsSubmittingTask(false);
@@ -311,7 +311,7 @@ export default function CustomerDetailPage() {
     if (!dateString) return "N/A"
     try {
       return new Date(dateString).toLocaleDateString("de-DE")
-    } catch (e) {
+    } catch {
       return dateString // Return original if parsing fails
     }
   }

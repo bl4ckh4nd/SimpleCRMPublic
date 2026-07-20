@@ -154,7 +154,7 @@ export default function DealsPage() {
       const apiDeals = await window.electronAPI.invoke(
         IPCChannels.Deals.GetAll,
         { limit: 10000, offset: 0, filter }
-      ) as any as DealFromApi[]
+      ) as unknown as DealFromApi[]
 
       const formattedDeals = Array.isArray(apiDeals)
         ? apiDeals.map(formatDealForUI)
@@ -309,7 +309,7 @@ export default function DealsPage() {
       const result = await window.electronAPI.invoke(IPCChannels.Deals.UpdateStage, { dealId, newStage }) as { success: boolean; error?: string };
       if (!result.success) throw new Error(result.error);
       toast.success("Deal aktualisiert", { description: `Deal wurde auf "${newStage}" aktualisiert` });
-    } catch (error) {
+    } catch {
       await loadDeals();
       toast.error("Fehler", { description: "Deal-Status konnte nicht aktualisiert werden" });
     }

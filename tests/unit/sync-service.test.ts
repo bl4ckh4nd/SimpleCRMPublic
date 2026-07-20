@@ -1,4 +1,4 @@
-// Mock electron before any imports
+// Mock electron before unknown imports
 jest.mock('electron', () => ({
   BrowserWindow: jest.fn(),
   app: { getPath: jest.fn(() => '/tmp/test-user-data') },
@@ -38,7 +38,7 @@ const mockWindow = {
 
 function makeDbMock() {
   const stmtMock = { run: jest.fn() };
-  const transactionFn = jest.fn((fn: Function) => fn); // transaction returns the same fn
+  const transactionFn = jest.fn((fn: (...args: unknown[]) => unknown) => fn); // transaction returns the same fn
   return {
     prepare: jest.fn(() => stmtMock),
     transaction: transactionFn,
@@ -133,14 +133,14 @@ describe('sync-service', () => {
     test('returns success when sync completes with empty data', async () => {
       setupSuccessfulSync();
 
-      const result = await runSync(mockWindow as any);
+      const result = await runSync(mockWindow as unknown);
       expect(result.success).toBe(true);
     });
 
     test('sends status updates to main window', async () => {
       setupSuccessfulSync();
 
-      await runSync(mockWindow as any);
+      await runSync(mockWindow as unknown);
 
       expect(mockWebContents.send).toHaveBeenCalledWith(
         'sync:status-update',

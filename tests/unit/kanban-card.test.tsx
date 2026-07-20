@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useSortable } from '@dnd-kit/sortable';
 
 // Mock dnd-kit to avoid needing DndContext
 jest.mock('@dnd-kit/sortable', () => ({
@@ -24,30 +25,30 @@ jest.mock('@dnd-kit/utilities', () => ({
 
 // Mock TanStack Router Link
 jest.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to, params }: any) => (
+  Link: ({ children, to, params }: unknown) => (
     <a href={`${to}/${params?.dealId ?? ''}`}>{children}</a>
   ),
 }));
 
 // Mock Radix Select (portal-based)
 jest.mock('@/components/ui/select', () => ({
-  Select: ({ children, onValueChange, value }: any) => (
+  Select: ({ children, onValueChange, value }: unknown) => (
     <div data-testid="select" data-value={value}>
-      {React.Children.map(children, (child: any) =>
+      {React.Children.map(children, (child: unknown) =>
         React.cloneElement(child, { onValueChange })
       )}
     </div>
   ),
-  SelectTrigger: ({ children }: any) => <button data-testid="select-trigger">{children}</button>,
+  SelectTrigger: ({ children }: unknown) => <button data-testid="select-trigger">{children}</button>,
   SelectValue: () => <span data-testid="select-value" />,
-  SelectContent: ({ children, onValueChange }: any) => (
+  SelectContent: ({ children, onValueChange }: unknown) => (
     <div data-testid="select-content">
-      {React.Children.map(children, (child: any) =>
+      {React.Children.map(children, (child: unknown) =>
         child?.props ? React.cloneElement(child, { onValueChange }) : child
       )}
     </div>
   ),
-  SelectItem: ({ children, value, onValueChange }: any) => (
+  SelectItem: ({ children, value, onValueChange }: unknown) => (
     <div
       data-testid={`select-item-${value}`}
       onClick={() => onValueChange?.(value)}
@@ -149,8 +150,7 @@ describe('KanbanCard', () => {
   });
 
   test('applies drag styles when isDragging', () => {
-    const { useSortable } = require('@dnd-kit/sortable');
-    useSortable.mockReturnValue({
+    jest.mocked(useSortable).mockReturnValue({
       attributes: {},
       listeners: {},
       setNodeRef: jest.fn(),

@@ -44,10 +44,10 @@ const settingsSchema = z.object({
 type SettingsInput = z.input<typeof settingsSchema>
 type SettingsForm = z.output<typeof settingsSchema>
 
-const asErrorDetails = (value: any): { suggestion?: string; userMessage?: string } =>
+const asErrorDetails = (value: unknown): { suggestion?: string; userMessage?: string } =>
   value && typeof value === "object" ? value as { suggestion?: string; userMessage?: string } : {}
 
-const errorMessage = (error: any, fallback: string) =>
+const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback
 
 export default function SettingsPage() {
@@ -146,7 +146,7 @@ export default function SettingsPage() {
     }
 
     try {
-      const testResult: { success: boolean; error?: string; errorDetails?: any } = await window.electronAPI.invoke('mssql:test-connection', dataForTest)
+      const testResult: { success: boolean; error?: string; errorDetails?: unknown } = await window.electronAPI.invoke('mssql:test-connection', dataForTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
 
       if (testResult.success) {
@@ -169,7 +169,7 @@ export default function SettingsPage() {
           : errorMessage;
         toast.error("Verbindung fehlgeschlagen", { description })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error testing/saving connection:", error)
       toast.error("Fehler", { description: errorMessage(error, "Ein unerwarteter Fehler ist aufgetreten.") })
       setConnectionStatus('error')
@@ -225,7 +225,7 @@ export default function SettingsPage() {
         console.error('Fehler beim Löschen des Passworts (Backend-Nachricht):', result.message);
         toast.error("Fehlgeschlagen", { description: "Das Passwort konnte nicht gelöscht werden. Bitte überprüfen Sie die Konsolenprotokolle für weitere Details." });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Fehler beim Löschen des Passworts (IPC):", error);
       toast.error("Fehler", { description: "Ein unerwarteter Fehler ist aufgetreten beim Löschen des Passworts. Überprüfen Sie die Konsolenprotokolle." });
     } finally {
@@ -247,7 +247,7 @@ export default function SettingsPage() {
       return
     }
     try {
-      const testResult: { success: boolean; error?: string; errorDetails?: any } = await window.electronAPI.invoke('mssql:test-connection', dataToTest)
+      const testResult: { success: boolean; error?: string; errorDetails?: unknown } = await window.electronAPI.invoke('mssql:test-connection', dataToTest)
       setConnectionStatus(testResult.success ? 'success' : 'error')
       if (testResult.success) {
         toast.success("Verbindung erfolgreich.")
@@ -259,7 +259,7 @@ export default function SettingsPage() {
           : errorMessage;
         toast.error("Verbindung fehlgeschlagen", { description })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error testing connection:", error)
       toast.error("Fehler", { description: errorMessage(error, "Ein unerwarteter Fehler ist aufgetreten.") })
       setConnectionStatus('error')
@@ -307,7 +307,7 @@ export default function SettingsPage() {
         toast.error("Sync fehlgeschlagen", { description: errorMsg })
         setSyncStatusMessage(`Fehler: ${errorMsg}`)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error running sync:", error)
       let errorMsg = errorMessage(error, "Ein unerwarteter Fehler ist aufgetreten während der Synchronisation.")
 
@@ -342,7 +342,7 @@ export default function SettingsPage() {
   const formatTimestamp = (timestamp: string) => {
     try {
       return new Date(timestamp).toLocaleString()
-    } catch (error) {
+    } catch {
       return timestamp
     }
   }
