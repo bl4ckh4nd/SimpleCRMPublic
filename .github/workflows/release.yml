@@ -80,6 +80,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
       - run: pnpm install --frozen-lockfile --node-linker=hoisted --ignore-scripts
       - name: Prepare Electron and native dependency patch
         run: |
@@ -116,6 +119,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --node-linker=hoisted
+      - name: Restore packaging binary permissions
+        run: chmod +x node_modules/app-builder-bin/mac/app-builder_*
       - run: pnpm run build
       - name: Package macOS x64 and arm64
         env:
@@ -150,6 +155,8 @@ jobs:
           cache: pnpm
       - run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
       - run: pnpm install --frozen-lockfile --node-linker=hoisted
+      - name: Restore packaging binary permissions
+        run: chmod +x node_modules/app-builder-bin/linux/x64/app-builder
       - run: pnpm run build
       - name: Package Linux x64
         env:
