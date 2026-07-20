@@ -241,4 +241,4 @@ jobs:
           fi
           URL=$(gh release view "$TAG" --json url --jq .url)
           echo "## Published [$TAG]($URL)" >> "$GITHUB_STEP_SUMMARY"
-          find release-assets -type f -printf -- '- `%f`\n' | sort >> "$GITHUB_STEP_SUMMARY"
+          find release-assets -type f -printf '- `%f`\n' | sort >> "$GITHUB_STEP_SUMMARY"
