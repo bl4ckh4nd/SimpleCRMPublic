@@ -65,7 +65,8 @@ jobs:
 
   windows:
     needs: prepare
-    runs-on: windows-latest
+    # node-gyp 11 does not yet recognize the Visual Studio 2026-only image.
+    runs-on: windows-2022
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
