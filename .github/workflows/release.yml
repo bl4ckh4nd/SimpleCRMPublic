@@ -7,7 +7,7 @@ on:
         description: Semantic version increment
         required: true
         type: choice
-        options: [patch, minor, major]
+        options: [current, patch, minor, major]
 
 permissions:
   contents: read
@@ -37,7 +37,16 @@ jobs:
         name: Prepare version and changelog
         shell: bash
         run: |
-          VERSION=$(node scripts/prepare-release.mjs "${{ inputs.release_type }}" --notes-file release-notes.md)
+          if [ "${{ inputs.release_type }}" = current ]; then
+            VERSION=$(node -p "require('./package.json').version")
+            TAG="v$VERSION"
+            test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA"
+            awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
+              | sed '/^---$/d' > release-notes.md
+            test -s release-notes.md
+          else
+            VERSION=$(node scripts/prepare-release.mjs "${{ inputs.release_type }}" --notes-file release-notes.md)
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "## Preparing v$VERSION" >> "$GITHUB_STEP_SUMMARY"
       - run: pnpm run release:test
@@ -188,6 +197,7 @@ jobs:
           test "$(find release-assets -type f -name 'latest*.yml' | wc -l)" -ge 3
           (cd release-assets && find . -type f -print0 | sort -z | xargs -0 sha256sum) > release-assets/SHA256SUMS.txt
       - name: Commit and tag release
+        if: inputs.release_type != 'current'
         shell: bash
         run: |
           TAG="v$VERSION"
