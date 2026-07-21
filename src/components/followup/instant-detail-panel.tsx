@@ -41,6 +41,9 @@ export function InstantDetailPanel({
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-muted-foreground" />
           <span className="font-medium text-sm">{item.customer_name || '—'}</span>
+          {item.customer_company && item.customer_company !== item.customer_name && (
+            <span className="text-sm text-muted-foreground">· {item.customer_company}</span>
+          )}
         </div>
 
         {item.deal_name && (

@@ -2180,7 +2180,8 @@ export function getFollowUpItems(
                 d.id as item_id,
                 'deal' as source_type,
                 d.customer_id,
-                c.name as customer_name,
+                COALESCE(NULLIF(c.name, ''), c.firstName, c.company) as customer_name,
+                c.company as customer_company,
                 d.id as deal_id,
                 d.name as deal_name,
                 d.value as deal_value,
@@ -2210,9 +2211,9 @@ export function getFollowUpItems(
         }
 
         if (filters.query && filters.query.trim()) {
-            sql += ` AND (d.name LIKE ? OR c.name LIKE ?)`;
+            sql += ` AND (d.name LIKE ? OR c.name LIKE ? OR c.company LIKE ?)`;
             const term = `%${filters.query}%`;
-            params.push(term, term);
+            params.push(term, term, term);
         }
 
         sql += ` ORDER BY priority_score DESC LIMIT ? OFFSET ?`;
@@ -2224,7 +2225,8 @@ export function getFollowUpItems(
                 t.id as item_id,
                 'task' as source_type,
                 t.customer_id,
-                c.name as customer_name,
+                COALESCE(NULLIF(c.name, ''), c.firstName, c.company) as customer_name,
+                c.company as customer_company,
                 d.id as deal_id,
                 d.name as deal_name,
                 d.value as deal_value,
