@@ -99,6 +99,9 @@ export function ExecutionList({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate font-medium">{item.customer_name || '—'}</span>
+                  {item.customer_company && item.customer_company !== item.customer_name && (
+                    <span className="truncate text-muted-foreground">· {item.customer_company}</span>
+                  )}
                   {item.deal_stage && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px]">{item.deal_stage}</Badge>}
                 </div>
                 <p className="truncate text-muted-foreground">{[item.deal_name, item.reason].filter(Boolean).join(' · ') || 'Kein weiterer Kontext'}</p>

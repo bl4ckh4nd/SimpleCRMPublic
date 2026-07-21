@@ -19,7 +19,7 @@ const fail = (error: unknown): Result => ({
 
 export function listTasks(limit = 100, offset = 0, filter: { completed?: boolean; priority?: string; query?: string } = {}) {
   let sql = `
-    SELECT t.*, c.name AS customer_name,
+    SELECT t.*, COALESCE(NULLIF(c.name, ''), c.firstName, c.company) AS customer_name, c.company AS customer_company,
       (SELECT id FROM ${CALENDAR_EVENTS_TABLE} WHERE task_id = t.id LIMIT 1) AS calendar_event_id
     FROM ${TASKS_TABLE} t
     LEFT JOIN ${CUSTOMERS_TABLE} c ON c.id = t.customer_id
@@ -35,9 +35,9 @@ export function listTasks(limit = 100, offset = 0, filter: { completed?: boolean
     params.push(filter.priority);
   }
   if (filter.query?.trim()) {
-    sql += ' AND (t.title LIKE ? OR t.description LIKE ? OR c.name LIKE ?)';
+    sql += ' AND (t.title LIKE ? OR t.description LIKE ? OR c.name LIKE ? OR c.company LIKE ?)';
     const query = `%${filter.query.trim()}%`;
-    params.push(query, query, query);
+    params.push(query, query, query, query);
   }
 
   sql += ' ORDER BY t.due_date ASC LIMIT ? OFFSET ?';
@@ -47,7 +47,7 @@ export function listTasks(limit = 100, offset = 0, filter: { completed?: boolean
 
 export function getScheduledTask(taskId: number) {
   return getDb().prepare(`
-    SELECT t.*, c.name AS customer_name,
+    SELECT t.*, COALESCE(NULLIF(c.name, ''), c.firstName, c.company) AS customer_name, c.company AS customer_company,
       (SELECT id FROM ${CALENDAR_EVENTS_TABLE} WHERE task_id = t.id LIMIT 1) AS calendar_event_id
     FROM ${TASKS_TABLE} t
     LEFT JOIN ${CUSTOMERS_TABLE} c ON c.id = t.customer_id

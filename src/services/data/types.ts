@@ -97,6 +97,7 @@ export interface Task {
     id: string | number;
     customer_id: string | number;
     customer_name?: string; // Added for joins with customer table
+    customer_company?: string;
     title: string;
     description?: string;
     due_date: string;
@@ -113,6 +114,7 @@ export interface FollowUpItem {
     source_type: 'task' | 'deal';
     customer_id: number;
     customer_name: string;
+    customer_company?: string;
     deal_id?: number;
     deal_name?: string;
     deal_value?: number;
