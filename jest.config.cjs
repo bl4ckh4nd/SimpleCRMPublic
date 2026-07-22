@@ -74,6 +74,7 @@ module.exports = {
       moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
         '^@shared/(.*)$': '<rootDir>/shared/$1',
+        '^(\\.{1,2}/.*)\\.js$': '$1',
       },
       testMatch: ['<rootDir>/tests/unit/**/*.test.(ts|tsx)'],
       setupFilesAfterEnv: ['<rootDir>/tests/setup/jest.setup.ts'],
