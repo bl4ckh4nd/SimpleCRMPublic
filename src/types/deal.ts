@@ -25,21 +25,11 @@ export enum DealStage {
   AbgeschlossenVerloren = 'Abgeschlossen Verloren'
 }
 
-export function getDealStageColor(stage: string): "default" | "outline" | "destructive" | "secondary" {
-  switch (stage) {
-    case DealStage.Gewonnen:
-    case DealStage.AbgeschlossenGewonnen:
-      return "default";
-    case DealStage.Verloren:
-    case DealStage.AbgeschlossenVerloren:
-      return "destructive";
-    case DealStage.Verhandlung:
-    case DealStage.Angebot:
-    case DealStage.Vorschlag:
-      return "secondary";
-    default:
-      return "outline";
-  }
+export function getDealStageColor(stage: string): "success" | "danger" | "info" | "neutral" {
+  if (['Gewonnen', 'Abgeschlossen Gewonnen', 'Won'].includes(stage)) return 'success';
+  if (['Verloren', 'Abgeschlossen Verloren', 'Lost'].includes(stage)) return 'danger';
+  if (['Qualifiziert', 'Angebot', 'Vorschlag', 'Verhandlung'].includes(stage)) return 'info';
+  return 'neutral';
 }
 
 export function formatCurrency(value: string): string {

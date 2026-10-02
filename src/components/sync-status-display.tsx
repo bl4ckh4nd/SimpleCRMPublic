@@ -44,15 +44,15 @@ function getElectronApi() {
 
 function getSyncStatusDisplay(status: SyncStatus["status"]) {
   if (status === "Success") {
-    return { className: "text-green-500", prefix: "vor " };
+    return { className: "text-success-foreground", prefix: "vor " };
   }
 
   if (status === "Error") {
-    return { className: "text-red-500", prefix: "Fehler " };
+    return { className: "text-danger-foreground", prefix: "Fehler " };
   }
 
   if (status === "Running") {
-    return { className: "text-blue-500", prefix: "Läuft seit " };
+    return { className: "text-info-foreground", prefix: "Läuft seit " };
   }
 
   return { className: "text-muted-foreground", prefix: "vor " };
@@ -98,12 +98,12 @@ export function SyncStatusDisplay() {
 
   const handleSyncClick = async () => {
     if (isSyncing) return;
-    
+
     setIsSyncing(true);
     try {
       toast.info("JTL Sync gestartet...");
       const result = await getElectronApi().invoke('sync:run');
-      
+
       if (result.success) {
         toast.success("JTL Sync erfolgreich abgeschlossen");
       } else {
@@ -119,12 +119,12 @@ export function SyncStatusDisplay() {
 
   const formatTimestamp = (timestamp: string) => {
     if (!timestamp) return 'Nie';
-    
+
     try {
       const date = new Date(timestamp);
-      return formatDistance(date, new Date(), { 
+      return formatDistance(date, new Date(), {
         addSuffix: false,
-        locale: de 
+        locale: de
       });
     } catch {
       return timestamp;
@@ -155,17 +155,17 @@ export function SyncStatusDisplay() {
         <span className="text-sm text-muted-foreground mr-1">Letzter Sync:</span>
         {statusText}
       </div>
-      <Button 
+      <Button
         variant="outline"
         size="sm"
         onClick={handleSyncClick}
         disabled={isSyncing}
-        className="h-10 whitespace-nowrap"
+        className="whitespace-nowrap"
       >
         {isSyncing ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Synchronisiere...</>
+          <><Loader2 className="h-4 w-4 animate-spin" /> Synchronisiere...</>
         ) : (
-          <><ArrowDownUp className="mr-2 h-4 w-4" /> JTL Sync</>
+          <><ArrowDownUp className="h-4 w-4" /> JTL Sync</>
         )}
       </Button>
     </div>

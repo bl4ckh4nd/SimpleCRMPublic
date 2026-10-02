@@ -30,9 +30,5 @@ declare global {
     }
 }
 
- // Define basic App types (can be moved to src/types/)
- // Moved to src/services/data/types.ts
-// export interface Customer { ... }
-// export interface Product { ... }
 
-export {}; // Add this line to treat the file as a module
+export {};

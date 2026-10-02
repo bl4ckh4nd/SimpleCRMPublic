@@ -1,4 +1,3 @@
-// Main Electron process
 import { app, BrowserWindow, dialog, globalShortcut, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,7 +13,6 @@ import {
 const isNotificationWorker = process.argv.includes('--notification-worker');
 const isE2ETest = process.env.SIMPLECRM_E2E === '1';
 
-// Configure electron-log
 log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs', isNotificationWorker ? 'notification-worker.log' : 'main.log');
 log.catchErrors(); // Catch unhandled errors
 Object.assign(console, log.functions); // Override console functions
@@ -86,10 +84,9 @@ const ensureDevToolsWindow = () => {
   return devToolsWindow;
 };
 
-// Determine mode AT THE TOP
 log.info(`[Electron Main] Initial check: process.env.NODE_ENV = ${process.env.NODE_ENV}, isDevelopment = ${isDevelopment}`);
 
-// --- Setup loadURLFunction based on mode ---
+// Setup loadURLFunction based on mode
 // This setup, especially for electron-serve, needs to happen before 'app.ready'.
 if (isNotificationWorker) {
   log.info('[Electron Main] Notification worker mode selected.');
@@ -124,13 +121,10 @@ if (isNotificationWorker) {
 // IPC handlers are registered via electron/ipc/router.ts once the app is ready.
 
 
-// --- Main Application Initialization ---
+// Main Application Initialization
 async function initializeApp() {
   log.info('[Electron Main] initializeApp started.');
-  // The electron-serve/Vite loader setup is now done above.
-  // This function now only initializes other critical services.
 
-  // Initialize other critical services
   try {
     log.info('[Electron Main] Initializing database and other services...');
     initializeDatabase();
@@ -146,10 +140,9 @@ async function initializeApp() {
   log.info('[Electron Main] initializeApp finished.');
 }
 
-// --- Create Main Window ---
+// Create Main Window
 async function createMainWindow() {
   log.info(`[Electron Main] createMainWindow called.`);
-  // Example structure:
   const windowState = windowStateKeeper({
     defaultWidth: 1400,
     defaultHeight: 1000,
@@ -313,10 +306,10 @@ async function createMainWindow() {
   });
 }
 
-// --- App Lifecycle ---
+// App Lifecycle
 initializeApp()
   .then(() => {
-    app.whenReady().then(async () => { // Added async here
+    app.whenReady().then(async () => {
       log.info('[Electron Main] App is ready (after initializeApp).');
 
       if (isNotificationWorker) {
@@ -376,14 +369,12 @@ initializeApp()
       });
     }).catch(err => {
       log.error('[Electron Main] Error during app.whenReady:', err);
-      // Optionally, show a dialog to the user or quit the app
       dialog.showErrorBox("Application Startup Error", `A critical error occurred during application startup: ${errorMessage(err)}. The application will now close.`);
       app.quit();
     });
   })
   .catch(err => {
     log.error('[Electron Main] Error during initializeApp:', err);
-    // This is a critical failure, show error and quit
     // Note: app might not be ready here, so dialog might not work as expected
     // but it's worth a try.
     if (app && typeof dialog.showErrorBox === 'function') {
@@ -412,8 +403,6 @@ app.on('window-all-closed', () => {
 
 // Handle app quit explicitly to ensure resources are released
 app.on('will-quit', () => {
-  // This is a good place for final cleanup if needed,
-  // though window-all-closed might cover most cases for non-macOS.
   log.info('[Electron Main] Application will quit.');
   globalShortcut.unregisterAll();
   if (typeof cleanupIpcHandlers === 'function') {

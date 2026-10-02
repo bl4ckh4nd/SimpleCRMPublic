@@ -16,13 +16,18 @@ test('scheduled task spans tasks, calendar, and follow-up', async ({ page }) => 
   await dialog.getByRole('button', { name: 'Aufgabe hinzufügen', exact: true }).click();
   await expect(page.getByText('E2E Rückruf')).toBeVisible();
 
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  await expect(page.getByText('E2E Rückruf', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).not.toBeVisible();
+
   await page.getByRole('link', { name: 'Kalender', exact: true }).click();
-  await page.getByRole('button', { name: 'Tag', exact: true }).click();
+  await page.getByRole('radio', { name: 'Tag', exact: true }).click();
   await expect(page.getByText('E2E Rückruf').first()).toBeVisible();
 
   await page.getByRole('link', { name: 'Nachverfolgung', exact: true }).click();
+  await page.getByRole('button', { name: /^Diese Woche \d/ }).click();
   await expect(page.getByText('Nachfassen').first()).toBeVisible();
-  await page.locator('.divide-y > div').filter({ hasText: 'Nachfassen' }).first().click();
+  await page.locator('.divide-y > div').filter({ hasText: 'Nachfassen' }).first().getByRole('button', { name: /Nachfassen/ }).click();
   await page.getByRole('button', { name: 'Notiz', exact: true }).click();
   dialog = page.getByRole('dialog');
   await dialog.locator('#activity-title').fill('Rückruf besprochen');
@@ -41,7 +46,7 @@ test('scheduled task spans tasks, calendar, and follow-up', async ({ page }) => 
 
 test('standalone calendar event can be created, edited, and deleted', async ({ page }) => {
   await page.getByRole('link', { name: 'Kalender', exact: true }).click();
-  await page.getByRole('button', { name: 'Tag', exact: true }).click();
+  await page.getByRole('radio', { name: 'Tag', exact: true }).click();
   await page.getByRole('button', { name: /Ereignis hinzufügen/i }).click();
   let dialog = page.getByRole('dialog');
   await dialog.locator('#title').fill('E2E Kalendertermin');

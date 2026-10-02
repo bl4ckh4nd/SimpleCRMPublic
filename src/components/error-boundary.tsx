@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="container mx-auto max-w-7xl py-6">
           <Card className="border-destructive/50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-destructive">
+              <CardTitle className="flex items-center gap-2 text-danger-foreground">
                 <AlertCircle className="h-5 w-5" />
                 Ein Fehler ist aufgetreten
               </CardTitle>
@@ -49,7 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 variant="outline"
                 onClick={() => this.setState({ hasError: false, error: null })}
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="h-4 w-4" />
                 Erneut versuchen
               </Button>
             </CardContent>

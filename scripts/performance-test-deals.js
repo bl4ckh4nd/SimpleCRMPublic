@@ -51,7 +51,7 @@ function log(message, type = 'info') {
 function isAppRunning() {
   try {
     // Try to ping the electron app (you might need to adjust this based on your setup)
-    // For now, we'll check if the dist-electron directory exists and is built
+    // The benchmark uses the existing Electron build.
     const distElectron = path.join(__dirname, '..', 'dist-electron');
     return fs.existsSync(distElectron) && fs.existsSync(path.join(distElectron, 'main.js'));
   } catch (error) {

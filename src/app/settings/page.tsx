@@ -89,10 +89,10 @@ export default function SettingsPage() {
           if (settingsFromIPC) {
             // For form reset, ensure password field is an empty string if password is undefined
             // and provide a default for forcePort if it's not in stored settings (for backward compatibility)
-            const formValues = { 
-              ...settingsFromIPC, 
+            const formValues = {
+              ...settingsFromIPC,
               password: settingsFromIPC.password || "",
-              forcePort: settingsFromIPC.forcePort || false 
+              forcePort: settingsFromIPC.forcePort || false
             };
             form.reset(formValues);
 
@@ -211,7 +211,6 @@ export default function SettingsPage() {
       if (result.success) {
         const message = typeof result.message === "string" ? result.message : "";
         let germanMessage = "Das Passwort wurde erfolgreich gelöscht."; // Default success message
-        // You can customize the message further based on specific success scenarios if needed:
         if (message === 'No password found in secure storage for the current settings.') {
             germanMessage = "Es wurde kein zu löschendes Passwort für die aktuellen Einstellungen gefunden (möglicherweise bereits entfernt).";
         } else if (message === 'No connection settings are fully configured, so no password to clear.') {
@@ -278,9 +277,9 @@ export default function SettingsPage() {
       return
     }
     try {
-      const result: { success: boolean; message: string; details?: { found?: number; synced?: number } } = 
+      const result: { success: boolean; message: string; details?: { found?: number; synced?: number } } =
         await window.electronAPI.invoke('sync:run')
-      
+
       if (result.success) {
         let feedback = result.message || "Sync erfolgreich.";
         // Further check if details exist and have the expected properties
@@ -292,7 +291,7 @@ export default function SettingsPage() {
         }
         toast.success("Synchronisation abgeschlossen", { description: feedback })
         setSyncStatusMessage(feedback)
-        
+
         // Fetch updated sync status to get the new timestamp
         try {
           const syncStatus = await window.electronAPI.invoke('sync:get-status')
@@ -331,9 +330,9 @@ export default function SettingsPage() {
   const getConnectionStatusIcon = () => {
     switch (connectionStatus) {
       case 'success':
-        return <CheckCircle className="h-5 w-5 text-green-500" />
+        return <CheckCircle className="h-5 w-5 text-success-foreground" />
       case 'error':
-        return <XCircle className="h-5 w-5 text-red-500" />
+        return <XCircle role="img" aria-label="Verbindung fehlgeschlagen" className="h-5 w-5 text-danger-foreground" />
       default:
         return <AlertCircle className="h-5 w-5 text-gray-400" />
     }
@@ -359,7 +358,7 @@ export default function SettingsPage() {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="server"
@@ -388,7 +387,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="database"
@@ -434,7 +433,7 @@ export default function SettingsPage() {
                   )}
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="encrypt"
@@ -471,7 +470,6 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                {/* New Force Port Switch */}
                 <FormField
                   control={form.control}
                   name="forcePort"
@@ -492,11 +490,10 @@ export default function SettingsPage() {
                     </FormItem>
                   )}
                 />
-                {/* End New Force Port Switch */}
 
                 <CardTitle className="text-lg pt-4 border-t mt-4">JTL Standardwerte für Aufträge</CardTitle>
-                
-                <div className="grid grid-cols-2 gap-3">
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="kBenutzer"
@@ -527,7 +524,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="kPlattform"
@@ -558,7 +555,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="cWaehrung"
@@ -635,10 +632,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Danger Zone */}
         <Card className="mt-6 border-destructive/40">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base text-destructive">Gefahrenzone</CardTitle>
+            <CardTitle className="text-base text-danger-foreground">Gefahrenzone</CardTitle>
             <CardDescription>
               Aktionen hier können nicht rückgängig gemacht werden.
             </CardDescription>

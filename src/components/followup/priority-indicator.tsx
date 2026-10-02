@@ -22,8 +22,8 @@ export function PriorityIndicator({ score, dueDate, className }: PriorityIndicat
     <span
       className={cn(
         "inline-block h-2.5 w-2.5 rounded-full shrink-0",
-        level === 'critical' && "bg-red-500",
-        level === 'warning' && "bg-amber-500",
+        level === 'critical' && "bg-danger-foreground",
+        level === 'warning' && "bg-warning-foreground",
         level === 'neutral' && "bg-muted-foreground/40",
         className
       )}

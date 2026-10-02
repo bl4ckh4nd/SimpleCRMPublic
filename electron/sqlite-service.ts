@@ -38,7 +38,6 @@ import {
     createNotificationLogTable,
 } from './database-schema';
 import { Product, DealProduct } from './types';
-// Optional: import Knex from 'knex';
 
 type SqlScalar = string | number | bigint | Buffer | null;
 type SqlParams = Record<string, SqlScalar>;
@@ -109,7 +108,6 @@ interface ProductSyncWrite extends Record<string, unknown> {
 
 const dbPath = path.join(app.getPath('userData'), 'database.sqlite');
 let db: Database.Database;
-// Optional: let knex: Knex.Knex;
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 const sqliteVerboseLogger = (...args: unknown[]) => {
@@ -164,10 +162,8 @@ export function initializeDatabase() {
         // Ensure Foreign Keys are enabled on existing DBs too
         db.exec('PRAGMA foreign_keys = ON;');
         // Here you could add migration logic if schema changes
-        // Example: Check if deal_products table exists and create if not
         const checkTableStmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");
 
-        // Helper function to check and create table with its indexes
         const ensureTableExists = (tableName: string, createTableSql: string, tableIndexes: string[]) => {
             if (!checkTableStmt.get(tableName)) {
                 console.log(`Table ${tableName} not found, creating...`);
@@ -247,12 +243,6 @@ export function initializeDatabase() {
         runMigrations();
     }
 
-    // Optional Knex initialization
-    // knex = Knex({
-    //   client: 'better-sqlite3',
-    //   connection: { filename: dbPath },
-    //   useNullAsDefault: true
-    // });
 
     console.log(`Database connection established: ${dbPath}`);
     setupPragmas();
@@ -381,7 +371,7 @@ export function getDb() {
     return db;
 }
 
-// --- Custom Fields Functions ---
+// Custom Fields Functions
 
 // Get all custom field definitions
 export function getAllCustomFields() {
@@ -414,7 +404,6 @@ export function getCustomFieldById(id: number) {
     return stmt.get(id);
 }
 
-// Create a new custom field
 export function createCustomField(fieldData: CustomFieldWrite) {
     const now = new Date().toISOString();
     const stmt = getDb().prepare(`
@@ -604,13 +593,11 @@ export function getCustomFieldValuesForAllCustomers(): Map<number, CustomFieldVa
 export function setCustomFieldValue(customerId: number, fieldId: number, value: unknown) {
     const now = new Date().toISOString();
 
-    // Check if the field exists
     const field = getCustomFieldById(fieldId);
     if (!field) {
         throw new Error(`Custom field with ID ${fieldId} not found`);
     }
 
-    // Check if the customer exists
     const customer = getCustomerById(customerId);
     if (!customer) {
         throw new Error(`Customer with ID ${customerId} not found`);
@@ -665,7 +652,7 @@ export function deleteAllCustomFieldValuesForCustomer(customerId: number) {
     return result.changes > 0;
 }
 
-// --- Sync Info ---
+// Sync Info
 export function getSyncInfo(key: string): string | null {
     const stmt = getDb().prepare(`SELECT value FROM ${SYNC_INFO_TABLE} WHERE key = ?`);
     const result = stmt.get(key) as { value: string } | undefined;
@@ -717,7 +704,7 @@ interface CustomFieldValueRecord {
     description?: string;
 }
 
-// --- Customer Operations ---
+// Customer Operations
 
 // Lightweight function for dropdown population - no custom fields
 export function getCustomersForDropdown(): Array<Pick<CustomerRecord, 'id' | 'name' | 'customerNumber'>> {
@@ -843,7 +830,6 @@ export function getAllCustomers(includeCustomFields: boolean = false): CustomerR
 
         const customFieldValues = customFieldValuesByCustomer.get(customer.id) || [];
 
-        // Create a customFields object with field name as key and value as value
         const customFields: Record<string, CustomFieldValue> = {};
         customFieldValues.forEach((field: CustomFieldValueRecord) => {
             // Parse value based on field type
@@ -889,7 +875,6 @@ export function getCustomerById(id: number | string): CustomerRecord | null {
     // Get custom field values for this customer
     const customFieldValues = getCustomFieldValuesForCustomer(customer.id) as CustomFieldValueRecord[];
 
-    // Create a customFields object with field name as key and value as value
     const customFields: Record<string, CustomFieldValue> = {};
     customFieldValues.forEach((field: CustomFieldValueRecord) => {
         // Parse value based on field type
@@ -1147,7 +1132,7 @@ export function deleteCustomer(id: number): boolean {
     return result.success && result.deletedIds.includes(id);
 }
 
-// --- Product Operations ---
+// Product Operations
 
 export function getAllProducts(): Product[] {
     const stmt = getDb().prepare(`SELECT * FROM ${PRODUCTS_TABLE} ORDER BY name`);
@@ -1292,7 +1277,7 @@ export function upsertProduct(productData: ProductSyncWrite): void {
     stmt.run({ ...productData, isActive: isActiveInt, now: now });
 }
 
-// --- Deal-Product Link Operations ---
+// Deal-Product Link Operations
 
 export function addProductToDeal(dealId: number, productId: number, quantity: number, price: number): Database.RunResult {
     const now = new Date().toISOString();
@@ -1322,7 +1307,6 @@ export function removeProductFromDeal(dealId: number, productId: number): Databa
     return stmt.run(dealId, productId);
 }
 
-// Updated function to handle both quantity and price updates
 export function updateDealProduct(dealProductId: number, quantity: number, price: number): Database.RunResult {
     if (quantity <= 0) {
         // If quantity is zero or less, remove the product link entirely
@@ -1451,7 +1435,7 @@ export function updateDealValueBasedOnCalculationMethod(dealId: number): { succe
   }
 }
 
-// --- Calendar Event Operations ---
+// Calendar Event Operations
 
 // Define a type for the data coming from the frontend/going to the DB
 interface CalendarEventData {
@@ -1587,7 +1571,6 @@ export function updateCalendarEvent(id: number, eventData: Partial<Omit<Calendar
                                .map(key => `${key} = @${key}`)
                                .join(', ');
 
-        // Ensure updated_at is always updated
         updateFields += `, updated_at = @now`;
 
         const stmt = getDb().prepare(`
@@ -1608,7 +1591,7 @@ export function deleteCalendarEvent(id: number): Database.RunResult {
     return stmt.run(id);
 }
 
-// --- Deal Operations ---
+// Deal Operations
 export function getAllDeals(
   limit: number = 100,
   offset: number = 0,
@@ -1796,7 +1779,7 @@ export function deleteDeal(dealId: number): { success: boolean; error?: string }
   }
 }
 
-// --- Deal Operations for Customer ---
+// Deal Operations for Customer
 export function getDealsForCustomer(customerId: number): unknown[] {
     // This assumes a 'deals' table with a customer_id field
     const stmt = getDb().prepare(`
@@ -1807,7 +1790,7 @@ export function getDealsForCustomer(customerId: number): unknown[] {
     return stmt.all(customerId);
 }
 
-// --- Task Operations for Customer ---
+// Task Operations for Customer
 export function getTasksForCustomer(customerId: number): unknown[] {
     // This assumes a 'tasks' table with a customer_id field
     const stmt = getDb().prepare(`
@@ -1820,7 +1803,7 @@ export function getTasksForCustomer(customerId: number): unknown[] {
     return stmt.all(customerId);
 }
 
-// --- JTL Specific Entity Operations ---
+// JTL Specific Entity Operations
 
 // JTL Firmen
 export function upsertJtlFirma(firma: { kFirma: number; cName: string }): void {
@@ -1882,7 +1865,7 @@ export function getAllJtlVersandarten(): { kVersandart: number; cName: string }[
     return stmt.all() as { kVersandart: number; cName: string }[];
 }
 
-// --- Dashboard Operations ---
+// Dashboard Operations
 
 /**
  * Get dashboard statistics including customer counts, deal values, and task counts
@@ -2004,7 +1987,7 @@ export function getRecentCustomers(limit: number = 5): unknown[] {
 export function getUpcomingTasks(limit: number = 5): unknown[] {
     try {
         const stmt = getDb().prepare(`
-            SELECT t.id, t.title, t.priority, t.customer_id, t.due_date,
+            SELECT t.id, t.title, t.priority, t.customer_id, t.due_date, t.completed,
                    c.name as customer_name
             FROM ${TASKS_TABLE} t
             LEFT JOIN ${CUSTOMERS_TABLE} c ON t.customer_id = c.id
@@ -2019,7 +2002,7 @@ export function getUpcomingTasks(limit: number = 5): unknown[] {
     }
 }
 
-// --- Activity Log ---
+// Activity Log
 
 export function createActivityLog(data: {
     customer_id?: number;
@@ -2094,7 +2077,7 @@ export function getTimeline(customerId: number, filter?: string, limit: number =
     return stmt.all(...params);
 }
 
-// --- Follow-up Queue ---
+// Follow-up Queue
 
 export function getFollowUpQueueCounts(): {
     heute: number;
@@ -2323,7 +2306,7 @@ export function snoozeTask(taskId: number, snoozedUntil: string): { success: boo
     }
 }
 
-// --- Saved Views ---
+// Saved Views
 
 export function getSavedViews(): unknown[] {
     const stmt = getDb().prepare(`
@@ -2362,7 +2345,7 @@ export function deleteSavedView(id: number): { success: boolean; error?: string 
     }
 }
 
-// --- Notification log ---
+// Notification log
 export type NotificationLogEntry = {
     id: number;
     sent_date: string;
@@ -2383,15 +2366,10 @@ export function getNotificationLog(limit: number = 20): NotificationLogEntry[] {
     ).all(limit) as NotificationLogEntry[];
 }
 
-// --- Cleanup ---
+// Cleanup
 export function closeDatabase() {
     if (db) {
         db.close();
         console.log('Database connection closed.');
     }
-    // Optional Knex cleanup
-    // if (knex) {
-    //   await knex.destroy();
-    //   console.log('Knex connection destroyed.');
-    // }
 }

@@ -31,7 +31,7 @@ test('product-backed deal moves through sales and enforces protected deletion', 
   await dialog.locator('#value').fill('500');
   await dialog.getByRole('button', { name: 'Deal hinzufügen' }).click();
   await page.getByRole('link', { name: 'E2E Verkaufschance' }).click();
-  await expect(page.getByRole('heading', { name: 'E2E Verkaufschance' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'E2E Verkaufschance', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Produkt hinzufügen', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Produkt zum Deal hinzufügen' });
@@ -48,16 +48,19 @@ test('product-backed deal moves through sales and enforces protected deletion', 
   await dialog.locator('#edit-value-calculation-method').click();
   await page.getByRole('option', { name: 'Dynamisch (aus Produkten)' }).click();
   await dialog.getByRole('button', { name: 'Speichern' }).click();
-  await expect(page.getByRole('heading', { name: 'E2E Verkaufschance Pro' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'E2E Verkaufschance Pro', exact: true })).toBeVisible();
   await expect(page.getByText('(Dynamisch berechnet)')).toBeVisible();
 
   await page.locator('a[href="/deals"]').first().click();
-  await page.getByRole('button', { name: /Kanban/i }).click();
-  const stage = page.getByRole('link', { name: 'E2E Verkaufschance Pro' })
-    .locator('xpath=ancestor::div[.//button[@role="combobox"]][1]')
-    .getByRole('combobox');
-  await stage.click();
-  await page.getByRole('option', { name: 'Qualifiziert', exact: true }).click();
+  await page.getByRole('radio', { name: /Kanban/i }).click();
+  const phaseAction = page.getByRole('button', { name: 'Phase für E2E Verkaufschance Pro ändern', exact: true });
+  await phaseAction.focus();
+  await phaseAction.press('Enter');
+  await expect(page.getByRole('menu')).toContainText('Verschieben nach');
+  await page.getByRole('menuitem', { name: 'Qualifiziert', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'E2E Verkaufschance Pro' })).toBeVisible();
+  await page.getByRole('link', { name: 'E2E Verkaufschance Pro' }).click();
+  await expect(page.getByRole('heading', { name: 'E2E Verkaufschance Pro', exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: 'Kunden', exact: true }).click();
   const customerRow = page.locator('table tbody tr').filter({ hasText: 'Vertrieb' });

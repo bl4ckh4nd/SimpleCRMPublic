@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 export function DealDetailSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Header Skeleton */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <Skeleton className="h-10 w-[250px]" />
@@ -16,7 +15,6 @@ export function DealDetailSkeleton() {
         </div>
       </div>
       
-      {/* Deal Info Skeleton */}
       <Card>
         <CardHeader>
           <Skeleton className="h-6 w-[180px]" />
@@ -33,7 +31,6 @@ export function DealDetailSkeleton() {
         </CardContent>
       </Card>
       
-      {/* Notes Skeleton */}
       <Card>
         <CardHeader>
           <Skeleton className="h-6 w-24" />

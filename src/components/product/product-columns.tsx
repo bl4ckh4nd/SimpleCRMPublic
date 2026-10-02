@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useState } from "react"
 
-// Helper function to format currency
 const formatCurrency = (amount: number) => {
   // Handle potential non-numeric inputs gracefully
   if (isNaN(amount)) {
@@ -36,7 +35,6 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
 };
 
-// Define the columns for the Product table
 export const columns: ColumnDef<Product>[] = [
   {
     id: "select",
@@ -47,16 +45,16 @@ export const columns: ColumnDef<Product>[] = [
           (table.getIsSomePageRowsSelected() && "indeterminate")
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-        className="translate-y-[2px]"
+        aria-label="Alle Produkte auswählen"
+
       />
     ),
     cell: ({ row }) => (
       <Checkbox
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        className="translate-y-[2px]"
+        aria-label={`Produkt ${row.original.name} auswählen`}
+
       />
     ),
     enableSorting: false,
@@ -71,7 +69,7 @@ export const columns: ColumnDef<Product>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="h-4 w-4" />
         </Button>
       )
     },
@@ -100,13 +98,13 @@ export const columns: ColumnDef<Product>[] = [
           className="justify-end w-full" // Align header text right using flex justify
         >
           Preis
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="h-4 w-4" />
         </Button>
       )
     },
     cell: ({ row }) => {
       const price = parseFloat(row.getValue("price"))
-      return <div className="text-right font-medium pr-4">{formatCurrency(price)}</div> // Added padding
+      return <div className="text-right font-medium tabular-nums">{formatCurrency(price)}</div>
     },
   },
   {
@@ -115,8 +113,8 @@ export const columns: ColumnDef<Product>[] = [
     cell: ({ row }) => {
       const isActive = row.getValue("isActive")
       return (
-        <Badge variant={isActive ? "default" : "secondary"} className="capitalize">
-          {isActive ? <CheckCircle className="mr-1 h-3 w-3 text-green-500" /> : <XCircle className="mr-1 h-3 w-3 text-red-500" />}
+        <Badge variant={isActive ? "success" : "neutral"} className="capitalize">
+          {isActive ? <CheckCircle className="mr-1 h-3 w-3 text-success-foreground" /> : <XCircle className="mr-1 h-3 w-3 text-danger-foreground" />}
           {isActive ? 'Aktiv' : 'Inaktiv'}
         </Badge>
       )
@@ -130,9 +128,9 @@ export const columns: ColumnDef<Product>[] = [
     cell: ({ row, table }) => { // Pass table meta to access handlers
       const product = row.original
       // Type assertion for meta - ensure handlers are passed correctly in ProductTable
-      const meta = table.options.meta as { 
+      const meta = table.options.meta as {
         onEdit: (product: Product) => void;
-        onDelete: (productId: number) => Promise<void>; // Assuming delete is async
+        onDelete: (productId: number) => Promise<boolean>; // Assuming delete is async
       };
 
       if (!meta || typeof meta.onEdit !== 'function' || typeof meta.onDelete !== 'function') {
@@ -141,6 +139,7 @@ export const columns: ColumnDef<Product>[] = [
       }
 
       const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+      const [deleting, setDeleting] = useState(false);
 
       const handleDelete = async () => {
           setShowDeleteDialog(true);
@@ -161,11 +160,11 @@ export const columns: ColumnDef<Product>[] = [
                 Namen kopieren
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => meta.onEdit(product)}> 
-                <Pencil className="mr-2 h-4 w-4" /> Bearbeiten
+              <DropdownMenuItem onClick={() => meta.onEdit(product)}>
+                <Pencil className="h-4 w-4" /> Bearbeiten
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-100" onClick={handleDelete}> 
-                <Trash2 className="mr-2 h-4 w-4" /> Löschen
+              <DropdownMenuItem className="text-danger-foreground focus:text-danger-foreground focus:bg-danger" onClick={handleDelete}>
+                <Trash2 className="h-4 w-4" /> Löschen
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -179,10 +178,15 @@ export const columns: ColumnDef<Product>[] = [
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                <AlertDialogAction 
-                  className="bg-red-600 hover:bg-red-700" 
-                  onClick={() => meta.onDelete(product.id)}
+                <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive-hover" disabled={deleting}
+                  onClick={async (event) => {
+                    event.preventDefault();
+                    setDeleting(true);
+                    try { if (await meta.onDelete(product.id)) setShowDeleteDialog(false); }
+                    finally { setDeleting(false); }
+                  }}
                 >
                   Löschen
                 </AlertDialogAction>
@@ -195,4 +199,4 @@ export const columns: ColumnDef<Product>[] = [
     enableSorting: false,
     enableHiding: false,
   },
-] 
+]

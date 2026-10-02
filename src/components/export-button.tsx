@@ -39,10 +39,10 @@ export default function ExportButton({ data, fileName, children }: ExportButtonP
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={isExporting}>
-          <Download className="mr-2 h-4 w-4" />
+        <Button size="sm" variant="outline" disabled={isExporting}>
+          <Download className="h-4 w-4" />
           {children || 'Exportieren'}
-          <ChevronDown className="ml-2 h-4 w-4" />
+          <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

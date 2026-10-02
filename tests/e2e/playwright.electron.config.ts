@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
@@ -9,7 +10,7 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  reporter: [['list']],
+  reporter: [['list'], ['html', { outputFolder: path.resolve(process.cwd(), 'playwright-report'), open: 'never' }]],
   use: {
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

@@ -52,25 +52,22 @@ export function GroupSelector({
           onValueChange={(value) => onGroupingChange(value || null)}
           disabled={!isGrouped}
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger density="compact" aria-label="Gruppieren nach" className="w-[180px]">
             <SelectValue placeholder="Gruppieren nach..." />
           </SelectTrigger>
           <SelectContent>
-            {/* Standard fields */}
             {options.filter(option => !option.value.startsWith('custom_')).map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
             ))}
 
-            {/* Separator if there are custom fields */}
             {options.some(option => option.value.startsWith('custom_')) && (
               <div className="px-2 py-1.5 text-xs text-muted-foreground border-t">
                 Benutzerdefinierte Felder
               </div>
             )}
 
-            {/* Custom fields */}
             {options.filter(option => option.value.startsWith('custom_')).map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}

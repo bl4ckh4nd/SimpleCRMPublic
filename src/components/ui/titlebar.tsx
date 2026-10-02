@@ -63,12 +63,12 @@ const Titlebar: React.FC = () => {
   const ControlIcon = isMaximized ? Copy : Square;
 
   const controlButtonBase =
-    'flex h-8 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+    'flex h-8 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
   return (
     <>
       <div
-        className="fixed top-0 left-0 right-0 z-[60] flex h-10 items-center justify-between gap-3 border-b border-border bg-background px-3 text-sm font-medium text-foreground select-none"
+        className="fixed top-0 left-0 right-0 z-[60] flex h-[var(--titlebar-height)] items-center justify-between gap-3 border-b border-border bg-background px-3 text-sm font-medium text-foreground select-none"
         style={containerStyle}
         onDoubleClick={handleDoubleClick}
       >
@@ -83,7 +83,7 @@ const Titlebar: React.FC = () => {
         >
           <button
             type="button"
-            aria-label="Minimize window"
+            aria-label="Fenster minimieren"
             className={cn(controlButtonBase, 'hover:bg-muted')}
             onClick={handleMinimize}
           >
@@ -91,7 +91,7 @@ const Titlebar: React.FC = () => {
           </button>
           <button
             type="button"
-            aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+            aria-label={isMaximized ? 'Fenster wiederherstellen' : 'Fenster maximieren'}
             className={cn(controlButtonBase, 'hover:bg-muted')}
             onClick={handleMaximizeToggle}
           >
@@ -99,7 +99,7 @@ const Titlebar: React.FC = () => {
           </button>
           <button
             type="button"
-            aria-label="Close window"
+            aria-label="Fenster schließen"
             className={cn(
               controlButtonBase,
               'hover:bg-destructive hover:text-destructive-foreground',
@@ -110,7 +110,7 @@ const Titlebar: React.FC = () => {
           </button>
         </div>
       </div>
-      <div className="h-10 w-full" aria-hidden />
+      <div className="h-[var(--titlebar-height)] w-full shrink-0" aria-hidden />
     </>
   );
 };

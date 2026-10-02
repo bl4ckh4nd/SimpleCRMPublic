@@ -38,9 +38,8 @@ describe('dashboardService', () => {
     expect(tasks[0].dueDate).toBe('2026-03-14');
   });
 
-  test('returns defaults on stats failure', async () => {
+  test('propagates stats failure', async () => {
     invoke.mockRejectedValueOnce(new Error('boom'));
-    const stats = await dashboardService.getDashboardStats();
-    expect(stats.totalCustomers).toBe(0);
+    await expect(dashboardService.getDashboardStats()).rejects.toThrow('boom');
   });
 });

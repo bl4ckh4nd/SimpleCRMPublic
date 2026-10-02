@@ -30,35 +30,6 @@ jest.mock('@tanstack/react-router', () => ({
   ),
 }));
 
-// Mock Radix Select (portal-based)
-jest.mock('@/components/ui/select', () => ({
-  Select: ({ children, onValueChange, value }: unknown) => (
-    <div data-testid="select" data-value={value}>
-      {React.Children.map(children, (child: unknown) =>
-        React.cloneElement(child, { onValueChange })
-      )}
-    </div>
-  ),
-  SelectTrigger: ({ children }: unknown) => <button data-testid="select-trigger">{children}</button>,
-  SelectValue: () => <span data-testid="select-value" />,
-  SelectContent: ({ children, onValueChange }: unknown) => (
-    <div data-testid="select-content">
-      {React.Children.map(children, (child: unknown) =>
-        child?.props ? React.cloneElement(child, { onValueChange }) : child
-      )}
-    </div>
-  ),
-  SelectItem: ({ children, value, onValueChange }: unknown) => (
-    <div
-      data-testid={`select-item-${value}`}
-      onClick={() => onValueChange?.(value)}
-      role="option"
-    >
-      {children}
-    </div>
-  ),
-}));
-
 import { KanbanCard } from '@/components/deal/kanban-card';
 
 const mockDeal = {
@@ -90,12 +61,12 @@ describe('KanbanCard', () => {
 
   test('renders deal value with euro sign', () => {
     render(<KanbanCard deal={mockDeal} />);
-    expect(screen.getByText(/15000 €/)).toBeTruthy();
+    expect(screen.getByText(/15\.000,00\s*€/)).toBeTruthy();
   });
 
   test('renders expected close date', () => {
     render(<KanbanCard deal={mockDeal} />);
-    expect(screen.getByText(/Abschluss:.*2026-06-30/)).toBeTruthy();
+    expect(screen.getByText(/Abschluss am.*30\.6\.2026/)).toBeTruthy();
   });
 
   test('shows dynamic calculation label when value_calculation_method is dynamic', () => {
@@ -109,44 +80,30 @@ describe('KanbanCard', () => {
     expect(screen.queryByText(/Dynamisch/i)).toBeNull();
   });
 
-  test('renders stage select when onStageChange is provided', () => {
+  test('renders stage action when onStageChange is provided', () => {
     render(<KanbanCard deal={mockDeal} onStageChange={jest.fn()} />);
-    expect(screen.getByTestId('select')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Phase für Enterprise Deal ändern' })).toBeTruthy();
   });
 
-  test('does not render stage select when onStageChange is not provided', () => {
+  test('does not render stage action without onStageChange', () => {
     render(<KanbanCard deal={mockDeal} />);
-    expect(screen.queryByTestId('select')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByText('Qualifiziert')).toBeNull();
   });
 
-  test('calls onStageChange with deal id and new stage', async () => {
+  test('calls onStageChange from the action menu', async () => {
     const user = userEvent.setup();
     const onStageChange = jest.fn();
     render(<KanbanCard deal={mockDeal} onStageChange={onStageChange} />);
-
-    const angebotOption = screen.getByTestId('select-item-Angebot');
-    await user.click(angebotOption);
-
+    await user.click(screen.getByRole('button', { name: 'Phase für Enterprise Deal ändern' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Angebot' }));
     expect(onStageChange).toHaveBeenCalledWith(1, 'Angebot');
-  });
-
-  test('shows correct badge variant for Gewonnen stage', () => {
-    const wonDeal = { ...mockDeal, stage: 'Gewonnen' };
-    render(<KanbanCard deal={wonDeal} />);
-    // Badge should render with the stage name
-    expect(screen.getByText('Gewonnen')).toBeTruthy();
-  });
-
-  test('shows correct badge variant for Verloren stage', () => {
-    const lostDeal = { ...mockDeal, stage: 'Verloren' };
-    render(<KanbanCard deal={lostDeal} />);
-    expect(screen.getByText('Verloren')).toBeTruthy();
   });
 
   test('shows dash when expectedCloseDate is empty', () => {
     const noDeal = { ...mockDeal, expectedCloseDate: '' };
     render(<KanbanCard deal={noDeal} />);
-    expect(screen.getByText(/Abschluss:.*—/)).toBeTruthy();
+    expect(screen.getByText(/Abschluss am.*—/)).toBeTruthy();
   });
 
   test('applies drag styles when isDragging', () => {

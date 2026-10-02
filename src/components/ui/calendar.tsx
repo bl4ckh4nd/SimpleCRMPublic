@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { de } from "react-day-picker/locale"
 import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
@@ -17,25 +18,27 @@ function Calendar({
 }: CalendarProps) {
   return (
     <DayPicker
+      locale={de}
+      weekStartsOn={1}
       showOutsideDays={showOutsideDays}
-      className={cn("p-3", className)}
+      className={cn("relative p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row gap-2",
         month: "flex flex-col gap-4",
-        month_caption: "flex justify-center pt-1 relative items-center",
+        month_caption: "flex h-8 justify-center items-center",
         caption_label: "text-sm font-medium",
-        nav: "flex items-center gap-1",
+        nav: "absolute inset-x-3 top-3 flex items-center justify-between",
         button_previous: cn(
-          buttonVariants({ variant: "outline" }),
-          "absolute left-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+          buttonVariants({ variant: "outline", size: "icon-sm" }),
+          "bg-transparent p-0"
         ),
         button_next: cn(
-          buttonVariants({ variant: "outline" }),
-          "absolute right-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+          buttonVariants({ variant: "outline", size: "icon-sm" }),
+          "bg-transparent p-0"
         ),
         month_grid: "w-full border-collapse space-y-1",
         weekdays: "flex",
-        weekday: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+        weekday: "text-muted-foreground rounded-md w-9 font-normal text-xs",
         week: "flex w-full mt-2",
         day: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
         day_button: cn(

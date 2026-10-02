@@ -11,15 +11,15 @@ export function DealHeader({ deal }: DealHeaderProps) {
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{deal.name}</h1>
+        <h1 className="text-2xl font-semibold leading-8 tracking-tight break-words">{deal.name}</h1>
         <p className="text-muted-foreground">{deal.customer}</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Badge variant={getDealStageColor(deal.stage)}>
           {deal.stage}
         </Badge>
         <div className="flex flex-col items-end">
-          <span className="text-2xl font-semibold">{formatCurrency(deal.value)}</span>
+          <span className="text-2xl font-semibold tabular-nums">{formatCurrency(deal.value)}</span>
           {deal.value_calculation_method === 'dynamic' && (
             <span className="text-xs text-muted-foreground">(Dynamisch berechnet)</span>
           )}
@@ -39,7 +39,6 @@ export function DealMetadata({ deal }: DealHeaderProps) {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1">
             <p className="text-sm font-medium leading-none text-muted-foreground">Kunde</p>
-            {/* Wrap customer name in a Link */}
             <Link
               to="/customers/$customerId"
               params={{ customerId: String(deal.customer_id) }}

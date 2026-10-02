@@ -1,7 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ProductsLoading() {
-  // You can add a skeleton loading state here
   return (
     <div className="space-y-4 p-4">
       <Skeleton className="h-8 w-48" /> 

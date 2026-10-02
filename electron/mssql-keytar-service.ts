@@ -1,16 +1,14 @@
 import sql from 'mssql';
 import Store from 'electron-store';
 import keytar from 'keytar';
-import { MssqlSettings } from './types'; // Assuming types.ts exists
-import { performance } from 'perf_hooks'; // For timing
+import { MssqlSettings } from './types';
+import { performance } from 'perf_hooks';
 import {
     getFriendlyMssqlError,
     type MssqlErrorCategory,
     type MssqlErrorSeverity,
 } from '../shared/errors/mssql';
 
-// #COMPLETION_DRIVE: Assuming SQL error codes are consistent across MSSQL versions
-// #SUGGEST_VERIFY: Test with different MSSQL versions and authentication scenarios
 interface DetailedMssqlError {
     category: MssqlErrorCategory;
     code?: string;
@@ -105,7 +103,6 @@ function parseServerInput(raw: string): { host: string; instanceName?: string; p
     return { host: s };
 }
 
-// Function to generate a unique account name for keytar
 function getKeytarAccount(settings: Pick<MssqlSettings, 'server' | 'database' | 'user' | 'port'>): string {
     // If server contains instance name, use it for uniqueness, otherwise just server.
     // Port is part of the key to allow different passwords for same user@server on different ports (though less common).
@@ -113,7 +110,7 @@ function getKeytarAccount(settings: Pick<MssqlSettings, 'server' | 'database' | 
     return `${serverIdentifier}:${settings.port || 1433}-${settings.database || 'unknown_db'}-${settings.user || 'unknown_user'}`;
 }
 
-// Build a robust connection config supporting instance names and direct port connections.
+// Accept named instances and direct host/port connections.
 function buildConnectionConfig(settings: MssqlSettings): sql.config {
     const parsed = parseServerInput(settings.server);
 
@@ -468,7 +465,7 @@ export async function fetchJtlProducts() {
     const startTime = performance.now();
     try {
         const pool = await getConnectionPool();
-        // Corrected Query: Joining tArtikelBeschreibung for Name/Description and tLagerbestand for StockLevel.
+        // JTL schema: Joining tArtikelBeschreibung for Name/Description and tLagerbestand for StockLevel.
         // Assumes German language (kSprache = 1) for tArtikelBeschreibung.
         const result = await pool.request().query(`
             SELECT

@@ -21,9 +21,9 @@ describe('customFieldService', () => {
     expect(result[0].active).toBe(false);
   });
 
-  test('returns empty array on load error', async () => {
+  test('propagates load error so the UI can distinguish failure from empty data', async () => {
     invoke.mockRejectedValueOnce(new Error('boom'));
-    await expect(customFieldService.getActiveCustomFields()).resolves.toEqual([]);
+    await expect(customFieldService.getActiveCustomFields()).rejects.toThrow('boom');
   });
 
   test('creates and deletes fields through IPC', async () => {

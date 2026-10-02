@@ -1,4 +1,6 @@
 "use client"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DialogBody, DialogFooter } from "@/components/ui/dialog";
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,6 +36,7 @@ interface ProductFormProps {
   product?: Product | null;
   onSubmit: (values: ProductFormValues) => Promise<void>;
   isSubmitting: boolean;
+  error?: string | null;
   submitButtonText?: string;
   onCancel?: () => void;
 }
@@ -48,10 +51,11 @@ function getDefaultValues(product?: Product | null): ProductFormValues {
   }
 }
 
-export function ProductForm({ 
-  product, 
+export function ProductForm({
+  product,
   onSubmit,
   isSubmitting,
+  error,
   submitButtonText = "Speichern",
   onCancel
 }: ProductFormProps) {
@@ -67,7 +71,9 @@ export function ProductForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="flex min-h-0 flex-1 flex-col">
+      <DialogBody className="space-y-4">
+        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <FormField
           control={form.control}
           name="name"
@@ -155,7 +161,8 @@ export function ProductForm({
           )}
         />
 
-        <div className="flex justify-end space-x-2 pt-4">
+      </DialogBody>
+        <DialogFooter>
            {onCancel && (
               <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                   Abbrechen
@@ -164,7 +171,7 @@ export function ProductForm({
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Wird gespeichert..." : submitButtonText}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Form>
   )

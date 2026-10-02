@@ -2,20 +2,20 @@ import { BrowserWindow } from 'electron';
 import {
     fetchJtlCustomers,
     fetchJtlProducts,
-    fetchJtlFirmen, // Added
-    fetchJtlWarenlager, // Added
-    fetchJtlZahlungsarten, // Added
-    fetchJtlVersandarten // Added
+    fetchJtlFirmen,
+    fetchJtlWarenlager,
+    fetchJtlZahlungsarten,
+    fetchJtlVersandarten
 } from './mssql-keytar-service';
 import {
     upsertProduct,
     setSyncInfo,
     getSyncInfo,
     getDb,
-    upsertJtlFirma, // Added
-    upsertJtlWarenlager, // Added
-    upsertJtlZahlungsart, // Added
-    upsertJtlVersandart // Added
+    upsertJtlFirma,
+    upsertJtlWarenlager,
+    upsertJtlZahlungsart,
+    upsertJtlVersandart
 } from './sqlite-service';
 
 let isSyncing = false;
@@ -48,7 +48,6 @@ interface JtlProductRow {
     IsActive?: string | number | boolean | null;
 }
 
-// Function to map JTL Customer data to SQLite schema
 function mapJtlCustomerToSqlite(jtlCustomer: JtlCustomerRow) {
     console.log(`[Sync] Mapping customer kKunde: ${jtlCustomer?.kKunde}`);
     // Explicitly handle potential null/undefined values from DB
@@ -84,11 +83,9 @@ function mapJtlCustomerToSqlite(jtlCustomer: JtlCustomerRow) {
         // Assuming jtl_blocked in SQLite is INTEGER
         jtl_blocked: jtlCustomer.CustomerBlocked === 'Y' || jtlCustomer.CustomerBlocked === 1 ? 1 : 0,
     };
-    // console.log(`[Sync] Mapped customer data:`, mappedData); // Log mapped data (can be verbose)
     return mappedData;
 }
 
-// Function to map JTL Product data to SQLite schema
 function mapJtlProductToSqlite(jtlProduct: JtlProductRow) {
     console.log(`[Sync] Mapping product kArtikel: ${jtlProduct?.kArtikel}`);
 
@@ -117,9 +114,7 @@ function mapJtlProductToSqlite(jtlProduct: JtlProductRow) {
         jtl_dateCreated: jtlDateCreatedISO, // Use the converted ISO string or null
         // Fields like id, dateCreated, lastModified, lastSynced, lastModifiedLocally
         // will be handled by the sqlite-service upsertProduct function.
-        // Removed mapping for barcode, stockLevel as they are not in the new schema.
     };
-     // console.log(`[Sync] Mapped product data for upsert:`, mappedData);
     return mappedData;
 }
 
@@ -186,14 +181,14 @@ export async function runSync(mainWindow: BrowserWindow | null) {
     sendSyncStatus(mainWindow, 'Running', 'Starting data synchronization...', 0);
     let customersSynced = 0;
     let productsSynced = 0;
-    let firmenSynced = 0; // Added
-    let warenlagerSynced = 0; // Added
-    let zahlungsartenSynced = 0; // Added
-    let versandartenSynced = 0; // Added
+    let firmenSynced = 0;
+    let warenlagerSynced = 0;
+    let zahlungsartenSynced = 0;
+    let versandartenSynced = 0;
     const startTime = Date.now();
 
     try {
-        // --- Fetch All Data in Parallel for Better Performance ---
+        // Fetch All Data in Parallel for Better Performance
         sendSyncStatus(mainWindow, 'Running', 'Fetching all data from JTL in parallel...', 5);
         
         const [jtlCustomers, jtlProducts, jtlFirmen, jtlWarenlager, jtlZahlungsarten, jtlVersandarten] = await Promise.all([
@@ -209,7 +204,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
             `Fetched ${jtlCustomers.length} customers, ${jtlProducts.length} products, and ${jtlFirmen.length + jtlWarenlager.length + jtlZahlungsarten.length + jtlVersandarten.length} auxiliary records. Processing...`, 
             15);
 
-        // --- Process Customers ---
+        // Process Customers
         sendSyncStatus(mainWindow, 'Running', 'Processing customers...', 20);
 
         const db = getDb(); // Get DB instance
@@ -284,11 +279,8 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         sendSyncStatus(mainWindow, 'Running', `Completed processing ${customersSynced} customers.`, 35);
 
 
-        // --- Process Products ---
+        // Process Products
         sendSyncStatus(mainWindow, 'Running', 'Processing products...', 40);
-
-        // Removed the local prepared statement for products
-        // const productUpsertStmt = db.prepare(...);
 
         // Process products in chunks to prevent UI freezing
         const productChunkProcessor = db.transaction((products: JtlProductRow[]) => {
@@ -318,7 +310,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         
         sendSyncStatus(mainWindow, 'Running', `Completed processing ${productsSynced} products.`, 70);
 
-        // --- Process JTL Firmen ---
+        // Process JTL Firmen
         sendSyncStatus(mainWindow, 'Running', 'Processing JTL Firmen...', 75);
         const upsertManyFirmen = db.transaction((firmen) => {
             for (const firma of firmen) {
@@ -329,7 +321,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         upsertManyFirmen(jtlFirmen);
         sendSyncStatus(mainWindow, 'Running', `Processed ${firmenSynced}/${jtlFirmen.length} Firmen.`, 83);
 
-        // --- Process JTL Warenlager ---
+        // Process JTL Warenlager
         sendSyncStatus(mainWindow, 'Running', 'Processing JTL Warenlager...', 82);
         const upsertManyWarenlager = db.transaction((warenlager) => {
             for (const lager of warenlager) {
@@ -340,7 +332,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         upsertManyWarenlager(jtlWarenlager);
         sendSyncStatus(mainWindow, 'Running', `Processed ${warenlagerSynced}/${jtlWarenlager.length} Warenlager.`, 92);
 
-        // --- Process JTL Zahlungsarten ---
+        // Process JTL Zahlungsarten
         sendSyncStatus(mainWindow, 'Running', 'Processing JTL Zahlungsarten...', 89);
         const upsertManyZahlungsarten = db.transaction((zahlungsarten) => {
             for (const zahlungsart of zahlungsarten) {
@@ -351,7 +343,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         upsertManyZahlungsarten(jtlZahlungsarten);
         sendSyncStatus(mainWindow, 'Running', `Processed ${zahlungsartenSynced}/${jtlZahlungsarten.length} Zahlungsarten.`, 95);
 
-        // --- Process JTL Versandarten ---
+        // Process JTL Versandarten
         sendSyncStatus(mainWindow, 'Running', 'Processing JTL Versandarten...', 96);
         const upsertManyVersandarten = db.transaction((versandarten) => {
             for (const versandart of versandarten) {
@@ -362,7 +354,7 @@ export async function runSync(mainWindow: BrowserWindow | null) {
         upsertManyVersandarten(jtlVersandarten);
         sendSyncStatus(mainWindow, 'Running', `Processed ${versandartenSynced}/${jtlVersandarten.length} Versandarten.`, 98);
 
-        // --- Finalize ---
+        // Finalize
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
         const successMessage = `Sync completed successfully in ${duration}s. Synced ${customersSynced} customers, ${productsSynced} products, ${firmenSynced} Firmen, ${warenlagerSynced} Warenlager, ${zahlungsartenSynced} Zahlungsarten, ${versandartenSynced} Versandarten.`;
         sendSyncStatus(mainWindow, 'Success', successMessage, 100);
@@ -416,8 +408,6 @@ export async function getLastSyncStatus() {
 
 export function initializeSyncService() {
     console.log("Sync Service Initialized.");
-    // Set up unknown listeners or initial state if needed
-    // Maybe set initial status if DB is empty?
     try {
         if (!getSyncInfo('lastSyncStatus')) {
              setSyncInfo('lastSyncStatus', 'Never');

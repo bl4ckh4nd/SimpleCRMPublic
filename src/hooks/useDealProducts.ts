@@ -23,7 +23,6 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
       if (window.electronAPI) {
         const productsArray = (await invoke(IPC.Deals.GetProducts, dealId)) as unknown as DealProductLink[];
         setDealProducts(productsArray);
-        // Call the callback if provided
         if (onProductsChange) {
           onProductsChange(productsArray);
         }
@@ -52,8 +51,7 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
       toast({ variant: "destructive", title: "Fehler", description: "Deal ID nicht gefunden." });
       return false;
     }
-    // Consider adding a specific loading state for this action if granular feedback is needed
-    // For now, relies on the general isProductsLoading for table refresh indication
+    // The table loading state also covers product mutations.
     try {
       if (!window.electronAPI?.invoke) {
         throw new Error("API not available for adding product.");
@@ -64,7 +62,6 @@ export function useDealProducts(dealId: number | undefined, onProductsChange?: (
         fetchDealProducts(); // Refresh products list
         return true;
       } else {
-        // If success is false, then there should be an error message
         handleApiError(result.error || "Unbekannter Fehler", "Produkt hinzufügen", "Produkt konnte nicht hinzugefügt werden.");
         return false;
       }

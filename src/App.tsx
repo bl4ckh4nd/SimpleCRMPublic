@@ -1,4 +1,3 @@
-import './styles/globals.css'; // Import global styles
 import { Outlet } from '@tanstack/react-router';
 import { ThemeProvider } from "next-themes";
 import Titlebar from '@/components/ui/titlebar';
@@ -15,13 +14,15 @@ export default function App() {
       enableSystem
       disableTransitionOnChange
     >
+      <div className="flex h-dvh min-w-0 flex-col overflow-hidden">
       <Titlebar />
       <MainNav />
       <UpdateStatusDisplay />
-      <div className="font-sans antialiased">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
+      </div>
       </div>
       <Toaster position="bottom-right" />
     </ThemeProvider>

@@ -1,4 +1,5 @@
 "use client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BarChart3, TrendingUp, Clock, Users, Rocket } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -18,7 +19,9 @@ export default function Home() {
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       try {
         setLoadingStats(true);
@@ -32,24 +35,29 @@ export default function Home() {
           dashboardService.getUpcomingTasks(5),
         ]);
 
+        if (cancelled) return;
         setStats(statsData);
         setRecentCustomers(customersData);
         setUpcomingTasks(tasksData);
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to load dashboard data:", err);
         setError("Fehler beim Laden der Dashboard-Daten.");
       } finally {
-        setLoadingStats(false);
-        setLoadingCustomers(false);
-        setLoadingTasks(false);
+        if (!cancelled) {
+          setLoadingStats(false);
+          setLoadingCustomers(false);
+          setLoadingTasks(false);
+        }
       }
     };
 
     fetchData();
-  }, []);
+    return () => { cancelled = true; };
+  }, [retry]);
 
   const isOnboarding =
-    !loadingStats && !loadingCustomers && !loadingTasks &&
+    !error && !loadingStats && !loadingCustomers && !loadingTasks &&
     (stats?.totalCustomers ?? 0) === 0 &&
     (stats?.activeDealsCount ?? 0) === 0 &&
     (stats?.pendingTasksCount ?? 0) === 0
@@ -63,28 +71,12 @@ export default function Home() {
       .toUpperCase();
   };
 
-  if (error) {
-    return (
-      <main className="flex-1">
-        <div className="px-6 py-4">
-          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-            <p className="text-muted-foreground">{error}</p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => window.location.reload()}>Erneut versuchen</Button>
-              <Button variant="ghost" asChild>
-                <Link to="/settings">Einstellungen öffnen</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex-1">
-      <div className="px-6 py-4">
+      <div className="px-4 py-4 sm:px-6">
         <PageHeader title="Dashboard" subtitle="Vertrieb, Kunden und anstehende Aufgaben im Überblick." />
+        {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}<Button size="sm" variant="outline" disabled={loadingStats} onClick={() => setRetry(value => value + 1)}>Erneut versuchen</Button></AlertDescription></Alert>}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -92,8 +84,8 @@ export default function Home() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.totalCustomers ?? 0}</div>}
-              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">+{stats?.newCustomersLastMonth ?? 0} seit letztem Monat</p>}
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-semibold leading-8 tabular-nums">{stats?.totalCustomers ?? '—'}</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">+{stats?.newCustomersLastMonth ?? '—'} seit letztem Monat</p>}
             </CardContent>
           </Card>
           <Card>
@@ -102,8 +94,8 @@ export default function Home() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.activeDealsValue?.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) ?? '0 €'}</div>}
-              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">{stats?.activeDealsCount ?? 0} Deals in der Pipeline</p>}
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-semibold leading-8 tabular-nums">{stats?.activeDealsValue?.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) ?? '—'}</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">{stats?.activeDealsCount ?? '—'} Deals in der Pipeline</p>}
             </CardContent>
           </Card>
           <Card>
@@ -112,8 +104,8 @@ export default function Home() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.pendingTasksCount ?? 0}</div>}
-              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">{stats?.dueTodayTasksCount ?? 0} fällig heute</p>}
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-semibold leading-8 tabular-nums">{stats?.pendingTasksCount ?? '—'}</div>}
+              {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">{stats?.dueTodayTasksCount ?? '—'} fällig heute</p>}
             </CardContent>
           </Card>
           <Card>
@@ -122,7 +114,7 @@ export default function Home() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold">{stats?.conversionRate ?? 0}%</div>}
+              {loadingStats ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-semibold leading-8 tabular-nums">{stats?.conversionRate ?? '—'}%</div>}
               {loadingStats ? <Skeleton className="h-4 w-3/4 mt-1" /> : <p className="text-xs text-muted-foreground">Anteil gewonnener Deals</p>}
             </CardContent>
           </Card>
@@ -163,7 +155,7 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle>Neueste Kunden</CardTitle>
-              {loadingCustomers ? <Skeleton className="h-4 w-1/2 mt-1" /> : <CardDescription>Sie haben insgesamt {stats?.totalCustomers ?? 0} Kunden.</CardDescription>}
+              {loadingCustomers ? <Skeleton className="h-4 w-1/2 mt-1" /> : <CardDescription>Sie haben insgesamt {stats?.totalCustomers ?? '—'} Kunden.</CardDescription>}
             </CardHeader>
             <CardContent>
               {loadingCustomers ? (
@@ -208,7 +200,7 @@ export default function Home() {
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/customers" className="flex w-full items-center justify-center">
                   Alle Kunden anzeigen
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             </CardFooter>
@@ -216,7 +208,7 @@ export default function Home() {
           <Card>
             <CardHeader>
               <CardTitle>Bevorstehende Aufgaben</CardTitle>
-              {loadingTasks ? <Skeleton className="h-4 w-1/2 mt-1" /> : <CardDescription>Sie haben {stats?.pendingTasksCount ?? 0} ausstehende Aufgaben.</CardDescription>}
+              {loadingTasks ? <Skeleton className="h-4 w-1/2 mt-1" /> : <CardDescription>Sie haben {stats?.pendingTasksCount ?? '—'} ausstehende Aufgaben.</CardDescription>}
             </CardHeader>
             <CardContent>
               {loadingTasks ? (
@@ -243,10 +235,10 @@ export default function Home() {
                         <div
                           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
                             isHigh
-                              ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                              ? "bg-danger text-danger-foreground"
                               : isMedium
-                              ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
-                              : "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                              ? "bg-warning text-warning-foreground"
+                              : "bg-success text-success-foreground"
                           }`}
                           aria-label={`Priorität: ${priorityLabel}`}
                         >
@@ -269,7 +261,7 @@ export default function Home() {
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/tasks" className="flex w-full items-center justify-center">
                   Alle Aufgaben anzeigen
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             </CardFooter>

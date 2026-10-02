@@ -1,5 +1,5 @@
 import { CalendarRBCEvent } from '@/types';
-import { DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DialogContent, DialogBody, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
 interface CalendarEventDetailsProps {
@@ -17,6 +17,7 @@ export function CalendarEventDetails({ event, recurrenceText, onEdit, onDelete, 
         <DialogTitle>Ereignisdetails</DialogTitle>
         <DialogDescription>Details für "{event.title}"</DialogDescription>
       </DialogHeader>
+      <DialogBody>
       <div className="grid gap-4 py-4">
         <div className="flex items-center gap-2">
           <div className="h-4 w-4 rounded" style={{ backgroundColor: event.color_code || '#3174ad' }} />
@@ -46,6 +47,7 @@ export function CalendarEventDetails({ event, recurrenceText, onEdit, onDelete, 
           </div>
         )}
       </div>
+      </DialogBody>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>
           Schließen

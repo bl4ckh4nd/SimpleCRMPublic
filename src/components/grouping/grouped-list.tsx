@@ -27,21 +27,17 @@ export function GroupedList<T>({
   groupHeaderClassName,
   groupContentClassName
 }: GroupedListProps<T>) {
-  // Track expanded state for each group
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>(() => {
-    // Initialize with all groups expanded
     return groups.reduce((acc, group) => {
       acc[group.key] = true
       return acc
     }, {} as Record<string, boolean>)
   })
 
-  // Update expanded groups when groups change
   React.useEffect(() => {
     setExpandedGroups(prev => {
       const newExpandedGroups = { ...prev }
       
-      // Add unknown new groups
       groups.forEach(group => {
         if (newExpandedGroups[group.key] === undefined) {
           newExpandedGroups[group.key] = true

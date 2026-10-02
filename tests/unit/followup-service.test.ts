@@ -23,10 +23,9 @@ describe('followUpService', () => {
     expect(result).toEqual(items);
   });
 
-  test('getItems returns [] on error', async () => {
+  test('getItems propagates read failure', async () => {
     mockInvoke.mockRejectedValue(new Error('network fail'));
-    const result = await followUpService.getItems('heute');
-    expect(result).toEqual([]);
+    await expect(followUpService.getItems('heute')).rejects.toThrow('network fail');
   });
 
   test('getQueueCounts invokes correct channel and returns counts', async () => {
@@ -37,10 +36,9 @@ describe('followUpService', () => {
     expect(result).toEqual(counts);
   });
 
-  test('getQueueCounts returns zero counts on error', async () => {
+  test('getQueueCounts propagates read failure', async () => {
     mockInvoke.mockRejectedValue(new Error('fail'));
-    const result = await followUpService.getQueueCounts();
-    expect(result).toEqual({ heute: 0, ueberfaellig: 0, dieseWoche: 0, stagnierend: 0, highValueRisk: 0 });
+    await expect(followUpService.getQueueCounts()).rejects.toThrow('fail');
   });
 
   test('snoozeTask invokes correct channel with payload', async () => {
@@ -84,10 +82,9 @@ describe('followUpService', () => {
     expect(result).toEqual(entries);
   });
 
-  test('getTimeline returns [] on error', async () => {
+  test('getTimeline propagates read failure', async () => {
     mockInvoke.mockRejectedValue(new Error('fail'));
-    const result = await followUpService.getTimeline(1);
-    expect(result).toEqual([]);
+    await expect(followUpService.getTimeline(1)).rejects.toThrow('fail');
   });
 
   test('getSavedViews invokes correct channel and returns views', async () => {
@@ -98,10 +95,9 @@ describe('followUpService', () => {
     expect(result).toEqual(views);
   });
 
-  test('getSavedViews returns [] on error', async () => {
+  test('getSavedViews propagates read failure', async () => {
     mockInvoke.mockRejectedValue(new Error('fail'));
-    const result = await followUpService.getSavedViews();
-    expect(result).toEqual([]);
+    await expect(followUpService.getSavedViews()).rejects.toThrow('fail');
   });
 
   test('createSavedView invokes correct channel and returns result', async () => {

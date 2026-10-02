@@ -2,7 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   Dialog,
-  DialogContent,
+  DialogContent, DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -48,6 +48,7 @@ function createInitialFormData(): CustomerDraft {
 
 export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [customFieldsState, setCustomFieldsState] = useState<"loading" | "ready" | "error">("ready");
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<CustomerDraft>(createInitialFormData);
 
@@ -107,19 +108,20 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={open => { if (open) setCustomFieldsState("loading"); setIsOpen(open); }}>
       <DialogTrigger asChild>
         <Button className="whitespace-nowrap">
-          <Plus className="mr-2 h-4 w-4" /> Kunde hinzufügen
+          <Plus className="h-4 w-4" /> Kunde hinzufügen
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[650px]">
+      <DialogContent  size="wide">
         <DialogHeader>
           <DialogTitle>Neuen Kunden hinzufügen</DialogTitle>
           <DialogDescription>
             Geben Sie die Details für den neuen Kunden ein.
           </DialogDescription>
         </DialogHeader>
+        <DialogBody>
         <Tabs defaultValue="basic">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
@@ -215,7 +217,7 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
                   value={formData.status}
                   onValueChange={(value) => handleChange('status', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="status">
                     <SelectValue placeholder="Status auswählen" />
                   </SelectTrigger>
                   <SelectContent>
@@ -245,19 +247,21 @@ export function AddCustomerDialog({ onCustomerAdded }: AddCustomerDialogProps) {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="custom">
-            <CustomFieldsForm
+          <TabsContent forceMount value="custom" className="data-[state=inactive]:hidden">
+            <CustomFieldsForm onLoadStateChange={setCustomFieldsState}
               formData={formData}
               onChange={handleCustomFieldChange}
               className="py-4"
             />
           </TabsContent>
         </Tabs>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={closeDialog}>
             Abbrechen
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
+          {customFieldsState === "error" && <p role="alert" className="basis-full text-sm text-danger-foreground">Felddefinitionen fehlen. Öffnen Sie den Reiter „Benutzerdefinierte Felder“ für einen erneuten Versuch.</p>}
+          <Button onClick={handleSubmit} disabled={isLoading || customFieldsState !== "ready"}>
             {isLoading ? 'Erstelle...' : 'Kunde erstellen'}
           </Button>
         </DialogFooter>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 
 export default function ErrorPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex min-h-full items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Fehler</CardTitle>

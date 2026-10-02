@@ -11,10 +11,10 @@ export function PageHeader({ title, subtitle, actions, toolbar }: PageHeaderProp
   return (
     <div className="mb-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold leading-8 tracking-tight break-words">{title}</h1>
           {subtitle && (
-            <p className="text-muted-foreground mt-0.5">
+            <p className="text-sm text-muted-foreground mt-2">
               {subtitle}
             </p>
           )}

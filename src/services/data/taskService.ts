@@ -28,7 +28,7 @@ export const taskService = {
       return (await invoke(IPC.Tasks.GetAll, { limit, offset, filter })).map(normalizeTask);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
-      return [];
+      throw error;
     }
   },
 

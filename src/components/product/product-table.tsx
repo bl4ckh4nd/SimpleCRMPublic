@@ -5,6 +5,7 @@ import { Product } from "@/types"
 import { DataTable } from "@/components/ui/data-table"
 import { columns } from "./product-columns"
 import { EditProductDialog } from "./edit-product-dialog"
+import { toast } from "sonner"
 import { IPCChannels } from '@shared/ipc/channels';
 
 interface ProductTableProps {
@@ -31,14 +32,16 @@ export function ProductTable({ data, actions, onProductUpdated, onProductDeleted
       ) as { success: boolean, error?: string };
       if (result.success) {
         onProductDeleted();
+        return true;
       } else {
         console.error('Failed to delete product:', result.error);
-        alert(`Fehler beim Löschen des Produkts: ${result.error}`);
+        toast.error(`Fehler beim Löschen des Produkts: ${result.error}`);
       }
     } catch (err: unknown) {
       console.error('IPC Error deleting product:', err);
-      alert(`Fehler beim Löschen des Produkts: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(`Fehler beim Löschen des Produkts: ${err instanceof Error ? err.message : String(err)}`);
     }
+    return false;
   };
 
   const meta = {
@@ -70,4 +73,4 @@ export function ProductTable({ data, actions, onProductUpdated, onProductDeleted
       )}
     </div>
   )
-} 
+}

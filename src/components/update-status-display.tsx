@@ -148,7 +148,7 @@ export function UpdateStatusDisplay() {
               value={downloadPercent}
               className="h-1.5 w-40"
             />
-            <span className="text-[0.7rem] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {downloadPercent.toFixed(0)}%
             </span>
           </div>

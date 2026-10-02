@@ -1,0 +1,604 @@
+[
+  {
+    "file": "dark-01-dashboard.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "aa1329b420c8a2e1a37d2f26d3d04830f0b52ea7a3b2ab61fba52073d86cbb09"
+  },
+  {
+    "file": "dark-02-kunden.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "36db6600561433a7f01c902ca72cc796b75035eb52f270445f4410219e35fb99"
+  },
+  {
+    "file": "dark-03-kundendetail.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "a440abe98960f36d64d5957f38f7434ec136e174ba7825c3e7e71875151f03b2"
+  },
+  {
+    "file": "dark-04-deals.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "eb0657c1bcc6875ffd27ce51d26ca82610dcad9e35fbe15424fc4e99daf44f9e"
+  },
+  {
+    "file": "dark-05-dealdetail.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "655ab03dcddec2aba3ac70e80d0365b41e9ef9c6d77a93d123c791bfaebd662f"
+  },
+  {
+    "file": "dark-06-aufgaben.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "4ad87cfa1c07599c75299c6d9ccfb39b8d9e7e957a5985ba27fdc1c179e880e8"
+  },
+  {
+    "file": "dark-07-produkte.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "4d392b7c1bef7013ed970f4a68aa3eeb1bcd007025d7e4776422ae20276f5ce6"
+  },
+  {
+    "file": "dark-08-nachverfolgung.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "3310b836e07ca6a7d8419163b0c47e547be4d53f96f44fb320c63e65ebee7f85"
+  },
+  {
+    "file": "dark-09-kalender.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "ee0fbfcc292709f273b0d3a5ea5994d45dab1506225ac2188f5fe2cf1d0cf621"
+  },
+  {
+    "file": "dark-10-einstellungen.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "ef4910f0f51465a5957614fc7d678387c81690b358a4c9b83efdd9ee559d0ec3"
+  },
+  {
+    "file": "dark-1024-dialog-kunde.png",
+    "theme": "Dunkel",
+    "width": 1024,
+    "height": 600,
+    "sha256": "502e86e1721aa3f5bad077a3b0cb31f11bfd4ea73160af9cbc19d7844131c519"
+  },
+  {
+    "file": "dark-11-benutzerdefinierte-felder.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "a148850a1502759fb892ee24e37a212e7faed949b9de598d794e05bef01f4ebf"
+  },
+  {
+    "file": "dark-12-benachrichtigungen.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "97361a47d8b8ed9ded7f125a79a62dc2d620f475e670bf7fa1aa4e115a1439d6"
+  },
+  {
+    "file": "dark-13-fehlerseite.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "d286cf6165e3962691e365f71e13eba7b4c120258d77b574897c522001df7872"
+  },
+  {
+    "file": "dark-14-kanban.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "4bde892528bdeb9f9a36e2ae6aa596f1363009a92b4b5c564baacb6042ef73e4"
+  },
+  {
+    "file": "dark-768-nachverfolgung.png",
+    "theme": "Dunkel",
+    "width": 768,
+    "height": 900,
+    "sha256": "3645b561b3cd31cb7c435c9a1a4a24ee39d8ef1c11a4255de69b9730c008c2cd"
+  },
+  {
+    "file": "dark-768-navigation.png",
+    "theme": "Dunkel",
+    "width": 768,
+    "height": 900,
+    "sha256": "a6bbe809838191f1e00c651c8cd9dcde0387185f8a72bcb6a8f099712362a13f"
+  },
+  {
+    "file": "dark-dashboard-erledigte-aufgaben.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "fe5d51a2b6b95936b0ae69d1adb5d33e29812cac18352c0295a91204ba000765"
+  },
+  {
+    "file": "dark-dialog-aktivitaet.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "fe782020471f6113ecd5e7927d07daf3fa00ae00b723fc4ac7b1211b5e9ad159"
+  },
+  {
+    "file": "dark-dialog-aufgabe.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "36ac9a4b824df483af39a413a1f76c8c25e4a835225cd836a1b01b63c746d070"
+  },
+  {
+    "file": "dark-dialog-aufgabendetail.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "719e839a9a4ee57b891d12d6aa5da81ae6c7d30eb2f5b4e83ec13e34e9ac0756"
+  },
+  {
+    "file": "dark-dialog-deal.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "e284babafd40d7c072ccdf58d18f99cec3753885873b28c155471de7759c107f"
+  },
+  {
+    "file": "dark-dialog-feld.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "d9d629ef0133bac42883e31fe8ddbd726f7a9ffc6a2f382b85e222cd55f956e7"
+  },
+  {
+    "file": "dark-dialog-kunde-felder.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "352cd6fdb15712ac63647efa4bcbe35775dc6ff0c449f801cd79a5784d1b80b2"
+  },
+  {
+    "file": "dark-dialog-kunde.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "190dd8f84e0b503e19d2103167238df435b187566dd3f4411f312a1e81e77abd"
+  },
+  {
+    "file": "dark-dialog-loeschbestaetigung.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "5522bf115957fa9f4961a8159e3824cd951cbd9ec394f184c449fc242afaa6fe"
+  },
+  {
+    "file": "dark-dialog-produkt.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "db356c6686ed97973adbc695a51830d687a3296483a01a6a5cd0d60ede5f312e"
+  },
+  {
+    "file": "dark-dialog-termin.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "483466ee2b40da6c63204d801bf774d804b314d4569c8f0274be01500aa94041"
+  },
+  {
+    "file": "dark-kalender-agenda.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "ee0fbfcc292709f273b0d3a5ea5994d45dab1506225ac2188f5fe2cf1d0cf621"
+  },
+  {
+    "file": "dark-kalender-monat.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "ef2994ff12b8562a3da3eb64f26ac5af47210ead7881d98a4deb7e6d0820875b"
+  },
+  {
+    "file": "dark-kalender-tag.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "da244b2d1225965cec115cf622407fdffee3fb39acb9fc1a1bee9c8cb4db1a95"
+  },
+  {
+    "file": "dark-kalender-woche.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "f0df327ee00b5953bb62d2fc1f1abac84b06bc1267e61f2c306db7079276503d"
+  },
+  {
+    "file": "dark-komponente-aktionsmenue.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "ecdf9eb9e2ce5d8a10ba9a663045321d4704a0ad85a754496651df10ff9cb3bc"
+  },
+  {
+    "file": "dark-komponente-detailtabs.png",
+    "theme": "Dunkel",
+    "width": 684,
+    "height": 41,
+    "sha256": "89551032ecb49f684797150b23e6d7dbfb511c8fbf434986f4a55291644af273"
+  },
+  {
+    "file": "dark-komponente-dialog-aufgabe.png",
+    "theme": "Dunkel",
+    "width": 512,
+    "height": 768,
+    "sha256": "081631c9ba6285776f5da7345eb94b27c74b71df552aaccacdd0e3e973ca398c"
+  },
+  {
+    "file": "dark-komponente-dialog-deal.png",
+    "theme": "Dunkel",
+    "width": 512,
+    "height": 696,
+    "sha256": "2667f68ef1050f834157defdc7e247cd8b59064110e48447cd83cd8d7c61d033"
+  },
+  {
+    "file": "dark-komponente-dialog-feld.png",
+    "theme": "Dunkel",
+    "width": 640,
+    "height": 832,
+    "sha256": "f9bb2db608fc61a09f049279250fbd6bec58116bc3004c7f3b1ce1783b3daf8c"
+  },
+  {
+    "file": "dark-komponente-dialog-kunde.png",
+    "theme": "Dunkel",
+    "width": 640,
+    "height": 860,
+    "sha256": "60c2b93e0ab61f79ce3fe78e7d11394729d93ead9788876d0cab97fdc84bd00e"
+  },
+  {
+    "file": "dark-komponente-dialog-produkt.png",
+    "theme": "Dunkel",
+    "width": 512,
+    "height": 644,
+    "sha256": "0ae13be0cde18e78907415671dfdaeade9b4612bab04069edba97b784566bbab"
+  },
+  {
+    "file": "dark-komponente-dialog-termin.png",
+    "theme": "Dunkel",
+    "width": 512,
+    "height": 728,
+    "sha256": "800888a69dc1f80a273ee4d08eee9bde5734d81a516ff4e32b36d47fa0025031"
+  },
+  {
+    "file": "dark-komponente-navigation.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 65,
+    "sha256": "6344b96b87103af2c3aa4eb44e42fc6fc4ed4e9f5e93bc153c76e11ded59adfb"
+  },
+  {
+    "file": "dark-komponente-tabelle.png",
+    "theme": "Dunkel",
+    "width": 1340,
+    "height": 187,
+    "sha256": "4dabd6040172ac21468f36e3e498453fe24e26930c0b72002870145b44db48d6"
+  },
+  {
+    "file": "dark-nachverfolgung-detail.png",
+    "theme": "Dunkel",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "c6063c13560153192e8c48112de7abe1439a5598e08b35c3672dcaaeb7f6ea02"
+  },
+  {
+    "file": "light-01-dashboard.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "d85287b4b377ce022e577bb15a2888b6a42d5c8ada37e534a8041c2693a8a44c"
+  },
+  {
+    "file": "light-02-kunden.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "3704fa6c03c0c7ae76ce51bc2f7d834a6225205f2188023011ab4bb58ed8fb9e"
+  },
+  {
+    "file": "light-03-kundendetail.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "89bc91057d64cac3a346b467ec13831d62176199842342723e720de02db57a5d"
+  },
+  {
+    "file": "light-04-deals.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "fae25bbcca2505cb7942f9a4f97a358e388bfd2615cdd3f83bb6fbcf4692d4d2"
+  },
+  {
+    "file": "light-05-dealdetail.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "a1ca4d1ca07c292a89dad78dd5b214c6736ba1de45a762a89b580bdbc3bdfce5"
+  },
+  {
+    "file": "light-06-aufgaben.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "196a830103816a18507f65fed93f1a65a194b27bbba994d9f4e1e98717228933"
+  },
+  {
+    "file": "light-07-produkte.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "2bc4d49f1d766863312e0ed83df448d8a84a0bdd9ed2dab0bc02997f97342f1f"
+  },
+  {
+    "file": "light-08-nachverfolgung.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "f4268c70e126b89fee63ddbb2f6ec2029d601f656fce6df9a6014513b5bf9b8a"
+  },
+  {
+    "file": "light-09-kalender.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "7c085f965897ff0f4555661ee5b11a0f34ba22b6c008ebcb4089f4ccc5dbc0c2"
+  },
+  {
+    "file": "light-10-einstellungen.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "a2c44d4d01a16d720ca7cc8e0dca86211c7ed8a7802170b5d321c690a15cc92e"
+  },
+  {
+    "file": "light-1024-dialog-kunde.png",
+    "theme": "Hell",
+    "width": 1024,
+    "height": 600,
+    "sha256": "3e88111d9e9f451b01b2dac2afff537f821f51e56d7b6f31cf53a30bcf393928"
+  },
+  {
+    "file": "light-11-benutzerdefinierte-felder.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "3a4138e32e576e3ba3a32f429408dd1ca3e265cd8201a449f9fbf0ff9633bdce"
+  },
+  {
+    "file": "light-12-benachrichtigungen.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "079e2ab45d25563278b0c422e2602ac1dac08cc18f8337c519a5f635dbffe33d"
+  },
+  {
+    "file": "light-13-fehlerseite.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "399ff0854c0f6e1c01acfc55e34e5e032f2e2af22617f4ec55756ded51a2a37e"
+  },
+  {
+    "file": "light-14-kanban.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "9ddfb74849352833e9667540536fda080305f8278d70b677ee1dac40a9fddc45"
+  },
+  {
+    "file": "light-768-nachverfolgung.png",
+    "theme": "Hell",
+    "width": 768,
+    "height": 900,
+    "sha256": "bedff7e8416a8a8af5aef088c96cca0b7a58589c76937fe94be3d0471f9e5f97"
+  },
+  {
+    "file": "light-768-navigation.png",
+    "theme": "Hell",
+    "width": 768,
+    "height": 900,
+    "sha256": "6d6085b2c9fe7f478dc280b526df89d7f85d63670f3d54eac015cc4514efeffc"
+  },
+  {
+    "file": "light-dashboard-erledigte-aufgaben.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "1a76c06f230d15013dd55dca2d488f937c76b92157958b2d258fe211d81a4777"
+  },
+  {
+    "file": "light-dialog-aktivitaet.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "f206a7543d525c9d8fa7f292812a316719ca89cb7dd2910b1833e66c3e29fb48"
+  },
+  {
+    "file": "light-dialog-aufgabe.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "b3a4a1e42355a91d35c9fe80c207fe089e2e3abd50a8b2aa8d6c17991b9f5be8"
+  },
+  {
+    "file": "light-dialog-aufgabendetail.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "c551fd7f4b9a1598d9afa081cfdbd66e34852618b9eceffd61db0c886ffb02b2"
+  },
+  {
+    "file": "light-dialog-deal.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "cd2bed4dbcace84248f8a36890f4c58e216ccec2d407cd3ded8a84bc46777a6e"
+  },
+  {
+    "file": "light-dialog-feld.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "bf28ca7a5bf0bdf18e32ce1ff5e29fedc81ac4b4370eea64a97d459708bf7a3d"
+  },
+  {
+    "file": "light-dialog-kunde-felder.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "4fa69d806708f0b2ecefb7d3e522ac554bb2c8cdfb2009907259b82c060009c3"
+  },
+  {
+    "file": "light-dialog-kunde.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "99577f280e2f4bf483871cbdc3dba5481a5ce6cffcdf26c9cbee7d02aa711604"
+  },
+  {
+    "file": "light-dialog-loeschbestaetigung.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "8a37950b10e5b1ffe1d73f81881dc5b744aa945283639aade6bf6d8aed8cde05"
+  },
+  {
+    "file": "light-dialog-produkt.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "660b69ce517e39bdaa91ad7b694e0eb15c9d40f374875d1bddaed9502ba93ccd"
+  },
+  {
+    "file": "light-dialog-termin.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "fd11ce8cf6b521ee82ac77436bfe87cc8c40e01078c4e9baba3b902eccede769"
+  },
+  {
+    "file": "light-kalender-agenda.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "1d8708b5ff18b3dac36178995d3dd04194b5cedb4e6f1d2985a7e6cacc09b16a"
+  },
+  {
+    "file": "light-kalender-monat.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "7c085f965897ff0f4555661ee5b11a0f34ba22b6c008ebcb4089f4ccc5dbc0c2"
+  },
+  {
+    "file": "light-kalender-tag.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "f60b6d2149b6a40eb5d105ccc587d99bc39dc6dbda6ba5dfc3ec89f676be945a"
+  },
+  {
+    "file": "light-kalender-woche.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "1f856de587ee135b0d04f7f328c8142cc8e5952b0b24d464d9f89e45f179d412"
+  },
+  {
+    "file": "light-komponente-aktionsmenue.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "55fd4f702d7e40447e25ef6ee0218abc50773441d272bee4ceace3651d9b77c1"
+  },
+  {
+    "file": "light-komponente-detailtabs.png",
+    "theme": "Hell",
+    "width": 684,
+    "height": 41,
+    "sha256": "ffcccddc1af3b4284b2b1d426bbe370b7103d1c00bfed6803b46468c75e7da84"
+  },
+  {
+    "file": "light-komponente-dialog-aufgabe.png",
+    "theme": "Hell",
+    "width": 512,
+    "height": 768,
+    "sha256": "8b9e121f433611088a60c6440eebbf64094e2d964dc1227ea9550ed731423171"
+  },
+  {
+    "file": "light-komponente-dialog-deal.png",
+    "theme": "Hell",
+    "width": 512,
+    "height": 696,
+    "sha256": "803944315ea686057809bdf765657a0ecd69bd852844e54b01173d50bbf7664d"
+  },
+  {
+    "file": "light-komponente-dialog-feld.png",
+    "theme": "Hell",
+    "width": 640,
+    "height": 832,
+    "sha256": "007975ef18cc19783fb9631163b17911a5ab151ccb10a74b42ea8ac5565e69cc"
+  },
+  {
+    "file": "light-komponente-dialog-kunde.png",
+    "theme": "Hell",
+    "width": 640,
+    "height": 860,
+    "sha256": "3a38e0b2a5eb904f59fd8a4dc5d0ba265068aa87560ace0820a0804cb719f652"
+  },
+  {
+    "file": "light-komponente-dialog-produkt.png",
+    "theme": "Hell",
+    "width": 512,
+    "height": 644,
+    "sha256": "a724be8ba1cedce4169fccacf307a40d5c898528f6e3e91854260980296286aa"
+  },
+  {
+    "file": "light-komponente-dialog-termin.png",
+    "theme": "Hell",
+    "width": 512,
+    "height": 728,
+    "sha256": "0b7f4c04cf4f95352b63ad68da09ac0a10da253f14fb9e9efcde5edacd709a2d"
+  },
+  {
+    "file": "light-komponente-navigation.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 65,
+    "sha256": "61ccaa51b18c6abde819710fd131f151bd63273fd26525469d7bb9f743adfacf"
+  },
+  {
+    "file": "light-komponente-tabelle.png",
+    "theme": "Hell",
+    "width": 1340,
+    "height": 187,
+    "sha256": "d295d4bf7114d47e7346b372dad2086b235259264679bd0587349f5e8234bedd"
+  },
+  {
+    "file": "light-nachverfolgung-detail.png",
+    "theme": "Hell",
+    "width": 1440,
+    "height": 1000,
+    "sha256": "9a6a62025e2cac5c8925b60208dd7250b6b6c1e0aee2b6885a14d09c560f771c"
+  }
+]

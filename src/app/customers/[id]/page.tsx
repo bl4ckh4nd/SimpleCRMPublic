@@ -1,7 +1,12 @@
 "use client"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { PageHeader } from "@/components/page-header"
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb"
+import { getDealStageColor } from "@/types/deal";
+import { customerStatusTone } from "@/lib/status-presentation";
 import { useParams, useNavigate, Link } from "@tanstack/react-router"; // Using TanStack Router for navigation
-import { useState, useEffect } from "react"; // Added useState, useEffect
-import { toast } from "sonner"; // Added toast
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Edit,
   Trash2,
@@ -14,7 +19,6 @@ import {
   Loader2,
   Copy,
   User,
-  ChevronRight,
   Plus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
-  DialogContent,
+  DialogContent, DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -42,20 +46,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Added Select components
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea"; // Added Textarea
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Added Table components
-import type { Customer, Deal, Task } from "@/services/data/types" // Updated import
+import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { Customer, Deal, Task } from "@/services/data/types"
 import { TASK_EVENT_COMPLETED_COLOR, TASK_EVENT_DEFAULT_COLOR } from "@/services/data/calendarService"
 import { CustomFieldsForm } from "@/components/custom-fields-form";
 import { getPrimaryPhone, getFormattedPhone } from "@/lib/contact-utils"
 
-// Update interface to match route params - TanStack Router typically uses $paramName for file routes
-// Removed RouteParams interface as it's not strictly needed when not using 'from' in useParams
-// interface RouteParams {
-//   id: string
-// }
 
 export default function CustomerDetailPage() {
   // Get params directly, without specifying a from path
@@ -67,6 +66,7 @@ export default function CustomerDetailPage() {
   const navigate = useNavigate()
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [isLoading, setIsLoading] = useState(true) // Add loading state
+  const [customFieldsState, setCustomFieldsState] = useState<"loading" | "ready" | "error">("ready");
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [deals, setDeals] = useState<Deal[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -85,14 +85,14 @@ export default function CustomerDetailPage() {
   const [editedCustomer, setEditedCustomer] = useState<Partial<Customer>>({
     customerNumber: "", // JTL customer number (read-only)
     name: "",
-    firstName: "", // Added firstName
+    firstName: "",
     email: "",
     phone: "",
-    mobile: "", // Added mobile
+    mobile: "",
     company: "",
     status: "Active", // Default status
     notes: "",
-    street: "", // Added address fields
+    street: "",
     zip: "",
     city: "",
     country: "",
@@ -100,7 +100,13 @@ export default function CustomerDetailPage() {
     customFields: {},
   })
 
+  const [readError, setReadError] = useState(false)
+  const [retryRead, setRetryRead] = useState(0)
   useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    setReadError(false)
+    if (customer && String(customer.id) !== customerId) setCustomer(null)
     const fetchCustomer = async () => {
       // Check if customerId is valid before proceeding
       if (!customerId || customerId === 'undefined') {
@@ -116,7 +122,7 @@ export default function CustomerDetailPage() {
         // Pass customerId string directly to the service
         const api = window.electronAPI;
         const dbCustomer = await api.invoke('db:get-customer', Number(customerId)) as unknown as Customer | null;
-        console.log('Fetched customer data in component:', dbCustomer); // Log fetched data
+        if (cancelled) return;
 
         if (dbCustomer) {
           setCustomer(dbCustomer);
@@ -143,19 +149,26 @@ export default function CustomerDetailPage() {
           navigate({ to: "/customers" });
         }
       } catch (error) {
+        if (cancelled) return;
+        setReadError(true);
         console.error(`Failed to fetch customer with ID ${customerId}:`, error);
         toast.error("Fehler beim Laden des Kunden.");
-        navigate({ to: "/customers" });
       }
 
-      setIsLoading(false);
+      if (!cancelled) setIsLoading(false);
     };
 
     fetchCustomer();
-  }, [customerId, navigate]);
+    return () => { cancelled = true; };
+  }, [customerId, navigate, retryRead]);
 
   // Add a new useEffect to fetch deals and tasks
+  const [relatedError, setRelatedError] = useState(false)
   useEffect(() => {
+    let cancelled = false
+    setDeals([])
+    setTasks([])
+    setRelatedError(false)
     const fetchRelatedItems = async () => {
       if (!customerId) return;
 
@@ -166,26 +179,30 @@ export default function CustomerDetailPage() {
 
         // Fetch deals for this customer
         const customerDeals = await api.invoke('db:get-deals-for-customer', Number(customerId)) as unknown as Deal[];
+        if (cancelled) return;
         setDeals(customerDeals || []);
 
         // Fetch tasks for this customer
         const customerTasks = await api.invoke('db:get-tasks-for-customer', Number(customerId)) as unknown as Task[];
-        setTasks(customerTasks || []);
+        if (!cancelled) setTasks(customerTasks || []);
       } catch (error) {
+        if (cancelled) return;
+        setRelatedError(true);
         console.error('Failed to fetch related items:', error);
         toast.error("Fehler beim Laden von zugehörigen Deals und Aufgaben.");
       }
 
-      setIsLoadingRelated(false);
+      if (!cancelled) setIsLoadingRelated(false);
     };
 
     fetchRelatedItems();
-  }, [customerId]);
+    return () => { cancelled = true; };
+  }, [customerId, retryRead]);
 
   // Show loading state
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center">
+      <div className="flex min-h-full flex-col items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="mt-2">Lade Kundendaten...</p>
       </div>
@@ -194,7 +211,7 @@ export default function CustomerDetailPage() {
 
   if (!customer) {
     // Fallback if loading finished but customer is still null (e.g., error state handled in useEffect)
-    return <div>Kunde nicht gefunden.</div>
+    return <main className="px-4 py-4 sm:px-6"><PageHeader title="Kundendetails" /><Alert variant="destructive"><AlertDescription>{readError ? "Kunde konnte nicht geladen werden." : "Kunde nicht gefunden."}<Button size="sm" variant="outline" onClick={() => setRetryRead(value => value + 1)}>Erneut versuchen</Button></AlertDescription></Alert></main>
   }
 
   const handleSaveChanges = async () => {
@@ -320,32 +337,30 @@ export default function CustomerDetailPage() {
 
   return (
       <main className="flex-1">
-        <div className="px-6 py-4">
-          <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
-            <Link to="/customers" className="hover:text-foreground transition-colors">Kunden</Link>
-            <ChevronRight className="h-4 w-4" />
-            <span className="text-foreground font-medium">{`${customer.firstName || ''} ${customer.name}`.trim()}</span>
-          </nav>
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold">{`${customer.firstName || ''} ${customer.name}`.trim()}</h1>
-              <Badge variant={customer.status === "Active" ? "default" : customer.status === "Lead" ? "secondary" : "outline"}>
+        <div className="px-4 py-4 sm:px-6">
+          {(readError || relatedError) && <Alert variant="destructive" className="mb-4"><AlertDescription>{readError ? "Kunde konnte nicht geladen werden." : "Zugehörige Deals und Aufgaben konnten nicht geladen werden."}<Button size="sm" variant="outline" disabled={isLoadingRelated || isLoading} onClick={() => setRetryRead(value => value + 1)}>Erneut versuchen</Button></AlertDescription></Alert>}
+          <Breadcrumb className="mb-4"><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link to="/customers">Kunden</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage className="break-words">{`${customer.firstName || ''} ${customer.name}`.trim()}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-4">
+              <h1 className="text-2xl font-semibold leading-8">{`${customer.firstName || ''} ${customer.name}`.trim()}</h1>
+              <Badge variant={customerStatusTone(customer.status)}>
                 {statusLabels[customer.status] ?? customer.status}
               </Badge>
             </div>
-            <div className="flex gap-2">
-              <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+            <div className="flex flex-wrap gap-2">
+              <Dialog open={isEditOpen} onOpenChange={open => { if (open) setCustomFieldsState("loading"); setIsEditOpen(open); }}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
-                    <Edit className="mr-2 h-4 w-4" />
+                    <Edit className="h-4 w-4" />
                     Bearbeiten
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[650px]"> {/* Increased width */}
+                <DialogContent  size="wide"> {/* Increased width */}
                   <DialogHeader>
                     <DialogTitle>Kunde bearbeiten</DialogTitle>
                     <DialogDescription>Ändern Sie die Informationen des Kunden unten.</DialogDescription>
                   </DialogHeader>
+                  <DialogBody>
                   <Tabs defaultValue="basic">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="basic">Grunddaten</TabsTrigger>
@@ -451,7 +466,7 @@ export default function CustomerDetailPage() {
                             value={editedCustomer.status}
                             onValueChange={(value) => setEditedCustomer({ ...editedCustomer, status: value || 'Active' })}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id="status">
                               <SelectValue placeholder="Status auswählen" />
                             </SelectTrigger>
                             <SelectContent>
@@ -469,7 +484,6 @@ export default function CustomerDetailPage() {
                             onChange={(e) => setEditedCustomer({ ...editedCustomer, affiliateLink: e.target.value })}
                           />
                         </div>
-                        {/* Notes spanning full width */}
                         <div className="grid gap-2 md:col-span-2">
                           <Label htmlFor="notes">Notizen</Label>
                           <Textarea
@@ -482,8 +496,8 @@ export default function CustomerDetailPage() {
                         </div>
                       </div>
                     </TabsContent>
-                    <TabsContent value="custom">
-                      <CustomFieldsForm
+                    <TabsContent forceMount value="custom" className="data-[state=inactive]:hidden">
+                      <CustomFieldsForm onLoadStateChange={setCustomFieldsState}
                         customerId={customerId}
                         formData={editedCustomer}
                         onChange={(field, value) => {
@@ -503,18 +517,20 @@ export default function CustomerDetailPage() {
                       />
                     </TabsContent>
                   </Tabs>
+                  </DialogBody>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                       Abbrechen
                     </Button>
-                    <Button onClick={handleSaveChanges}>Änderungen speichern</Button>
+                    {customFieldsState === "error" && <p role="alert" className="basis-full text-sm text-danger-foreground">Felddefinitionen fehlen. Öffnen Sie den Reiter „Benutzerdefinierte Felder“ für einen erneuten Versuch.</p>}
+          <Button disabled={customFieldsState !== "ready"} onClick={handleSaveChanges}>Änderungen speichern</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                     Löschen
                   </Button>
                 </AlertDialogTrigger>
@@ -563,7 +579,6 @@ export default function CustomerDetailPage() {
                   <Building className="h-4 w-4 text-muted-foreground" />
                   <span>{customer.company || "-"}</span>
                 </div>
-                 {/* Address Info */}
                 <div className="flex items-start gap-2"> {/* Use items-start for multi-line */}
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                   <span className="whitespace-pre-line">
@@ -574,7 +589,6 @@ export default function CustomerDetailPage() {
                     {customer.country || (customer.street || customer.zip || customer.city ? "" : "-")}
                   </span>
                 </div>
-                {/* Date fields */}
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>Hinzugefügt am {formatDate(customer.jtl_dateCreated || customer.dateAdded)}</span>
@@ -591,12 +605,12 @@ export default function CustomerDetailPage() {
                 )}
               </CardContent>
             </Card>            <Tabs defaultValue="deals">
-              <TabsList className="inline-flex h-auto w-full justify-start space-x-2 rounded-none border-b bg-transparent p-0">
-                <TabsTrigger value="notes" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Notizen</TabsTrigger>
-                <TabsTrigger value="custom" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Benutzerdefinierte Felder</TabsTrigger>
-                <TabsTrigger value="deals" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Deals</TabsTrigger>
-                <TabsTrigger value="tasks" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Aufgaben</TabsTrigger>
-                <TabsTrigger value="affiliate" className="relative h-9 rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none">Affiliate</TabsTrigger>
+              <TabsList variant="underline" className="w-full">
+                <TabsTrigger value="notes">Notizen</TabsTrigger>
+                <TabsTrigger value="custom">Benutzerdefinierte Felder</TabsTrigger>
+                <TabsTrigger value="deals">Deals</TabsTrigger>
+                <TabsTrigger value="tasks">Aufgaben</TabsTrigger>
+                <TabsTrigger value="affiliate">Affiliate</TabsTrigger>
               </TabsList>
               <TabsContent value="notes" className="mt-4">
                 <Card>
@@ -670,13 +684,12 @@ export default function CustomerDetailPage() {
                           {deals.map((deal) => (
                             <TableRow key={deal.id}>
                               <TableCell>
-                                {/* Assuming deal detail page exists at /deals/[id] */}
                                 <Link to="/deals/$dealId" params={{ dealId: deal.id.toString() }} className="hover:underline font-medium">
                                   {deal.name}
                                 </Link>
                               </TableCell>
                               <TableCell>
-                                <Badge variant={deal.stage === 'Won' ? 'default' : deal.stage === 'Lost' ? 'destructive' : 'secondary'}>
+                                <Badge variant={getDealStageColor(deal.stage)}>
                                   {deal.stage}
                                 </Badge>
                               </TableCell>
@@ -695,7 +708,7 @@ export default function CustomerDetailPage() {
                       <Link to="/deals">Alle Deals anzeigen</Link>
                     </Button>
                     <Button onClick={() => setIsAddDealOpen(true)}>
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="h-4 w-4" />
                       Neuen Deal erstellen
                     </Button>
                   </CardFooter>
@@ -781,7 +794,7 @@ export default function CustomerDetailPage() {
                       <Link to="/tasks">Alle Aufgaben anzeigen</Link>
                     </Button>
                     <Button onClick={() => setIsAddTaskOpen(true)}>
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="h-4 w-4" />
                       Neue Aufgabe erstellen
                     </Button>
                   </CardFooter>
@@ -797,7 +810,7 @@ export default function CustomerDetailPage() {
                     <div className="space-y-2">
                       <Label>Ihr Affiliate-Link</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={customer.affiliateLink || "N/A"} readOnly />
+                        <Input id="affiliate-link" value={customer.affiliateLink || "N/A"} readOnly />
                         <Button
                           variant="outline"
                           size="icon" // Make button smaller
@@ -818,13 +831,13 @@ export default function CustomerDetailPage() {
           </div>
         </div>
 
-        {/* Inline Add Deal Dialog */}
         <Dialog open={isAddDealOpen} onOpenChange={setIsAddDealOpen}>
-          <DialogContent className="sm:max-w-[420px]">
+          <DialogContent  size="compact">
             <DialogHeader>
               <DialogTitle>Neuen Deal erstellen</DialogTitle>
               <DialogDescription>Für {`${customer.firstName || ''} ${customer.name}`.trim()}</DialogDescription>
             </DialogHeader>
+            <DialogBody>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="dealName">Dealname *</Label>
@@ -837,7 +850,7 @@ export default function CustomerDetailPage() {
               <div className="grid gap-2">
                 <Label htmlFor="dealStage">Phase</Label>
                 <Select value={newDealStage} onValueChange={setNewDealStage}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="dealStage"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {['Interessent', 'Qualifiziert', 'Angebot', 'Verhandlung', 'Gewonnen', 'Verloren'].map(s => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
@@ -846,23 +859,24 @@ export default function CustomerDetailPage() {
                 </Select>
               </div>
             </div>
+            </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDealOpen(false)}>Abbrechen</Button>
               <Button onClick={handleAddDeal} disabled={isSubmittingDeal || !newDealName.trim()}>
-                {isSubmittingDeal && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmittingDeal && <Loader2 className="h-4 w-4 animate-spin" />}
                 Deal erstellen
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Inline Add Task Dialog */}
         <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
-          <DialogContent className="sm:max-w-[420px]">
+          <DialogContent  size="compact">
             <DialogHeader>
               <DialogTitle>Neue Aufgabe erstellen</DialogTitle>
               <DialogDescription>Für {`${customer.firstName || ''} ${customer.name}`.trim()}</DialogDescription>
             </DialogHeader>
+            <DialogBody>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="taskTitle">Titel *</Label>
@@ -875,7 +889,7 @@ export default function CustomerDetailPage() {
               <div className="grid gap-2">
                 <Label htmlFor="taskPriority">Priorität</Label>
                 <Select value={newTaskPriority} onValueChange={setNewTaskPriority}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="taskPriority"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="High">Hoch</SelectItem>
                     <SelectItem value="Medium">Mittel</SelectItem>
@@ -884,10 +898,11 @@ export default function CustomerDetailPage() {
                 </Select>
               </div>
             </div>
+            </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddTaskOpen(false)}>Abbrechen</Button>
               <Button onClick={handleAddTask} disabled={isSubmittingTask || !newTaskTitle.trim()}>
-                {isSubmittingTask && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmittingTask && <Loader2 className="h-4 w-4 animate-spin" />}
                 Aufgabe erstellen
               </Button>
             </DialogFooter>

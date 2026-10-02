@@ -27,16 +27,7 @@ export const dashboardService = {
       return await invoke(IPC.Dashboard.GetStats) as unknown as DashboardStats;
     } catch (error) {
       console.error("Error invoking 'dashboard:get-stats':", error);
-      // Return default/empty stats on error
-      return {
-        totalCustomers: 0,
-        newCustomersLastMonth: 0,
-        activeDealsCount: 0,
-        activeDealsValue: 0,
-        pendingTasksCount: 0,
-        dueTodayTasksCount: 0,
-        conversionRate: 0,
-      };
+      throw error;
     }
   },
 
@@ -52,7 +43,7 @@ export const dashboardService = {
       return customers;
     } catch (error) {
       console.error("Error invoking 'dashboard:get-recent-customers':", error);
-      return [];
+      throw error;
     }
   },
 
@@ -70,7 +61,7 @@ export const dashboardService = {
       return tasks;
     } catch (error) {
       console.error("Error invoking 'dashboard:get-upcoming-tasks':", error);
-      return [];
+      throw error;
     }
   },
 };

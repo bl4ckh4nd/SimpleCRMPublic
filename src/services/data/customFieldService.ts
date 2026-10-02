@@ -1,7 +1,6 @@
 import { CustomField, CustomFieldValue, CustomFieldOption } from './types';
 import { IPCChannels } from '@shared/ipc/channels';
 
-// Define interfaces for IPC responses
 interface SuccessResponse {
   success: boolean;
   error?: string;
@@ -30,7 +29,7 @@ export const customFieldService = {
       }));
     } catch (error) {
       console.error('Failed to fetch custom fields:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -49,7 +48,7 @@ export const customFieldService = {
       }));
     } catch (error) {
       console.error('Failed to fetch active custom fields:', error);
-      return [];
+      throw error;
     }
   },
 

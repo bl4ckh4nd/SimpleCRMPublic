@@ -1,12 +1,11 @@
 "use client";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import * as React from "react";
 import { useEffect, useState, useRef, useMemo, useCallback } from "react";
-import { Calendar, dateFnsLocalizer, Views, EventProps, View, SlotInfo, type CalendarProps } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer, Views, EventProps, View, SlotInfo, type CalendarProps, type ToolbarProps } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import type { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop';
-import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { format } from 'date-fns/format';
 import { parse } from 'date-fns/parse';
 import { startOfWeek } from 'date-fns/startOfWeek';
@@ -15,7 +14,7 @@ import { enUS, de } from 'date-fns/locale';
 import { useSearch } from "@tanstack/react-router";
 import { toast } from "@/lib/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
+import { Terminal, CalendarDays, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CalendarEvent, CalendarRBCEvent, RecurrenceRule } from '@/types';
-import { calendarService, TASK_EVENT_COMPLETED_COLOR, TASK_EVENT_DEFAULT_COLOR } from '@/services/data/calendarService';
+import { calendarService } from '@/services/data/calendarService';
 import { PageHeader } from '@/components/page-header';
 import { taskService } from '@/services/data/taskService';
 import { IPC, IPCChannels } from '@shared/ipc/channels';
@@ -40,7 +39,6 @@ import { CalendarEventDetails } from './components/event-details';
 import { CalendarEventForm } from './components/event-form';
 import type { EventFormData, EventFormSubmitPayload, TaskFormState } from './types';
 
-// Initialize calendar
 const locales = {
   'en-US': enUS,
   'de-DE': de,
@@ -54,17 +52,14 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// Create DnD calendar component
 const DnDCalendar = withDragAndDrop<CalendarRBCEvent>(Calendar);
 const TypedDnDCalendar = DnDCalendar as React.ComponentType<
   CalendarProps<CalendarRBCEvent> & withDragAndDropProps<CalendarRBCEvent>
 >;
 
-// Constants for retry logic
 const MAX_FETCH_RETRIES = 3;
 const RETRY_DELAY_MS = 3000;
 
-// Database API
 type CalendarWriteEvent = Partial<CalendarEvent & CalendarRBCEvent> & {
   id?: number;
   start_date?: string | Date;
@@ -79,7 +74,6 @@ interface DatabaseAPI {
   deleteCalendarEvent: (id: number) => Promise<void>;
 }
 
-// Using DragDropInfo imported from @/types
 
 const toEventFormData = (event: CalendarRBCEvent): EventFormData => ({
   id: event.id,
@@ -94,10 +88,8 @@ const toEventFormData = (event: CalendarRBCEvent): EventFormData => ({
 });
 
 const getRecurrenceText = (rule: RecurrenceRule | string | null | undefined): string => {
-  // If rule is null or undefined, return empty string
   if (!rule) return '';
-  
-  // If rule is a string, try to parse it
+
   if (typeof rule === 'string') {
     try {
       rule = JSON.parse(rule) as RecurrenceRule;
@@ -136,42 +128,52 @@ const getRecurrenceText = (rule: RecurrenceRule | string | null | undefined): st
   return text;
 };
 
-const darkenColor = (hex: string, percent: number): string => {
-  try {
-    const normalized = hex.replace(/^#/, "");
-    const fullHex = normalized.length === 3 ? normalized.split("").map((char) => char + char).join("") : normalized;
-
-    let r = parseInt(fullHex.substring(0, 2), 16);
-    let g = parseInt(fullHex.substring(2, 4), 16);
-    let b = parseInt(fullHex.substring(4, 6), 16);
-
-    const factor = 1 - percent / 100;
-    r = Math.max(0, Math.min(255, Math.floor(r * factor)));
-    g = Math.max(0, Math.min(255, Math.floor(g * factor)));
-    b = Math.max(0, Math.min(255, Math.floor(b * factor)));
-
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  } catch (error) {
-    console.error('Failed to darken color:', hex, error);
-    return hex;
+const eventColors = (color?: string) => {
+  const stored = color && CSS.supports('color', color) ? color : '#3174ad';
+  const context = document.createElement('canvas').getContext('2d');
+  if (context) {
+    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-card').trim();
+    context.fillRect(0, 0, 1, 1);
+    context.fillStyle = stored;
   }
+  context?.fillRect(0, 0, 1, 1);
+  const pixel = context?.getImageData(0, 0, 1, 1).data ?? [49, 116, 173];
+  const linear = Array.from(pixel).slice(0, 3).map(channel => channel / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+  const luminance = linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+  return { backgroundColor: `rgb(${pixel[0]} ${pixel[1]} ${pixel[2]})`, color: luminance > .179 ? '#000000' : '#ffffff' };
 };
 
+const CalendarToolbar = ({ label, onNavigate, onView, view }: ToolbarProps<CalendarRBCEvent>) => (
+  <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+    <div className="flex flex-wrap gap-2">
+      <Button size="sm" variant="outline" onClick={() => onNavigate('TODAY')}>Heute</Button>
+      <Button size="sm" variant="outline" onClick={() => onNavigate('PREV')}>Zurück</Button>
+      <Button size="sm" variant="outline" onClick={() => onNavigate('NEXT')}>Weiter</Button>
+    </div>
+    <p className="text-base font-semibold">{label}</p>
+    <ToggleGroup type="single" value={view} size="sm" aria-label="Kalenderansicht" onValueChange={value => { if (value) onView(value as View); }}>
+      {[[Views.MONTH, 'Monat'], [Views.WEEK, 'Woche'], [Views.DAY, 'Tag'], [Views.AGENDA, 'Agenda']].map(([value, title]) => <ToggleGroupItem key={value} value={value} aria-label={title}>{title}</ToggleGroupItem>)}
+    </ToggleGroup>
+  </div>
+);
+
 const CustomEvent: React.FC<EventProps<CalendarRBCEvent>> = ({ event }) => {
+  const task = Boolean(event.task_id || event.event_type === 'task');
+  const Icon = task ? CheckSquare : CalendarDays;
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="rbc-event-content" title={event.title}>
-            {event.title}
-            {event.description && <span className="block text-xs opacity-75">{event.description}</span>}
+            <Icon className="mr-1 inline h-3 w-3" aria-hidden="true" /><span className="sr-only">{task ? "Aufgabe: " : "Termin: "}</span>{event.title}
+            {event.description && <span className="block text-xs">{event.description}</span>}
           </div>
         </TooltipTrigger>
         <TooltipContent>
           <p className="font-semibold">{event.title}</p>
           {event.description && <p>{event.description}</p>}
           <p className="text-xs text-muted-foreground">
-            {format(new Date(event.start), 'Pp')} - {format(new Date(event.end), 'Pp')}
+            {format(new Date(event.start), 'Pp', { locale: de })} - {format(new Date(event.end), 'Pp', { locale: de })}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -179,11 +181,11 @@ const CustomEvent: React.FC<EventProps<CalendarRBCEvent>> = ({ event }) => {
   );
 };
 
-// Using OnEventResizeArgs and OnEventDropArgs imported from @/types
 
 export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarRBCEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [retryKey, setRetryKey] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const fetchRetryCount = useRef(0);
   const [selectedEvent, setSelectedEvent] = useState<CalendarRBCEvent | null>(null);
@@ -198,13 +200,11 @@ export default function CalendarPage() {
     if (typeof window !== 'undefined') {
       try {
         const savedView = localStorage.getItem('calendar_view');
-        // Basic validation: check if savedView is a valid View
         if (savedView && (Object.values(Views) as string[]).includes(savedView)) {
           setCurrentView(savedView as View);
         }
       } catch (error) {
         console.error('CalendarPage: Failed to access localStorage to get calendar view.', error);
-        // Fallback to default view is implicitly handled by initial useState value
       }
     }
   }, []); // Empty dependency array ensures this runs only once on mount
@@ -243,17 +243,12 @@ export default function CalendarPage() {
     setCurrentView(Views.DAY);
   }, [searchDate]);
 
-  // Using the DatabaseAPI interface defined above
 
-  // Helper functions for database operations
   const dbApi: DatabaseAPI = useMemo(() => ({
     getCalendarEvents: async () => {
       try {
-        // Add check for electronAPI existence
         if (!window.electronAPI?.invoke) {
           console.error("Electron API is not available.");
-          // Decide how to handle this: throw error, return empty array, etc.
-          // Throwing an error might be appropriate if the API is essential.
           throw new Error("Electron API not found. Cannot fetch calendar events.");
         }
         return await window.electronAPI.invoke(
@@ -266,19 +261,17 @@ export default function CalendarPage() {
           description: "Kalenderereignisse konnten nicht geladen werden.",
           variant: "destructive",
         });
-        return [];
+        throw error;
       }
     },
     addCalendarEvent: async (event) => {
       try {
-        // Debug the event data we're sending to SQLite
         console.log('Calendar event data being sent to SQLite:', JSON.stringify(event, null, 2));
 
         // Convert date objects to ISO strings to avoid SQLite binding issues
         const sqliteCompatibleEvent: Record<string, unknown> = {
           title: event.title,
           description: event.description || '',
-          // Ensure start and end are Dates before calling toISOString()
           start_date: event.start_date ?? (event.start instanceof Date ? event.start.toISOString() : event.start),
           end_date: event.end_date ?? (event.end instanceof Date ? event.end.toISOString() : event.end),
           all_day: event.allDay || false,
@@ -287,11 +280,9 @@ export default function CalendarPage() {
           recurrence_rule: null
         };
 
-        // Only stringify the recurrence_rule if it exists and isn't null
         if (event.recurrence_rule && typeof event.recurrence_rule !== 'string') {
           sqliteCompatibleEvent.recurrence_rule = JSON.stringify(event.recurrence_rule);
         } else if (typeof event.recurrence_rule === 'string' && event.recurrence_rule !== '') {
-          // If it's already a string, use it directly
           sqliteCompatibleEvent.recurrence_rule = event.recurrence_rule;
         } else {
           sqliteCompatibleEvent.recurrence_rule = null;
@@ -303,6 +294,7 @@ export default function CalendarPage() {
           IPCChannels.Calendar.AddCalendarEvent,
           sqliteCompatibleEvent
         );
+        if (!result.success) throw new Error(result.error || "Ereignis konnte nicht erstellt werden.");
         return result;
       } catch (error) {
         console.error('Error adding calendar event:', error);
@@ -321,17 +313,15 @@ export default function CalendarPage() {
           // Ensure start_date and end_date are strings (ISOs)
           start_date: typeof event.start_date === 'string' ? event.start_date : new Date(event.start_date ?? event.start ?? Date.now()).toISOString(),
           end_date: typeof event.end_date === 'string' ? event.end_date : new Date(event.end_date ?? event.end ?? Date.now()).toISOString(),
-          all_day: event.all_day || false,
+          ...(event.all_day === undefined ? {} : { all_day: event.all_day ? 1 : 0 }),
           color_code: event.color_code || '#3174ad',
           event_type: event.event_type || '',
           recurrence_rule: null
         };
 
-        // Only stringify the recurrence_rule if it exists and isn't null
         if (event.recurrence_rule && typeof event.recurrence_rule !== 'string') {
           sqliteCompatibleEvent.recurrence_rule = JSON.stringify(event.recurrence_rule);
         } else if (typeof event.recurrence_rule === 'string' && event.recurrence_rule !== '') {
-          // If it's already a string, use it directly
           sqliteCompatibleEvent.recurrence_rule = event.recurrence_rule;
         } else {
           sqliteCompatibleEvent.recurrence_rule = null;
@@ -340,10 +330,11 @@ export default function CalendarPage() {
         console.log('Converted SQLite-compatible event for update:', JSON.stringify(sqliteCompatibleEvent, null, 2));
 
         const { id, ...eventData } = sqliteCompatibleEvent;
-        await window.electronAPI.invoke(
+        const result = await window.electronAPI.invoke(
           IPCChannels.Calendar.UpdateCalendarEvent,
           { id: Number(id), eventData }
         );
+        if (!result.success) throw new Error(result.error || "Kalenderänderung konnte nicht gespeichert werden.");
       } catch (error) {
         console.error('Error updating calendar event:', error);
         throw error;
@@ -351,10 +342,11 @@ export default function CalendarPage() {
     },
     deleteCalendarEvent: async (id) => {
       try {
-        await window.electronAPI.invoke(
+        const result = await window.electronAPI.invoke(
           IPCChannels.Calendar.DeleteCalendarEvent,
           id
         );
+        if (!result.success) throw new Error(result.error || "Ereignis konnte nicht gelöscht werden.");
       } catch (error) {
         console.error('Error deleting calendar event:', error);
         throw error;
@@ -364,6 +356,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null;
+    let cancelled = false;
 
     const fetchEvents = async () => {
       if (fetchRetryCount.current >= MAX_FETCH_RETRIES) {
@@ -377,6 +370,7 @@ export default function CalendarPage() {
 
       try {
         const dbEvents = await dbApi.getCalendarEvents();
+        if (cancelled) return;
         const rbcEvents = dbEvents.map((event: CalendarEvent) => {
           let parsedRule = event.recurrence_rule;
           if (typeof event.recurrence_rule === 'string' && event.recurrence_rule !== null && event.recurrence_rule !== '') {
@@ -387,7 +381,7 @@ export default function CalendarPage() {
               parsedRule = null;
             }
           }
-          
+
           return {
             ...event,
             id: event.id,
@@ -401,12 +395,13 @@ export default function CalendarPage() {
         setEvents(rbcEvents);
         fetchRetryCount.current = 0; // Reset retry count on success
       } catch (error) {
+        if (cancelled) return;
         console.error('Error fetching events:', error);
         setFetchError("Fehler beim Laden der Ereignisse.");
         fetchRetryCount.current += 1;
         timeoutId = setTimeout(fetchEvents, RETRY_DELAY_MS);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -414,14 +409,14 @@ export default function CalendarPage() {
     fetchEvents();
 
     return () => {
+      cancelled = true;
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
     };
-  }, [dbApi]);
+  }, [dbApi, retryKey]);
 
   const handleSelectEvent = useCallback((event: CalendarRBCEvent) => {
-    // Ensure dates are properly converted
     let parsedRule = event.recurrence_rule;
     if (typeof event.recurrence_rule === 'string' && event.recurrence_rule !== null && event.recurrence_rule !== '') {
       try {
@@ -431,7 +426,7 @@ export default function CalendarPage() {
         parsedRule = null;
       }
     }
-    
+
     const eventWithDates = {
       ...event,
       start: new Date(event.start),
@@ -522,8 +517,7 @@ export default function CalendarPage() {
         end,
         allDay: isAllDay
       };
-      
-      // Convert to database format
+
       const dbEvent = {
         id: typeof updatedEvent.id === 'string' ? parseInt(updatedEvent.id) : updatedEvent.id,
         title: updatedEvent.title,
@@ -536,9 +530,9 @@ export default function CalendarPage() {
         recurrence_rule: updatedEvent.recurrence_rule ? JSON.stringify(updatedEvent.recurrence_rule) : null,
         updated_at: new Date().toISOString()
       };
-      
+
       console.log('Updating event after drag/resize:', dbEvent);
-      
+
       await dbApi.updateCalendarEvent(dbEvent);
 
       setEvents(prev => prev.map(e =>
@@ -620,8 +614,7 @@ export default function CalendarPage() {
       }
       const createdTaskId = typeof data.id === 'number' ? data.id : null;
       const insertedEventId = data.eventId;
-      
-      // Convert the returned data to RBC format
+
       const newEvent: CalendarRBCEvent = {
         id: insertedEventId,
         title: newEventData.title,
@@ -733,7 +726,7 @@ export default function CalendarPage() {
       const numericId = typeof id === 'string' ? parseInt(id) : id;
 
       await dbApi.deleteCalendarEvent(numericId);
-      
+
       console.log('Event successfully deleted');
       setEvents(prev => prev.filter(event => event.id !== id));
       toast({ title: "Erfolg", description: "Ereignis wurde gelöscht" });
@@ -787,21 +780,11 @@ export default function CalendarPage() {
     }
   }, [selectedEvent]);
 
-  if (loading && fetchRetryCount.current === 0) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <p>Lade Kalender...</p>
-      </main>
-    );
-  }
 
   return (
       <main className="flex-1">
-        <div className="px-6 py-4">
-          <PageHeader title="Kalender" subtitle="Termine und Aufgaben gemeinsam planen." />
-          <div className="flex flex-wrap gap-2 items-center mb-4">
-            <div className="flex-1" />
-            <Button
+        <div className="px-4 py-4 sm:px-6">
+          <PageHeader title="Kalender" subtitle="Termine und Aufgaben gemeinsam planen." actions={<Button
               onClick={() => {
                 const now = new Date();
                 const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() + 1, 0, 0);
@@ -819,35 +802,23 @@ export default function CalendarPage() {
               }}
             >
               Ereignis hinzufügen
-            </Button>
-          </div>
+            </Button>} />
+
 
           {fetchError && !loading && (
             <Alert variant="destructive" className="mb-4">
               <Terminal className="h-4 w-4" />
               <AlertTitle>Ladefehler</AlertTitle>
-              <AlertDescription>{fetchError}</AlertDescription>
+              <AlertDescription>{fetchError}<Button className="mt-2" size="sm" variant="outline" disabled={loading} onClick={() => setRetryKey(key => key + 1)}>Erneut versuchen</Button></AlertDescription>
             </Alert>
           )}
 
-          {/* Event type legend */}
-          <div className="flex items-center gap-4 mb-3 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Legende:</span>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: '#3174ad' }} />
-              <span>Termin</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: TASK_EVENT_DEFAULT_COLOR }} />
-              <span>Aufgabe (offen)</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block h-3 w-3 rounded-sm opacity-70" style={{ backgroundColor: TASK_EVENT_COMPLETED_COLOR }} />
-              <span>Aufgabe (erledigt)</span>
-            </div>
+          <div className="mb-4 flex flex-wrap gap-4 text-xs text-muted-foreground" aria-label="Ereignistypen">
+            <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Termin</span>
+            <span className="flex items-center gap-2"><CheckSquare className="h-4 w-4" />Aufgabe</span>
           </div>
 
-          <section className="h-[75vh] w-full">
+          <section className="min-h-[480px] h-[75vh] w-full min-w-0">
             <TypedDnDCalendar
               localizer={localizer}
               events={events}
@@ -858,6 +829,7 @@ export default function CalendarPage() {
               views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
               components={{
                 event: CustomEvent,
+                toolbar: CalendarToolbar,
               }}
               view={currentView}
               date={currentDate}
@@ -872,22 +844,10 @@ export default function CalendarPage() {
               defaultView={Views.MONTH}
               step={30}
               timeslots={2}
-              eventPropGetter={(event: CalendarRBCEvent) => {
-                const backgroundColor = event.color_code || TASK_EVENT_DEFAULT_COLOR;
-                const isCompleted = backgroundColor.toLowerCase() === TASK_EVENT_COMPLETED_COLOR.toLowerCase();
-                return {
-                  className: 'cursor-pointer rbc-event',
-                  style: {
-                    backgroundColor,
-                    borderColor: darkenColor(backgroundColor, isCompleted ? 5 : 15),
-                    color: isCompleted ? '#1f2937' : '#ffffff',
-                    opacity: isCompleted ? 0.7 : 0.9,
-                    borderRadius: '4px',
-                    borderWidth: '1px',
-                    display: 'block',
-                  }
-                }
-              }}
+              eventPropGetter={(event: CalendarRBCEvent) => ({
+                className: 'cursor-pointer',
+                style: { ...eventColors(event.color_code), borderColor: 'currentColor' },
+              })}
               dayPropGetter={(date: Date) => ({
                 className: `rbc-day ${date.getDay() === 0 || date.getDay() === 6 ? 'rbc-weekend' : ''}`,
               })}

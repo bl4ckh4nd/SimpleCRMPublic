@@ -7,8 +7,8 @@ export const mssqlSettingsSchema = z.object({
   user: z.string().min(1, "Username is required"),
   password: z.string().optional(), // Made optional
   port: z.coerce.number().int().min(1).max(65535),
-  encrypt: z.boolean().default(true), // Added default
-  trustServerCertificate: z.boolean().default(false), // Added default
+  encrypt: z.boolean().default(true),
+  trustServerCertificate: z.boolean().default(false),
   forcePort: z.boolean().optional(), // <-- New flag
   // JTL specific optional fields
   kBenutzer: z.coerce.number().int().positive().optional(),
@@ -78,7 +78,7 @@ export interface MssqlProductData {
   // fUVP?: number;
 }
 
-// --- SQLite Data Types ---
+// SQLite Data Types
 
 // Matches the columns in the 'products' table in SQLite
 export interface Product {
