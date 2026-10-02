@@ -203,7 +203,7 @@ jobs:
           test "$(find release-assets -type f -name '*.zip' | wc -l)" -eq 2
           find release-assets -type f -name '*.AppImage' -print -quit | grep -q .
           test "$(find release-assets -type f -name 'latest*.yml' | wc -l)" -ge 3
-          (cd release-assets && find . -type f -print0 | sort -z | xargs -0 sha256sum) > release-assets/SHA256SUMS.txt
+          (cd release-assets && find . -type f ! -name 'SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum) > release-assets/SHA256SUMS.txt
       - name: Commit and tag release
         if: inputs.release_type != 'current'
         shell: bash

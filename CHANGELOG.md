@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Release downloads. Exclude the checksum manifest itself from its entries so checksum verification does not report an invalid self-check.
+
 ## [0.3.0] - 2026-10-02
 
 ### Added
