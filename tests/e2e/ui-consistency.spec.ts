@@ -179,17 +179,17 @@ test('dashboard read failure keeps its title and does not present first-run onbo
 
 test('calendar drag and resize retain their persisted behavior with shared calendar styles', async ({ page }, testInfo) => {
   const originalStart = await page.evaluate(async () => {
-    const start = new Date(); start.setHours(10, 0, 0, 0);
+    const start = new Date(2026, 9, 6, 10, 0, 0);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const result = await window.electronAPI.invoke('calendar:save-entry', { event: { title: 'Verschieben und verlängern', start_date: start.toISOString(), end_date: end.toISOString(), all_day: false, color_code: '#777777', event_type: 'event' } });
     if (!result.success) throw new Error(result.error);
     return start.toISOString();
   });
-  await page.getByRole('link', { name: 'Kalender', exact: true }).click();
+  await page.goto('app://-/calendar?date=2026-10-06');
   const event = page.locator('.rbc-event').filter({ hasText: 'Verschieben und verlängern' });
   await expect(event).toBeVisible();
-  const todayIndex = await page.locator('.rbc-day-bg').evaluateAll(cells => cells.findIndex(cell => cell.classList.contains('rbc-today')));
-  const target = await page.locator('.rbc-day-bg').nth(todayIndex + 1).boundingBox();
+  // Tuesday to Wednesday leaves room to resize into Thursday on every run.
+  const target = await page.locator('.rbc-month-row').nth(1).locator('.rbc-day-bg').nth(2).boundingBox();
   const source = await event.boundingBox();
   await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
   await page.mouse.down();

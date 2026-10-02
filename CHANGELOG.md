@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI Screenshot Gallery. Added 86 Light/Dark desktop screenshots with component crops, narrow layouts, a browsable gallery, checksums, and a ZIP archive using isolated fictional data; documented the observed dashboard read-error state.
 
 ### Changed
+- Release checks. Calendar drag and resize tests now use fixed midweek dates and explicit view changes, so verification works on weekends and after reloads.
 - README preview. Added an up-to-date dashboard screenshot with fictional customers, deals, and open tasks, plus source setup and release instructions.
 - Repository Writing. Shortened the README and removed stale implementation history, placeholder prompts, and redundant comments while preserving runtime behavior and documented constraints.
 - Dashboard Tasks. Restored populated dashboards by returning the task completion field required by the existing IPC contract.
@@ -91,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 - Tailwind CSS v4. Migrated from v3 config (`tailwind.config.ts` + `@tailwind` directives) to v4 (`@import "tailwindcss"` + `@theme` block). Removed `postcss` dependency for Tailwind.
 - Dependencies. Upgraded Radix UI packages, `@tanstack/react-router`, `lucide-react`, `electron-log`, `electron-serve`, `electron-store`. Switched `better-sqlite3` to GitHub source ref `v12.7.1` for Electron 41 compatibility; added `scripts/patch-better-sqlite3.js` to apply a required native binding patch on install.
-- Test Suite. Comprehensive Jest coverage added — unit tests for services, hooks, and UI components; integration tests for all IPC handler categories; Playwright E2E tests for the Electron app. Coverage scripts added for `unit` and `integration` projects.
+- Test Suite. Added Jest tests for services, hooks, UI components, and IPC handlers, plus Electron Playwright journeys and coverage commands.
 - CI/CD. GitHub Actions CI workflow added for lint/test/build on push to `main` and pull requests.
 
 ---

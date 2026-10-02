@@ -1309,15 +1309,7 @@ export function removeProductFromDeal(dealId: number, productId: number): Databa
 
 export function updateDealProduct(dealProductId: number, quantity: number, price: number): Database.RunResult {
     if (quantity <= 0) {
-        // If quantity is zero or less, remove the product link entirely
-        // This requires deal_id and product_id, not just dealProductId.
-        // For now, let's assume quantity > 0 from frontend validation, or handle removal separately.
-        // To properly remove, we'd need to fetch the deal_id and product_id using dealProductId first,
-        // or change the IPC call to send deal_id and product_id for removal.
-        // For simplicity in this update, we'll just update if quantity > 0.
-        // A more robust solution would be to call a remove function if quantity <= 0.
-        // For now, we'll rely on frontend to send quantity > 0 for updates.
-        // If quantity is 0, the frontend should call removeProductFromDealById (new function below)
+        // Quantity updates do not delete links; use the separate removal operation.
         throw new Error("Quantity must be greater than 0 to update. Use remove to delete.");
     }
     const stmt = getDb().prepare(`
