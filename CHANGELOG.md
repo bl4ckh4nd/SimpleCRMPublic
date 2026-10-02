@@ -1,11 +1,6 @@
 # Changelog
 
-Release history for SimpleCRM.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+## [0.3.0] - 2026-10-02
 
 ### Added
 - UI Screenshot Gallery. Added 86 Light/Dark desktop screenshots with component crops, narrow layouts, a browsable gallery, checksums, and a ZIP archive using isolated fictional data; documented the observed dashboard read-error state.
@@ -20,7 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calendar Persistence Feedback. Dragging and resizing standalone events now send SQLite-compatible all-day values and report success only after persistence succeeds; failed deletions retain the event.
 - Consistent Desktop UI. Unified theme and status tokens, typography, spacing, compact list controls, reachable scrolling dialogs, responsive navigation and follow-up panels; added a persisted Light/Dark/System selector, truthful calendar type indicators, accessible actions and recoverable read/delete feedback.
 
----
+Release history for SimpleCRM.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.1] - 2026-07-21
 
