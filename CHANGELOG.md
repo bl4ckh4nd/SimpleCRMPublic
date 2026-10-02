@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI Screenshot Gallery. Added 86 Light/Dark desktop screenshots with component crops, narrow layouts, a browsable gallery, checksums, and a ZIP archive using isolated fictional data; documented the observed dashboard read-error state.
 
 ### Changed
+- Release notes. Publishing consumes curated Unreleased notes into the new version and uses the same content for the GitHub release.
 - Release checks. Calendar drag and resize tests use fixed midweek dates and wait for the date link to select Day before switching to Month, so persistence checks also work on weekends and after reloads.
 - README preview. Added an up-to-date dashboard screenshot with fictional customers, deals, and open tasks, plus source setup and release instructions.
 - Repository Writing. Shortened the README and removed stale implementation history, placeholder prompts, and redundant comments while preserving runtime behavior and documented constraints.

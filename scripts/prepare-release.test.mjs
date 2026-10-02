@@ -67,3 +67,29 @@ test('fails on empty ranges and mismatched version tags', () => {
   fs.writeFileSync(path.join(mismatch, 'package.json'), JSON.stringify(pkg));
   assert.throws(() => prepareRelease({ cwd: mismatch, releaseType: 'patch' }), /does not match/);
 });
+
+test('moves curated unreleased notes into the release and preserves history', () => {
+  const cwd = repository();
+  const notes = '### Added\n- Light, dark, and system themes.\n\n### Fixed\n- Open tasks load in the dashboard.';
+  fs.writeFileSync(path.join(cwd, 'CHANGELOG.md'), `# Changelog\n\nRelease history.\n\n## [Unreleased]\n\n${notes}\n\n---\n\n## [1.2.3] - 2026-01-01\n\nPrevious release.\n`);
+  commit(cwd, 'feat: update the desktop');
+  assert.equal(prepareRelease({ cwd, releaseType: 'minor', notesFile: 'notes.md' }), '1.3.0');
+  const changelog = fs.readFileSync(path.join(cwd, 'CHANGELOG.md'), 'utf8');
+  assert.match(changelog, /## \[1\.3\.0\]/);
+  assert.ok(changelog.includes(notes));
+  assert.equal(fs.readFileSync(path.join(cwd, 'notes.md'), 'utf8'), `${notes}\n`);
+  assert.doesNotMatch(changelog, /## \[Unreleased\]/);
+  assert.equal(changelog.split('Open tasks load in the dashboard.').length, 2);
+  assert.match(changelog, /## \[1\.2\.3\] - 2026-01-01\n\nPrevious release\./);
+});
+
+test('uses commit notes when the unreleased section is empty', () => {
+  const cwd = repository();
+  fs.writeFileSync(path.join(cwd, 'CHANGELOG.md'), '# Changelog\n\n## [Unreleased]\n\n---\n\n## [1.2.3] - 2026-01-01\n\nPrevious release.\n');
+  commit(cwd, 'fix: restore dashboard tasks');
+  assert.equal(prepareRelease({ cwd, releaseType: 'patch', notesFile: 'notes.md' }), '1.2.4');
+  const changelog = fs.readFileSync(path.join(cwd, 'CHANGELOG.md'), 'utf8');
+  assert.doesNotMatch(changelog, /## \[Unreleased\]/);
+  assert.match(fs.readFileSync(path.join(cwd, 'notes.md'), 'utf8'), /fix: restore dashboard tasks/);
+  assert.match(changelog, /Previous release\./);
+});
