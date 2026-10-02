@@ -186,6 +186,9 @@ test('calendar drag and resize retain their persisted behavior with shared calen
     return start.toISOString();
   });
   await page.goto('app://-/calendar?date=2026-10-06');
+  await expect(page.getByRole('radio', { name: 'Tag', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Monat', exact: true }).click();
+  await expect(page.locator('.rbc-month-view')).toBeVisible();
   const event = page.locator('.rbc-event').filter({ hasText: 'Verschieben und verlängern' });
   await expect(event).toBeVisible();
   // Tuesday to Wednesday leaves room to resize into Thursday on every run.
@@ -212,6 +215,8 @@ test('calendar drag and resize retain their persisted behavior with shared calen
   await page.mouse.up();
   await expect.poll(async () => new Date((await persisted()).end_date).getTime()).toBeGreaterThan(new Date(beforeResize.end_date).getTime());
   await page.reload();
+  await expect(page.getByRole('radio', { name: 'Tag', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Monat', exact: true }).click();
   await expect(event).toBeVisible();
   await testInfo.attach('calendar-after-drag-resize', { body: await page.screenshot(), contentType: 'image/png' });
 });
