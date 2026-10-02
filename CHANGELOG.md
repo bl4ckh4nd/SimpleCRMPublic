@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI Screenshot Gallery. Added 86 Light/Dark desktop screenshots with component crops, narrow layouts, a browsable gallery, checksums, and a ZIP archive using isolated fictional data; documented the observed dashboard read-error state.
 
 ### Changed
+- README preview. Added an up-to-date dashboard screenshot with fictional customers, deals, and open tasks, plus source setup and release instructions.
 - Repository Writing. Shortened the README and removed stale implementation history, placeholder prompts, and redundant comments while preserving runtime behavior and documented constraints.
 - Dashboard Tasks. Restored populated dashboards by returning the task completion field required by the existing IPC contract.
 - Kanban Cards. Replaced repeated phase badges and form dropdowns with a compact action menu; clearer deal titles, values, and closing dates retain keyboard phase changes and drag-and-drop.

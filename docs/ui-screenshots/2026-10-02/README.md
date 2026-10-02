@@ -14,6 +14,8 @@ Die Dateien *01-dashboard.png zeigen einen realen Lesefehler mit offenen Aufgabe
 
 Die Dateien *dashboard-erledigte-aufgaben.png zeigen denselben Datenbestand, nachdem die drei Demo-Aufgaben über den bestehenden IPC-Endpunkt erledigt wurden. Danach wurde ihr offener Zustand wiederhergestellt.
 
+Der Lesefehler ist im Release-Kandidaten 0.3.0 behoben. Das aktuelle Dashboard mit offenen Demo-Aufgaben steht in assets/screenshots/dashboard.png und im Projekt-README. Die Galerie bewahrt die vorherige Aufnahme als dokumentierten Fehlerzustand.
+
 ## Dateien prüfen
 
 manifest.json enthält für jedes PNG Abmessungen und SHA-256. Alle PNGs wurden auf Lesbarkeit geprüft. In der Galerie öffnet ein Klick das Originalbild.
