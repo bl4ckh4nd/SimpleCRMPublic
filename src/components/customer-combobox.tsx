@@ -25,7 +25,7 @@ export interface CustomerOption {
   email?: string
 }
 
-interface CustomerComboboxProps {
+interface CustomerComboboxProps extends Pick<React.ButtonHTMLAttributes<HTMLButtonElement>, "id" | "aria-label" | "aria-labelledby" | "aria-describedby" | "aria-invalid"> {
   value?: string | number
   onValueChange: (value: string) => void
   placeholder?: string
@@ -65,11 +65,14 @@ export function CustomerCombobox({
   onValueChange,
   placeholder = "Kunde auswählen...",
   disabled = false,
-  onCustomerSelect
+  onCustomerSelect,
+  ...fieldProps
 }: CustomerComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [customers, setCustomers] = React.useState<CustomerOption[]>([])
+  const [searchError, setSearchError] = React.useState(false)
+  const [retry, setRetry] = React.useState(0)
   const [loading, setLoading] = React.useState(false)
   const [selectedCustomer, setSelectedCustomer] = React.useState<CustomerOption | null>(null)
 
@@ -77,7 +80,9 @@ export function CustomerCombobox({
     let cancelled = false
 
     const timeoutId = window.setTimeout(async () => {
+      if (cancelled) return
       setLoading(true)
+      setSearchError(false)
       try {
         const results = await window.electronAPI.invoke(
           IPCChannels.Db.SearchCustomers,
@@ -88,6 +93,7 @@ export function CustomerCombobox({
           setCustomers(results)
         }
       } catch (error) {
+        if (!cancelled) setSearchError(true)
         console.error("[CustomerCombobox] Failed to search customers:", error)
       } finally {
         if (!cancelled) {
@@ -100,7 +106,7 @@ export function CustomerCombobox({
       cancelled = true
       window.clearTimeout(timeoutId)
     }
-  }, [searchQuery])
+  }, [searchQuery, retry])
 
   React.useEffect(() => {
     if (value === undefined) {
@@ -157,6 +163,8 @@ export function CustomerCombobox({
         <Button
           variant="outline"
           role="combobox"
+          aria-label="Kunde"
+          {...fieldProps}
           aria-expanded={open}
           className="w-full justify-between"
           disabled={disabled}
@@ -164,22 +172,23 @@ export function CustomerCombobox({
           <span className="truncate">
             {selectedCustomer ? selectedCustomer.name : placeholder}
           </span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] max-w-[400px] max-h-[350px] p-0" align="start">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-w-[400px] max-h-[350px] p-0" align="start">
         <Command shouldFilter={false}>
-          <div className="flex items-center border-b px-3">
+          <div className="flex items-center gap-2 border-b px-3 focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <input
               className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Kunde suchen"
               placeholder="Kunde suchen..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <CommandList className="max-h-[250px] overflow-y-auto">
-            {loading ? (
+            {searchError ? (<div role="alert" className="p-4 text-sm text-danger-foreground">Kunden konnten nicht geladen werden.<Button size="sm" variant="outline" className="mt-2" onClick={() => setRetry(value => value + 1)}>Erneut versuchen</Button></div>) : loading ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>

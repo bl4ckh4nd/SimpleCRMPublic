@@ -1,6 +1,4 @@
-// simplecrmelectron/src/services/data/types.ts
 
-// Define custom field types
 export interface CustomField {
     id: number;
     name: string;
@@ -40,7 +38,6 @@ export interface CustomFieldOption {
     label: string;
 }
 
-// Define basic App types based on usage and plan
 export interface Customer {
     id: string; // Frontend might use string ID
     jtl_kKunde?: number;
@@ -76,10 +73,8 @@ export interface Product {
      stockLevel?: number;
      isActive?: boolean;
      jtl_dateCreated?: string;
-    // Add other fields as needed
 }
 
-// Add interface for Deal
 export interface Deal {
     id: string | number;
     customer_id: string | number;
@@ -92,11 +87,10 @@ export interface Deal {
     last_modified?: string;
 }
 
-// Add interface for Task
 export interface Task {
     id: string | number;
     customer_id: string | number;
-    customer_name?: string; // Added for joins with customer table
+    customer_name?: string;
     customer_company?: string;
     title: string;
     description?: string;

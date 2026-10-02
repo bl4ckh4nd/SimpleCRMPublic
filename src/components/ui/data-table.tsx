@@ -36,6 +36,7 @@ interface DataTableProps<TData, TValue> {
   searchKeys?: string[];
   searchPlaceholder?: string;
   actions?: React.ReactNode;
+  density?: "standard" | "compact";
 }
 
 export function DataTable<TData, TValue>({
@@ -46,6 +47,7 @@ export function DataTable<TData, TValue>({
   searchKeys,
   searchPlaceholder,
   actions,
+  density = "compact",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -90,7 +92,6 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    // enableRowSelection: true, // enable row selection if needed
     state: {
       sorting,
       columnFilters,
@@ -113,8 +114,10 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Input
+          density={density}
+          aria-label={placeholderText}
           placeholder={placeholderText}
           value={globalSearch}
           onChange={handleSearchChange}
@@ -126,7 +129,7 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
       <div className="rounded-md border">
-        <Table>
+        <Table density={density}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -162,7 +165,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Keine Ergebnisse.
+                  {globalSearch ? "Keine passenden Ergebnisse. Ändern Sie die Suche." : "Keine Produkte vorhanden."}
                 </TableCell>
               </TableRow>
             )}

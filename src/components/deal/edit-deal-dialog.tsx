@@ -1,6 +1,7 @@
+import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -127,17 +128,17 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
   const handleAddProduct = async () => {
     if (!selectedProductId) {
-        alert("Bitte wählen Sie ein Produkt aus.");
+        toast.error("Bitte wählen Sie ein Produkt aus.");
         return;
     }
-    
+
     try {
       const productToAdd = await window.electronAPI.invoke(
         IPCChannels.Products.GetById,
         Number(selectedProductId)
       ) as Product;
       if (!productToAdd) {
-        alert("Produkt konnte nicht gefunden werden.");
+        toast.error("Produkt konnte nicht gefunden werden.");
         return;
       }
 
@@ -170,7 +171,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
       resetPendingProduct();
     } catch (error) {
       console.error("Error adding product:", error);
-      alert("Fehler beim Hinzufügen des Produkts.");
+      toast.error("Fehler beim Hinzufügen des Produkts.");
     }
   };
 
@@ -255,17 +256,18 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+      <DialogContent  size="wide">
         <DialogHeader>
           <DialogTitle>Deal bearbeiten: {editedDeal.name}</DialogTitle>
           <DialogDescription>
             Bearbeiten Sie die Details des Deals und fügen Sie Produkte hinzu.
           </DialogDescription>
         </DialogHeader>
+        <DialogBody>
 
-        {error && <p className="text-sm font-medium text-destructive px-6 py-2">Fehler: {error}</p>}
+        {error && <p className="text-sm font-medium text-danger-foreground ">Fehler: {error}</p>}
 
-        <div className="grid gap-4 py-4 px-6 overflow-y-auto flex-grow">
+        <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="edit-name">Deal-Name</Label>
             <Input id="edit-name" value={editedDeal.name} onChange={(e) => setEditedDeal({ ...editedDeal, name: e.target.value })} disabled={isSaving}/>
@@ -339,7 +341,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
               <div className="flex items-end gap-2 p-3 border rounded-md bg-muted/40">
                  <div className="flex-grow grid gap-1.5">
                      <Label htmlFor="product-select">Produkt auswählen</Label>
-                     <ProductCombobox
+                     <ProductCombobox id="product-select"
                          value={selectedProductId}
                          onValueChange={setSelectedProductId}
                          placeholder="Produkt suchen..."
@@ -380,7 +382,7 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
                                     <TableCell className="text-right">{p.quantity}</TableCell>
                                     <TableCell className="text-right">{formatCurrency(p.price_at_time_of_adding)}</TableCell>
                                     <TableCell>
-                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveProduct(p)} disabled={isSaving} className="text-muted-foreground hover:text-destructive h-8 w-8">
+                                         <Button variant="ghost" size="icon" onClick={() => handleRemoveProduct(p)} disabled={isSaving} className="text-muted-foreground hover:text-danger-foreground h-8 w-8">
                                             <Trash2 className="h-4 w-4" />
                                             <span className="sr-only">Produkt entfernen</span>
                                          </Button>
@@ -396,7 +398,8 @@ export function EditDealDialog({ deal, isOpen, onClose, onSave }: EditDealDialog
           </div>
         </div>
 
-        <DialogFooter className="px-6 pb-4 pt-2 border-t">
+        </DialogBody>
+        <DialogFooter >
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
             Abbrechen
           </Button>

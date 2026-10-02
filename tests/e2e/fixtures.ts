@@ -38,7 +38,7 @@ export const test = base.extend<Fixtures>({
   page: async ({ app }, use) => {
     const page = await app.firstWindow();
     await page.waitForLoadState('domcontentloaded');
-    await expect(page.getByRole('navigation')).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Hauptnavigation' })).toBeVisible();
     await use(page);
   },
 });

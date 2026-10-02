@@ -70,7 +70,7 @@ export function prepareRelease({ cwd = process.cwd(), releaseType, notesFile }) 
   }
 
   const nextVersion = bumpVersion(currentVersion, releaseType);
-  const changelog = fs.readFileSync(changelogPath, 'utf8');
+  let changelog = fs.readFileSync(changelogPath, 'utf8');
   if (new RegExp(`^## \\[${nextVersion.replaceAll('.', '\\.')}\\]`, 'm').test(changelog)) {
     throw new Error(`CHANGELOG.md already contains version ${nextVersion}`);
   }
@@ -85,7 +85,16 @@ export function prepareRelease({ cwd = process.cwd(), releaseType, notesFile }) 
   if (!subjects.length) throw new Error(`no releasable commits found after ${currentTag}`);
 
   const date = new Date().toISOString().slice(0, 10);
-  const entry = createChangelogEntry(nextVersion, date, subjects);
+  let entry = createChangelogEntry(nextVersion, date, subjects);
+  const unreleased = /^## \[Unreleased\][^\n]*\n/m.exec(changelog);
+  if (unreleased) {
+    const bodyStart = unreleased.index + unreleased[0].length;
+    const nextHeading = changelog.slice(bodyStart).search(/^## /m);
+    const sectionEnd = nextHeading < 0 ? changelog.length : bodyStart + nextHeading;
+    const notes = changelog.slice(bodyStart, sectionEnd).replace(/^---[ \t]*$/gm, '').trim();
+    if (notes) entry = `## [${nextVersion}] - ${date}\n\n${notes}`;
+    changelog = changelog.slice(0, unreleased.index) + changelog.slice(sectionEnd);
+  }
   packageJson.version = nextVersion;
   fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
   fs.writeFileSync(changelogPath, changelog.replace(/^# Changelog\s*/, `# Changelog\n\n${entry}\n\n`));

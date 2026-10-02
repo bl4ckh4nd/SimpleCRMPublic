@@ -1,6 +1,9 @@
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from "@/components/ui/breadcrumb"
+import { priorityTone } from "@/lib/status-presentation";
 import { useState, useEffect, useCallback } from "react";
 import { useDealProducts } from "@/hooks/useDealProducts";
-import { DealProductLink } from "@/types"; // Corrected import for DealProductLink
+import { DealProductLink } from "@/types";
 import { useParams } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { DealHeader, DealMetadata, DealNotes } from "@/components/deal/deal-components";
@@ -10,7 +13,7 @@ import { Deal } from "@/types/deal";
 import { Customer, Product } from "@/types"; // Correctly import Customer and Product
 import type { Task } from "@/services/data/types";
 import { Separator } from "@/components/ui/separator";
-import { Edit, Trash2, Package, Info, Loader2, FilePlus2, ListChecks, CheckCircle2, Circle, ChevronRight } from "lucide-react";
+import { Edit, Trash2, Package, Info, Loader2, FilePlus2, ListChecks, CheckCircle2, Circle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -27,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
-  DialogContent,
+  DialogContent, DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -46,7 +49,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/toast";
 import { IPCChannels } from '@shared/ipc/channels';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added for CustomerDetails
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProductCombobox } from "@/components/product-combobox";
 
@@ -87,7 +90,11 @@ export default function DealDetailPage() {
   const [dealTasks, setDealTasks] = useState<Task[]>([]);
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
+  const [readError, setReadError] = useState(false)
+  const [retryRead, setRetryRead] = useState(0)
   useEffect(() => {
+    let cancelled = false
+    setReadError(false)
     const fetchDealAndCustomer = async () => {
       setIsLoading(true);
       setDeal(null);
@@ -98,13 +105,14 @@ export default function DealDetailPage() {
             IPCChannels.Deals.GetById,
             dealId
           ) as Deal | null;
+          if (cancelled) return;
           setDeal(dealData);
           if (dealData?.customer_id) {
             const customerData = await window.electronAPI.invoke(
               IPCChannels.Db.GetCustomer,
               dealData.customer_id
             ) as Customer | null;
-            setCustomerForOrder(customerData);
+            if (!cancelled) setCustomerForOrder(customerData);
           }
         } else {
           console.error("window.electronAPI or invoke method not found.");
@@ -112,19 +120,21 @@ export default function DealDetailPage() {
           setCustomerForOrder(null);
         }
       } catch (error: unknown) {
+        if (cancelled) return;
+        setReadError(true);
         console.error("Error fetching deal or customer:", error);
         setDeal(null);
         setCustomerForOrder(null);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     if (routeDealId) { // Use routeDealId for dependency
       fetchDealAndCustomer();
     }
-  }, [routeDealId, dealId]);
+    return () => { cancelled = true; };
+  }, [routeDealId, dealId, retryRead]);
 
-  // Function to update deal value when products change (for dynamic calculation)
   const handleProductsChange = useCallback((products: DealProductLink[]) => {
     if (deal?.value_calculation_method === 'dynamic' && products.length > 0) {
       // Calculate total value from products
@@ -380,20 +390,17 @@ export default function DealDetailPage() {
 
     return (
         <main className="flex-1">
-        <div className="px-6 py-4">
+        <div className="px-4 py-4 sm:px-6">
           <div className="mb-6">
-            <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
-              <Link to="/deals" className="hover:text-foreground transition-colors">Deals</Link>
-              <ChevronRight className="h-4 w-4" />
-              <span className="text-foreground font-medium truncate max-w-[300px]">{deal?.name ?? '...'}</span>
-            </nav>
+            <Breadcrumb className="mb-4"><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link to="/deals">Deals</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage className="break-words">{deal?.name ?? '...'}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>
 
+            {readError && <Alert variant="destructive" className="mb-4"><AlertDescription>Deal oder zugehöriger Kunde konnte nicht geladen werden.<Button size="sm" variant="outline" onClick={() => setRetryRead(value => value + 1)}>Erneut versuchen</Button></AlertDescription></Alert>}
             {isLoading ? (
               <DealDetailSkeleton />
             ) : !deal ? (
               <div className="flex h-[400px] w-full flex-col items-center justify-center rounded-md border border-dashed p-8 text-center animate-in fade-in-50">
                 <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
-                  <h3 className="mt-4 text-lg font-semibold">Deal nicht gefunden</h3>
+                  <h3 className="mt-4 text-lg font-semibold">{readError ? "Deal nicht verfügbar" : "Deal nicht gefunden"}</h3>
                   <p className="mb-4 mt-2 text-sm text-muted-foreground">
                     Der gesuchte Deal existiert nicht oder Sie haben keinen Zugriff darauf.
                   </p>
@@ -438,13 +445,14 @@ export default function DealDetailPage() {
                           )}
                         </Tooltip>
                       </TooltipProvider>
-                      <DialogContent className="sm:max-w-[425px]">
+                      <DialogContent  size="compact">
                         <DialogHeader>
                           <DialogTitle>JTL Auftrag erstellen</DialogTitle>
                           <DialogDescription>
                             Wählen Sie die erforderlichen JTL-Optionen für diesen Auftrag aus.
                           </DialogDescription>
                         </DialogHeader>
+                        <DialogBody>
                         {isLoadingJtlData ? (
                           <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
                         ) : (
@@ -452,7 +460,7 @@ export default function DealDetailPage() {
                             <div className="grid grid-cols-4 items-center gap-4">
                               <Label htmlFor="jtlFirma" className="text-right">Firma</Label>
                               <Select value={selectedFirma} onValueChange={setSelectedFirma} name="jtlFirma">
-                                <SelectTrigger className="col-span-3">
+                                <SelectTrigger id="jtlFirma" className="col-span-3">
                                   <SelectValue placeholder="Firma auswählen" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -463,7 +471,7 @@ export default function DealDetailPage() {
                             <div className="grid grid-cols-4 items-center gap-4">
                               <Label htmlFor="jtlWarenlager" className="text-right">Warenlager</Label>
                               <Select value={selectedWarenlager} onValueChange={setSelectedWarenlager} name="jtlWarenlager">
-                                <SelectTrigger className="col-span-3">
+                                <SelectTrigger id="jtlWarenlager" className="col-span-3">
                                   <SelectValue placeholder="Warenlager auswählen" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -474,7 +482,7 @@ export default function DealDetailPage() {
                             <div className="grid grid-cols-4 items-center gap-4">
                               <Label htmlFor="jtlZahlungsart" className="text-right">Zahlungsart</Label>
                               <Select value={selectedZahlungsart} onValueChange={setSelectedZahlungsart} name="jtlZahlungsart">
-                                <SelectTrigger className="col-span-3">
+                                <SelectTrigger id="jtlZahlungsart" className="col-span-3">
                                   <SelectValue placeholder="Zahlungsart auswählen" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -485,7 +493,7 @@ export default function DealDetailPage() {
                             <div className="grid grid-cols-4 items-center gap-4">
                               <Label htmlFor="jtlVersandart" className="text-right">Versandart</Label>
                               <Select value={selectedVersandart} onValueChange={setSelectedVersandart} name="jtlVersandart">
-                                <SelectTrigger className="col-span-3">
+                                <SelectTrigger id="jtlVersandart" className="col-span-3">
                                   <SelectValue placeholder="Versandart auswählen" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -495,12 +503,13 @@ export default function DealDetailPage() {
                             </div>
                           </div>
                         )}
+                        </DialogBody>
                         <DialogFooter>
                           <DialogClose asChild>
                             <Button type="button" variant="outline">Abbrechen</Button>
                           </DialogClose>
                           <Button type="button" onClick={handleCreateJtlOrder} disabled={isSubmittingJtlOrder || isLoadingJtlData || !selectedFirma || !selectedWarenlager || !selectedZahlungsart || !selectedVersandart}>
-                            {isSubmittingJtlOrder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Auftrag erstellen
+                            {isSubmittingJtlOrder && <Loader2 className="h-4 w-4 animate-spin" />}Auftrag erstellen
                           </Button>
                         </DialogFooter>
                       </DialogContent>
@@ -519,7 +528,7 @@ export default function DealDetailPage() {
                 <Separator />
 
                 <Tabs defaultValue="overview" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 md:w-[320px]">
+                  <TabsList variant="underline" className="w-full">
                     <TabsTrigger value="overview">
                       <Info className="mr-1 h-4 w-4" /> Übersicht
                     </TabsTrigger>
@@ -528,7 +537,6 @@ export default function DealDetailPage() {
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="overview" className="mt-4 space-y-6">
-                    {/* Customer Details Section */}
                     {customerForOrder && (
                       <Card>
                         <CardHeader>
@@ -562,11 +570,11 @@ export default function DealDetailPage() {
                         <div className="rounded-lg border">
                           {isProductsLoading ? (
                             <div className="flex items-center justify-center p-8">
-                              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                              <Loader2 className="h-6 w-6 animate-spin" />
                               <span>Produkte werden geladen...</span>
                             </div>
                           ) : productsError ? (
-                            <p className="p-4 text-center text-destructive">{productsError}</p>
+                            <p className="p-4 text-center text-danger-foreground">{productsError}</p>
                           ) : dealProducts.length > 0 ? (
                             <Table>
                               <TableHeader>
@@ -616,7 +624,7 @@ export default function DealDetailPage() {
                       <CardContent>
                         {isLoadingTasks ? (
                           <div className="flex items-center justify-center p-8">
-                            <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                            <Loader2 className="h-6 w-6 animate-spin" />
                             <span>Aufgaben werden geladen...</span>
                           </div>
                         ) : dealTasks.length > 0 ? (
@@ -636,14 +644,14 @@ export default function DealDetailPage() {
                                   <TableRow key={task.id} className={task.completed ? 'opacity-50' : ''}>
                                     <TableCell>
                                       {task.completed
-                                        ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                        ? <CheckCircle2 className="h-4 w-4 text-success-foreground" />
                                         : <Circle className="h-4 w-4 text-muted-foreground" />}
                                     </TableCell>
                                     <TableCell className={task.completed ? 'line-through text-muted-foreground' : 'font-medium'}>
                                       {task.title}
                                     </TableCell>
                                     <TableCell>
-                                      <Badge variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'secondary' : 'outline'}>
+                                      <Badge variant={priorityTone(task.priority)}>
                                         {priorityLabels[task.priority] ?? task.priority}
                                       </Badge>
                                     </TableCell>
@@ -777,14 +785,13 @@ export default function DealDetailPage() {
             title="Produkt entfernen"
             aria-label="Produkt entfernen"
           >
-            <Trash2 className="h-4 w-4 text-destructive" />
+            <Trash2 className="h-4 w-4 text-danger-foreground" />
           </Button>
         </TableCell>
       </TableRow>
     );
   }
 
-  // AddProductDialog component (can be moved to a new file later)
   interface AddProductDialogProps {
     isOpen: boolean;
     onClose: () => void;
@@ -793,7 +800,6 @@ export default function DealDetailPage() {
   }
 
   function AddProductDialog({ isOpen, onClose, onAddProduct }: AddProductDialogProps) {
-    // Removed allProducts and isLoadingProducts - ProductCombobox handles this internally
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState<number>(1);
     const [price, setPrice] = useState<number>(0);
@@ -804,7 +810,6 @@ export default function DealDetailPage() {
         setSelectedProductId(null);
         setQuantity(1);
         setPrice(0);
-        // Removed fetchAllProducts - ProductCombobox handles product loading internally
       }
     }, [isOpen]);
 
@@ -844,18 +849,19 @@ export default function DealDetailPage() {
 
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent  size="compact">
           <DialogHeader>
             <DialogTitle>Produkt zum Deal hinzufügen</DialogTitle>
             <DialogDescription>
               Wählen Sie ein Produkt aus und geben Sie Menge und Preis an.
             </DialogDescription>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="product" className="text-right">Produkt</Label>
               <div className="col-span-3">
-                <ProductCombobox
+                <ProductCombobox id="product"
                   value={selectedProductId}
                   onValueChange={handleProductChange}
                   placeholder="Produkt suchen..."
@@ -887,12 +893,13 @@ export default function DealDetailPage() {
                 />
               </div>
             </div>
+          </DialogBody>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline" onClick={onClose}>Abbrechen</Button>
             </DialogClose>
             <Button type="button" onClick={handleSubmit} disabled={isSubmitting || !selectedProductId}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Hinzufügen
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}Hinzufügen
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -4,14 +4,12 @@ import { Group } from "@/components/grouping/grouped-list"
 import { customFieldService } from "@/services/data/customFieldService"
 import type { CustomField } from "@/services/data/types"
 
-// Define types for grouping field configurations
 export interface GroupingField {
   value: string;
   label: string;
   groupingFn: <T>(items: T[], accessor: (item: T) => unknown) => Group<T>[];
 }
 
-// Helper function to safely parse a date string
 export function safeParseDate(dateString: string | null | undefined): Date | null {
   if (!dateString) return null
   try {
@@ -22,19 +20,16 @@ export function safeParseDate(dateString: string | null | undefined): Date | nul
   }
 }
 
-// Helper function to format a date as month/year
 export function formatMonthYear(date: Date): string {
   return format(date, "MMMM yyyy", { locale: de })
 }
 
-// Helper function to format a date as quarter/year
 export function formatQuarterYear(date: Date): string {
   const month = date.getMonth()
   const quarter = Math.floor(month / 3) + 1
   return `Q${quarter} ${date.getFullYear()}`
 }
 
-// Helper function to get value range group
 export function getValueRangeGroup(value: number | string): string {
   const numValue = typeof value === 'string' ? parseFloat(value) : value
 
@@ -47,13 +42,11 @@ export function getValueRangeGroup(value: number | string): string {
   return '≥ 50.000 €'
 }
 
-// Generic function to group items by a field
 export function groupBy<T>(
   items: T[],
   getGroupKey: (item: T) => string,
   getGroupTitle: (key: string, items: T[]) => string = key => key
 ): Group<T>[] {
-  // Group items by key
   const groupedItems = items.reduce((acc, item) => {
     const key = getGroupKey(item)
     if (!acc[key]) {
@@ -63,7 +56,6 @@ export function groupBy<T>(
     return acc
   }, {} as Record<string, T[]>)
 
-  // Convert to array of Group objects
   return Object.entries(groupedItems)
     .map(([key, groupItems]) => ({
       key,
@@ -73,14 +65,11 @@ export function groupBy<T>(
     .sort((a, b) => a.title.localeCompare(b.title))
 }
 
-// Function to create a "No value" group title
 export function createNoValueGroupTitle(fieldName: string): string {
   return `Kein ${fieldName}`
 }
 
-// Specialized grouping functions for different data types
 
-// Group by string field
 export function groupByString<T>(
   items: T[],
   accessor: (item: T) => unknown
@@ -95,7 +84,6 @@ export function groupByString<T>(
   )
 }
 
-// Group by date field (month/year)
 export function groupByMonthYear<T>(
   items: T[],
   accessor: (item: T) => unknown
@@ -121,7 +109,6 @@ export function groupByMonthYear<T>(
   )
 }
 
-// Group by date field (quarter/year)
 export function groupByQuarterYear<T>(
   items: T[],
   accessor: (item: T) => unknown
@@ -147,7 +134,6 @@ export function groupByQuarterYear<T>(
   )
 }
 
-// Group by year
 export function groupByYear<T>(
   items: T[],
   accessor: (item: T) => unknown
@@ -167,7 +153,6 @@ export function groupByYear<T>(
   )
 }
 
-// Group by numeric value ranges
 export function groupByValueRange<T>(
   items: T[],
   accessor: (item: T) => unknown
@@ -187,7 +172,6 @@ export function groupByValueRange<T>(
   )
 }
 
-// Group by boolean value
 export function groupByBoolean<T>(
   items: T[],
   accessor: (item: T) => unknown,
@@ -219,7 +203,6 @@ export function groupByBoolean<T>(
   )
 }
 
-// Group by first letter (alphabetical)
 export function groupByFirstLetter<T>(
   items: T[],
   accessor: (item: T) => unknown
@@ -238,7 +221,6 @@ export function groupByFirstLetter<T>(
   )
 }
 
-// Create a map of grouping functions for different field types
 export const groupingFunctions = {
   string: groupByString,
   monthYear: groupByMonthYear,
@@ -249,7 +231,6 @@ export const groupingFunctions = {
   firstLetter: groupByFirstLetter
 }
 
-// Define common grouping fields for deals
 export const dealGroupingFields: GroupingField[] = [
   {
     value: 'stage',
@@ -288,7 +269,6 @@ export const dealGroupingFields: GroupingField[] = [
   }
 ]
 
-// Define common grouping fields for customers
 export const customerGroupingFields: GroupingField[] = [
   {
     value: 'status',
@@ -317,11 +297,9 @@ export const customerGroupingFields: GroupingField[] = [
   }
 ]
 
-// Helper function to get accessor function for a field
 export function getFieldAccessor<T>(fieldName: string): (item: T) => unknown {
   return (item: T) => {
     const record = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {};
-    // Handle special cases with custom accessors
     if (fieldName === 'createdDate_quarter') {
       return record.createdDate
     }
@@ -330,7 +308,6 @@ export function getFieldAccessor<T>(fieldName: string): (item: T) => unknown {
     if (fieldName.startsWith('custom_')) {
       const customFieldName = fieldName.substring(7) // Remove 'custom_' prefix
 
-      // Access the custom field value from the item's customFields property
       const customFields = record.customFields
       if (typeof customFields === 'object' && customFields !== null) {
         return (customFields as Record<string, unknown>)[customFieldName]
@@ -350,12 +327,10 @@ export function getFieldAccessor<T>(fieldName: string): (item: T) => unknown {
       return value
     }
 
-    // Regular field access
     return record[fieldName]
   }
 }
 
-// Function to get grouping options from custom fields
 export async function getCustomFieldGroupingOptions(): Promise<GroupingField[]> {
   try {
     const customFields = await customFieldService.getActiveCustomFields();
@@ -388,7 +363,6 @@ function getGroupingFunctionForCustomField(field: CustomField): GroupingField['g
   }
 }
 
-// Main function to group items by a selected field
 export function groupItemsByField<T>(
   items: T[],
   fieldName: string | null,

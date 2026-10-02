@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from "react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { PageHeader } from "@/components/page-header"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useState, useEffect, useCallback, useSyncExternalStore, useRef } from "react"
 import { toast } from "sonner"
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
-import { SmartQueueRail } from "@/components/followup/smart-queue-rail"
+import { SmartQueueRail, presetQueues } from "@/components/followup/smart-queue-rail"
 import { ExecutionList } from "@/components/followup/execution-list"
 import { ExecutionListToolbar } from "@/components/followup/execution-list-toolbar"
 import { InstantDetailPanel } from "@/components/followup/instant-detail-panel"
@@ -14,6 +17,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Keyboard } from "lucide-react"
 
 export default function FollowUpPage() {
+  const narrow = useSyncExternalStore(
+    (listener) => { const query = window.matchMedia("(max-width: 1023px)"); query.addEventListener("change", listener); return () => query.removeEventListener("change", listener) },
+    () => window.matchMedia("(max-width: 1023px)").matches,
+  )
   // State
   const [activeQueue, setActiveQueue] = useState('heute')
   const [queueCounts, setQueueCounts] = useState<QueueCounts>({ heute: 0, ueberfaellig: 0, dieseWoche: 0, stagnierend: 0, highValueRisk: 0 })
@@ -28,35 +35,71 @@ export default function FollowUpPage() {
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [logDialogOpen, setLogDialogOpen] = useState(false)
 
-  // Load queue counts
-  const loadCounts = useCallback(async () => {
-    const counts = await followUpService.getQueueCounts()
-    setQueueCounts(counts)
+  const mounted = useRef(true)
+  const itemRead = useRef(0)
+  const timelineRead = useRef(0)
+  const [readErrors, setReadErrors] = useState<Record<string, string>>({})
+  const [retrying, setRetrying] = useState(false)
+  const setReadError = (key: string, message: string) => {
+    if (mounted.current) setReadErrors(current => ({ ...current, [key]: message }))
+  }
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false; itemRead.current++; timelineRead.current++ }
   }, [])
 
-  // Load items for active queue
+  const loadCounts = useCallback(async () => {
+    try {
+      const counts = await followUpService.getQueueCounts()
+      if (mounted.current) setQueueCounts(counts)
+      setReadError('counts', '')
+    } catch { setReadError('counts', 'Warteschlangenzähler konnten nicht geladen werden.') }
+  }, [])
+
   const loadItems = useCallback(async () => {
+    const generation = ++itemRead.current
     setLoading(true)
     const filters: { query?: string; priority?: string } = {}
     if (search.trim()) filters.query = search.trim()
     if (priorityFilter !== 'all') filters.priority = priorityFilter
-
-    const data = await followUpService.getItems(activeQueue, filters)
-    setItems(data)
-    setLoading(false)
+    try {
+      const data = await followUpService.getItems(activeQueue, filters)
+      if (generation !== itemRead.current || !mounted.current) return
+      setItems(data)
+      setReadError('items', '')
+    } catch {
+      if (generation === itemRead.current) setReadError('items', 'Arbeitsliste konnte nicht geladen werden.')
+    } finally {
+      if (generation === itemRead.current && mounted.current) setLoading(false)
+    }
   }, [activeQueue, search, priorityFilter])
 
-  // Load timeline for selected item
   const loadTimeline = useCallback(async (customerId: number, filter?: string) => {
-    const entries = await followUpService.getTimeline(customerId, filter)
-    setTimeline(entries)
+    const generation = ++timelineRead.current
+    try {
+      const entries = await followUpService.getTimeline(customerId, filter)
+      if (generation !== timelineRead.current || !mounted.current) return
+      setTimeline(entries)
+      setReadError('timeline', '')
+    } catch {
+      if (generation === timelineRead.current) setReadError('timeline', 'Aktivitäten konnten nicht geladen werden.')
+    }
   }, [])
 
-  // Load saved views
   const loadSavedViews = useCallback(async () => {
-    const views = await followUpService.getSavedViews()
-    setSavedViews(views)
+    try {
+      const views = await followUpService.getSavedViews()
+      if (mounted.current) setSavedViews(views)
+      setReadError('views', '')
+    } catch { setReadError('views', 'Gespeicherte Ansichten konnten nicht geladen werden.') }
   }, [])
+
+  const retryReads = async () => {
+    setRetrying(true)
+    try {
+      await Promise.all([loadCounts(), loadItems(), loadSavedViews(), selectedItem?.customer_id ? loadTimeline(selectedItem.customer_id, timelineFilter) : Promise.resolve()])
+    } finally { if (mounted.current) setRetrying(false) }
+  }
 
   // Initial load
   useEffect(() => {
@@ -71,6 +114,9 @@ export default function FollowUpPage() {
 
   // Load timeline when selected item changes
   useEffect(() => {
+    timelineRead.current++
+    setTimeline([])
+    setReadError("timeline", "")
     if (selectedItem?.customer_id) {
       loadTimeline(selectedItem.customer_id, timelineFilter)
     } else {
@@ -272,14 +318,8 @@ export default function FollowUpPage() {
   }, [selectedItem, items, handleComplete, handleSnooze, openLogDialog])
 
   return (
-    <div className="flex flex-col px-6" style={{ height: 'calc(100vh - 104px)' }}>
-      {/* Page header with keyboard shortcut legend */}
-      <div className="flex items-center justify-between py-2 mb-1">
-        <div>
-          <h1 className="text-lg font-semibold">Nachverfolgung</h1>
-          <p className="text-xs text-muted-foreground">Priorisierte Aufgaben und Deals, die Ihre Aufmerksamkeit benötigen</p>
-        </div>
-        <Popover>
+    <div className={`flex min-w-0 flex-col px-4 py-4 sm:px-6 ${narrow ? "min-h-full" : "h-full min-h-0"}`}>
+      <PageHeader title="Nachverfolgung" subtitle="Priorisierte Aufgaben und Deals, die Ihre Aufmerksamkeit benötigen" actions={<Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
               <Keyboard className="h-4 w-4" />
@@ -304,10 +344,51 @@ export default function FollowUpPage() {
             </div>
             <p className="text-xs text-muted-foreground mt-3">Kürzel funktionieren nur außerhalb von Eingabefeldern.</p>
           </PopoverContent>
-        </Popover>
-      </div>
-      <ResizablePanelGroup direction="horizontal">
-        {/* Left Rail: Smart Queues */}
+        </Popover>} />
+      {Object.values(readErrors).some(Boolean) && <Alert variant="destructive" className="mb-4"><AlertDescription>{Object.values(readErrors).filter(Boolean).join(" ")}<Button size="sm" variant="outline" disabled={loading || retrying} onClick={retryReads}>Erneut versuchen</Button></AlertDescription></Alert>}
+      {narrow ? <div className="space-y-6">
+        <Select value={activeQueue} onValueChange={handleQueueSelect}>
+          <SelectTrigger aria-label="Priorisierte Ansicht"><SelectValue /></SelectTrigger>
+          <SelectContent>{presetQueues.map(q => <SelectItem key={q.id} value={q.id}>{q.label} ({queueCounts[q.countKey]})</SelectItem>)}{savedViews.map(v => <SelectItem key={v.id} value={`saved_${v.id}`}>{v.name}</SelectItem>)}</SelectContent>
+        </Select>
+        <section aria-label="Arbeitsliste" className="min-w-0 rounded-lg border">            <ExecutionListToolbar
+              search={search}
+              onSearchChange={handleSearchChange}
+              priorityFilter={priorityFilter}
+              onPriorityFilterChange={setPriorityFilter}
+              selectedCount={selectedItemIds.size}
+              onBulkComplete={handleBulkComplete}
+              onBulkSnooze={handleBulkSnooze}
+            />
+            <ExecutionList filtered={Boolean(search.trim()) || priorityFilter !== "all"} readError={Boolean(readErrors.items)}
+              items={items}
+              loading={loading}
+              selectedItem={selectedItem}
+              selectedItemIds={selectedItemIds}
+              activeQueue={activeQueue}
+              onItemSelect={handleItemSelect}
+              onItemToggleSelect={handleItemToggleSelect}
+              onComplete={handleComplete}
+              onSnooze={handleSnooze}
+              onQueueSwitch={handleQueueSelect}
+            />
+</section>
+        <section aria-label="Ausgewählte Aufgabe" className="min-w-0 rounded-lg border">            <InstantDetailPanel
+              item={selectedItem}
+              timeline={timeline}
+              onTimelineFilterChange={setTimelineFilter}
+              onLogCall={openLogDialog}
+              onLogEmail={openLogDialog}
+              onAddNote={openLogDialog}
+              onSnooze={(snoozedUntil) => {
+                if (selectedItem) handleSnooze(selectedItem, snoozedUntil)
+              }}
+              onComplete={() => {
+                if (selectedItem) handleComplete(selectedItem)
+              }}
+            />
+</section>
+      </div> : <ResizablePanelGroup direction="horizontal" className="min-h-0 flex-1">
         <ResizablePanel defaultSize="18%" minSize="160px" maxSize="260px">
           <div className="h-full border-r overflow-y-auto">
             <SmartQueueRail
@@ -321,7 +402,6 @@ export default function FollowUpPage() {
 
         <ResizableHandle withHandle />
 
-        {/* Center: Execution List */}
         <ResizablePanel defaultSize="52%" minSize="420px">
           <div className="flex flex-col h-full">
             <ExecutionListToolbar
@@ -333,7 +413,7 @@ export default function FollowUpPage() {
               onBulkComplete={handleBulkComplete}
               onBulkSnooze={handleBulkSnooze}
             />
-            <ExecutionList
+            <ExecutionList filtered={Boolean(search.trim()) || priorityFilter !== "all"} readError={Boolean(readErrors.items)}
               items={items}
               loading={loading}
               selectedItem={selectedItem}
@@ -350,7 +430,6 @@ export default function FollowUpPage() {
 
         <ResizableHandle withHandle />
 
-        {/* Right: Instant Detail Panel */}
         <ResizablePanel defaultSize="30%" minSize="260px">
           <div className="h-full border-l overflow-y-auto">
             <InstantDetailPanel
@@ -369,9 +448,8 @@ export default function FollowUpPage() {
             />
           </div>
         </ResizablePanel>
-      </ResizablePanelGroup>
+      </ResizablePanelGroup>}
 
-      {/* Log Activity Dialog */}
       <LogActivityDialog
         open={logDialogOpen}
         onOpenChange={setLogDialogOpen}

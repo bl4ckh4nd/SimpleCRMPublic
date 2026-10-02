@@ -1,7 +1,7 @@
 import { getFriendlyMssqlError } from '../../shared/errors/mssql';
 
 describe('getFriendlyMssqlError', () => {
-  // --- Input type branches ---
+  // Input type branches
 
   test('handles plain string error (string branch)', () => {
     const parsed = getFriendlyMssqlError('Connection timed out ETIMEOUT', 'de');
@@ -33,7 +33,7 @@ describe('getFriendlyMssqlError', () => {
     expect(parsed.category).toBe('unknown');
   });
 
-  // --- All MSSQL_ERROR_MAP keys ---
+  // All MSSQL_ERROR_MAP keys
 
   test('maps ETIMEOUT code to timeout category', () => {
     const parsed = getFriendlyMssqlError({ message: 'timeout', code: 'ETIMEOUT' }, 'de');
@@ -96,7 +96,7 @@ describe('getFriendlyMssqlError', () => {
     expect(parsed.title).toContain('Port');
   });
 
-  // --- Language switching ---
+  // Language switching
 
   test('returns English title when lang is "en"', () => {
     const parsed = getFriendlyMssqlError({ message: 'timeout', code: 'ETIMEOUT' }, 'en');
@@ -115,7 +115,7 @@ describe('getFriendlyMssqlError', () => {
     expect(parsed.title).toContain('Verbindung');
   });
 
-  // --- Message-scan loop (no code field, picks up key from message text) ---
+  // Message-scan loop (no code field, picks up key from message text)
 
   test('matches error code from message text when no .code field present', () => {
     // No code property — scan loop finds 'ECONNREFUSED' in message string
@@ -123,7 +123,7 @@ describe('getFriendlyMssqlError', () => {
     expect(parsed.category).toBe('network');
   });
 
-  // --- Error number re-assignment guard ---
+  // Error number re-assignment guard
 
   test('known errorCode takes precedence over number: 18456 in message', () => {
     // ETIMEOUT is already recognized → 18456 should NOT override it
@@ -131,7 +131,7 @@ describe('getFriendlyMssqlError', () => {
     expect(parsed.category).toBe('timeout');
   });
 
-  // --- Actionable advice ---
+  // Actionable advice
 
   test('includes actionable advice for known errors', () => {
     const parsed = getFriendlyMssqlError({ message: 'refused', code: 'ECONNREFUSED' }, 'de');
@@ -144,7 +144,7 @@ describe('getFriendlyMssqlError', () => {
     expect(parsed.actionableAdvice).toBeUndefined();
   });
 
-  // --- err.name branch (lines 151-152) + errorName map lookup (line 194) ---
+  // err.name branch (lines 151-152) + errorName map lookup (line 194)
 
   test('uses error name as fallback key when no code but name matches error map', () => {
     // Object with .name (not .code) matching MSSQL_ERROR_MAP key → err.name branch + matchedDetailKey=errorName

@@ -42,6 +42,6 @@ test('custom field and customer lifecycle persists through the detail page', asy
 
   await page.getByRole('button', { name: 'Löschen' }).first().click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Löschen' }).click();
-  await expect(page.getByRole('heading', { name: 'Kunden' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Kunden', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: /Kundenfluss/ })).not.toBeVisible();
 });

@@ -27,7 +27,7 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
     try {
       const dataToSend = {
         ...values,
-        sku: values.sku || null, 
+        sku: values.sku || null,
         description: values.description || null,
       };
       const result = await window.electronAPI.invoke(
@@ -50,16 +50,15 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[525px]">
+      <DialogContent  size="regular">
         <DialogHeader>
           <DialogTitle>Neues Produkt erstellen</DialogTitle>
           <DialogDescription>
             Füllen Sie die Details für das neue Produkt aus. Mit * markierte Felder sind erforderlich.
           </DialogDescription>
         </DialogHeader>
-        {error && <p className="text-sm font-medium text-destructive">Fehler: {error}</p>}
-        <ProductForm 
-          onSubmit={handleSubmit} 
+        <ProductForm error={error}
+          onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
           submitButtonText="Produkt erstellen"
           onCancel={() => onOpenChange(false)}
@@ -67,4 +66,4 @@ export function CreateProductDialog({ isOpen, onOpenChange, onProductCreated }: 
       </DialogContent>
     </Dialog>
   )
-} 
+}

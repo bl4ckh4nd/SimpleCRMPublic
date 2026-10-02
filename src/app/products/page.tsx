@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { PlusCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { PlusCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProductTable } from '@/components/product/product-table';
 import { CreateProductDialog } from '@/components/product/create-product-dialog';
 import { Product } from '@/types'; // Assuming Product type will be defined in src/types/index.ts
 import { IPCChannels } from '@shared/ipc/channels';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageHeader } from '@/components/page-header';
 
 export default function ProductsPage() {
@@ -16,7 +16,9 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
 
+  const readGeneration = useRef(0);
   const fetchProducts = async () => {
+    const generation = ++readGeneration.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -31,17 +33,18 @@ export default function ProductsPage() {
         ...p,
         isActive: Boolean(p.isActive),
       }));
-      setProducts(mappedProducts);
+      if (generation === readGeneration.current) setProducts(mappedProducts);
     } catch (err: unknown) {
       console.error('Error fetching products:', err);
-      setError(err instanceof Error ? err.message : 'Produkte konnten nicht geladen werden.');
+      if (generation === readGeneration.current) setError(err instanceof Error ? err.message : 'Produkte konnten nicht geladen werden.');
     } finally {
-      setIsLoading(false);
+      if (generation === readGeneration.current) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchProducts();
+    return () => { readGeneration.current++; };
   }, []);
 
   const handleProductCreated = () => {
@@ -57,64 +60,28 @@ export default function ProductsPage() {
   };
 
 
-  if (isLoading) {
-    return (
-      <main className="flex-1">
-        <div className="px-6 py-4">
-          <div className="flex justify-center items-center py-20">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Produkte werden geladen...</span>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="flex-1">
-        <div className="px-6 py-4">
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
-                Produkte konnten nicht geladen werden
-              </CardTitle>
-              <CardDescription>{error}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" onClick={fetchProducts}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Erneut versuchen
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex-1">
-    <div className="px-6 py-4">
+    <div className="px-4 py-4 sm:px-6">
       <PageHeader
         title="Produkte"
         subtitle="Produkte und Preise für Deals verwalten."
         actions={<Button onClick={() => setCreateDialogOpen(true)}><PlusCircle /> Neues Produkt</Button>}
       />
-      {/* Render ProductTable */}
-      <ProductTable
+      {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}<Button variant="outline" size="sm" disabled={isLoading} onClick={fetchProducts}>Erneut versuchen</Button></AlertDescription></Alert>}
+      {isLoading && <p role="status" className="flex items-center gap-2 py-4 text-muted-foreground"><RefreshCw className="size-4 animate-spin" />Produkte werden geladen…</p>}
+      {(products.length > 0 || (!error && !isLoading)) && <ProductTable
           data={products}
           onProductUpdated={handleProductUpdated}
           onProductDeleted={handleProductDeleted}
-      /> 
+      />}
 
-      {/* Render CreateProductDialog */}
-      <CreateProductDialog 
-        isOpen={isCreateDialogOpen} 
+      <CreateProductDialog
+        isOpen={isCreateDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onProductCreated={handleProductCreated} 
-      /> 
+        onProductCreated={handleProductCreated}
+      />
 
     </div>
     </main>

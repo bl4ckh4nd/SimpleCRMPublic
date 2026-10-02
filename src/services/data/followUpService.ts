@@ -15,7 +15,7 @@ export const followUpService = {
       ) as unknown as FollowUpItem[];
     } catch (error) {
       console.error('Failed to fetch follow-up items:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -26,7 +26,7 @@ export const followUpService = {
       ) as unknown as QueueCounts;
     } catch (error) {
       console.error('Failed to fetch queue counts:', error);
-      return { heute: 0, ueberfaellig: 0, dieseWoche: 0, stagnierend: 0, highValueRisk: 0 };
+      throw error;
     }
   },
 
@@ -74,7 +74,7 @@ export const followUpService = {
       ) as unknown as ActivityLogEntry[];
     } catch (error) {
       console.error('Failed to fetch timeline:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -85,7 +85,7 @@ export const followUpService = {
       ) as unknown as SavedView[];
     } catch (error) {
       console.error('Failed to fetch saved views:', error);
-      return [];
+      throw error;
     }
   },
 

@@ -47,7 +47,6 @@ export interface Customer {
   updated_at?: string;
 }
 
-// You can add other shared frontend types here if needed
 
 // Calendar Types
 export interface RecurrenceRule {
@@ -111,5 +110,4 @@ export interface OnEventDropArgs {
   start: string | Date;
   end: string | Date;
   isAllDay: boolean;
-  // Optional: Add resourceId if using resource views
 }

@@ -1,6 +1,8 @@
 "use client"
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { priorityTone } from "@/lib/status-presentation";
 
-import React, { useState, useEffect, Fragment } from "react"
+import React, { useState, useEffect, useRef, Fragment } from "react"
 import { CalendarDays, CheckSquare, ChevronDown, Plus, Search, SlidersHorizontal } from "lucide-react"
 import { Link, useNavigate } from "@tanstack/react-router"
 
@@ -14,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
-  DialogContent,
+  DialogContent, DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -28,12 +30,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { CustomerCombobox } from "@/components/customer-combobox"
 import { taskService } from "@/services/data/taskService"
-import { TASK_EVENT_DEFAULT_COLOR, TASK_EVENT_COMPLETED_COLOR } from "@/services/data/calendarService"
 import { toast } from "@/lib/toast"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { PageHeader } from "@/components/page-header"
 
-// Match the database structure
 interface TaskData {
   id?: number;
   customer_id: number;
@@ -45,7 +45,6 @@ interface TaskData {
   calendar_event_id: number | null;
 }
 
-// Front-end display object with customer name
 interface TaskDisplay extends TaskData {
   id: number;
   customer_name: string;
@@ -64,21 +63,22 @@ const createEmptyTask = (): Omit<TaskData, 'id'> => ({
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<TaskDisplay[]>([])
+  const taskRead = useRef(0);
+  const [detailTask, setDetailTask] = useState<(typeof tasks)[number] | null>(null);
+  useEffect(() => () => { taskRead.current += 1 }, []);
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
-  // Pagination
+
   const [currentPage, setCurrentPage] = useState(1)
   const [totalTasks, setTotalTasks] = useState(0)
   const [limit] = useState(10)
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'High' | 'Medium' | 'Low'>('all')
-  
+
   const [newTask, setNewTask] = useState<Omit<TaskData, 'id'>>(createEmptyTask())
   const [addToCalendar, setAddToCalendar] = useState(false)
   const [calendarToggleTouched, setCalendarToggleTouched] = useState(false)
@@ -116,31 +116,29 @@ export default function TasksPage() {
     return date.toLocaleDateString("de-DE")
   }
 
-  // Load tasks from database
   useEffect(() => {
     loadTasks()
   }, [currentPage, statusFilter, priorityFilter, searchQuery])
 
 
   const loadTasks = async () => {
+    const request = ++taskRead.current;
     setLoading(true)
     setError(null)
-    
+
     try {
-      // Calculate offset based on current page
       const offset = (currentPage - 1) * limit
-      
-      // Build filter object
+
       const filter: { completed?: boolean; priority?: string; query?: string } = {}
-      
+
       if (statusFilter === 'completed') filter.completed = true
       if (statusFilter === 'pending') filter.completed = false
       if (priorityFilter !== 'all') filter.priority = priorityFilter
       if (searchQuery.trim()) filter.query = searchQuery
-      
+
       const result = await taskService.getAllTasks(limit, offset, filter)
-      
-      // Map backend data to frontend display format
+      if (request !== taskRead.current) return
+
       const displayTasks = result.map(task => {
         const calendarEventId =
           task.calendar_event_id === null || task.calendar_event_id === undefined
@@ -163,20 +161,20 @@ export default function TasksPage() {
           customer_company: task.customer_company || ''
         }
       })
-      
+
       setTasks(displayTasks)
-      // TODO: In a real app, we would need a count endpoint to get the total
-      // For now, we'll just assume there are more if we got a full page
+      // A full page indicates there may be more tasks; IPC has no count endpoint.
       setTotalTasks(currentPage * limit + (displayTasks.length === limit ? limit : 0))
     } catch (err) {
+      if (request !== taskRead.current) return
       setError(err instanceof Error ? err.message : 'Failed to load tasks')
       toast({
-        title: "Error",
-        description: "Failed to load tasks. Please try again.",
+        title: "Ladefehler",
+        description: "Aufgaben konnten nicht geladen werden.",
         variant: "destructive"
       })
     } finally {
-      setLoading(false)
+      if (request === taskRead.current) setLoading(false)
     }
   }
 
@@ -307,7 +305,6 @@ export default function TasksPage() {
     }
   }
 
-  // Handle filter changes
   const handleStatusFilterChange = (status: 'all' | 'completed' | 'pending') => {
     setStatusFilter(status)
     setCurrentPage(1) // Reset to first page when filter changes
@@ -318,66 +315,15 @@ export default function TasksPage() {
     setCurrentPage(1) // Reset to first page when filter changes
   }
 
-  // Calculate total pages for pagination
   const totalPages = Math.max(1, Math.ceil(totalTasks / limit))
 
   return (
     <main className="flex-1">
-      <div className="px-6 py-4">
-        <PageHeader title="Aufgaben" subtitle="Offene Arbeit priorisieren und im Kalender einplanen." />
-        <div className="flex flex-wrap gap-2 items-center mb-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Aufgaben suchen..."
-                className="pl-8 md:w-[300px]"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setCurrentPage(1)
-                }}
-              />
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto">
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                  Filter
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleStatusFilterChange('all')}>
-                  Alle Aufgaben {statusFilter === 'all' && '✓'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusFilterChange('completed')}>
-                  Abgeschlossene Aufgaben {statusFilter === 'completed' && '✓'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStatusFilterChange('pending')}>
-                  Ausstehende Aufgaben {statusFilter === 'pending' && '✓'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePriorityFilterChange('High')}>
-                  Hohe Priorität {priorityFilter === 'High' && '✓'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePriorityFilterChange('Medium')}>
-                  Mittlere Priorität {priorityFilter === 'Medium' && '✓'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePriorityFilterChange('Low')}>
-                  Niedrige Priorität {priorityFilter === 'Low' && '✓'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePriorityFilterChange('all')}>
-                  Alle Prioritäten {priorityFilter === 'all' && '✓'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <ExportButton data={tasks} fileName="tasks.json">
-              Exportieren
-            </ExportButton>
-            <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+      <div className="px-4 py-4 sm:px-6">
+        <PageHeader title="Aufgaben" subtitle="Offene Arbeit priorisieren und im Kalender einplanen." actions={<Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                   Aufgabe hinzufügen
                 </Button>
               </DialogTrigger>
@@ -386,6 +332,7 @@ export default function TasksPage() {
                   <DialogTitle>Neue Aufgabe hinzufügen</DialogTitle>
                   <DialogDescription>Geben Sie unten die Details der Aufgabe ein, um sie hinzuzufügen.</DialogDescription>
                 </DialogHeader>
+                <DialogBody>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="title">Aufgabentitel</Label>
@@ -407,7 +354,7 @@ export default function TasksPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="customer_id">Kunde</Label>
-                    <CustomerCombobox
+                    <CustomerCombobox id="customer_id"
                       value={newTask.customer_id || undefined}
                       onValueChange={handleCustomerValueChange}
                       placeholder="Kunde auswählen..."
@@ -448,7 +395,7 @@ export default function TasksPage() {
                       value={newTask.priority}
                       onValueChange={(value) => setNewTask({ ...newTask, priority: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="priority">
                         <SelectValue placeholder="Priorität auswählen" />
                       </SelectTrigger>
                       <SelectContent>
@@ -459,6 +406,7 @@ export default function TasksPage() {
                     </Select>
                   </div>
                 </div>
+                </DialogBody>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddTaskOpen(false)} disabled={isSubmitting}>
                     Abbrechen
@@ -468,29 +416,86 @@ export default function TasksPage() {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+            </Dialog>} />
+        <div className="flex flex-wrap gap-2 items-center mb-4">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+              <Input
+                density="compact"
+                type="search"
+                placeholder="Aufgaben suchen..." aria-label="Aufgaben suchen..."
+                className="pl-8 md:w-[300px]"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="ml-auto">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Filter
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleStatusFilterChange('all')}>
+                  Alle Aufgaben {statusFilter === 'all' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleStatusFilterChange('completed')}>
+                  Abgeschlossene Aufgaben {statusFilter === 'completed' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleStatusFilterChange('pending')}>
+                  Ausstehende Aufgaben {statusFilter === 'pending' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePriorityFilterChange('High')}>
+                  Hohe Priorität {priorityFilter === 'High' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePriorityFilterChange('Medium')}>
+                  Mittlere Priorität {priorityFilter === 'Medium' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePriorityFilterChange('Low')}>
+                  Niedrige Priorität {priorityFilter === 'Low' && '✓'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePriorityFilterChange('all')}>
+                  Alle Prioritäten {priorityFilter === 'all' && '✓'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <ExportButton data={tasks} fileName="tasks.json">
+              Exportieren
+            </ExportButton>
+
         </div>
+        <Dialog open={Boolean(detailTask)} onOpenChange={open => { if (!open) setDetailTask(null) }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{detailTask?.title}</DialogTitle><DialogDescription>Aufgabendetails</DialogDescription></DialogHeader>
+            <DialogBody><p className="whitespace-pre-wrap break-words">{detailTask?.description || 'Keine Beschreibung vorhanden.'}</p></DialogBody>
+            <DialogFooter><Button variant="outline" onClick={() => setDetailTask(null)}>Schließen</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>Aufgabenliste</CardTitle>
             <CardDescription>
-              {loading 
-                ? "Laden..." 
+              {loading
+                ? "Laden..."
                 : `${tasks.length} Aufgabe${tasks.length !== 1 ? 'n' : ''} gefunden.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {error ? (
-              <p className="text-destructive">{error}</p>
-            ) : loading ? (
+            {error && <Alert variant="destructive"><AlertDescription>{error}<Button size="sm" variant="outline" className="mt-2" disabled={loading} onClick={loadTasks}>Erneut versuchen</Button></AlertDescription></Alert>}
+            {loading && tasks.length === 0 ? (
               <div className="flex justify-center py-6">
                 <p>Aufgaben werden geladen...</p>
               </div>
-            ) : tasks.length === 0 ? (
+            ) : tasks.length === 0 && !error ? (
               <EmptyState
                 icon={<CheckSquare className="h-10 w-10" />}
-                heading="Keine Aufgaben gefunden"
-                description="Erstellen Sie Ihre erste Aufgabe, um loszulegen."
+                heading={error ? "Aufgabenbestand nicht verfügbar." : searchQuery || priorityFilter !== "all" || statusFilter !== "all" ? "Keine passenden Aufgaben." : "Keine Aufgaben vorhanden."}
+                description={searchQuery || priorityFilter !== "all" || statusFilter !== "all" ? "Ändern Sie die Suche oder Filter." : "Erstellen Sie Ihre erste Aufgabe, um loszulegen."}
                 action={
                   <button
                     className="text-sm text-primary hover:underline"
@@ -518,16 +523,17 @@ export default function TasksPage() {
                       <TableRow key={task.id}>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Checkbox 
-                              checked={task.completed} 
-                              onCheckedChange={() => toggleTaskCompletion(task.id)} 
+                            <Checkbox
+                              aria-label={`Aufgabe erledigt: ${task.title}`}
+                              checked={task.completed}
+                              onCheckedChange={() => toggleTaskCompletion(task.id)}
                             />
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className={task.completed ? 'line-through text-muted-foreground' : ''}>
+                          <Button variant="link" className="h-auto max-w-full whitespace-normal px-0 text-left justify-start" onClick={() => setDetailTask(task)}><span className={task.completed ? 'line-through text-muted-foreground' : ''}>
                             {task.title}
-                          </span>
+                          </span></Button>
                           {task.description && (
                             <p className="text-xs text-muted-foreground truncate max-w-[200px]">
                               {task.description}
@@ -535,9 +541,9 @@ export default function TasksPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Link 
-                            to="/customers/$customerId" 
-                            params={{ customerId: task.customer_id.toString() }} 
+                          <Link
+                            to="/customers/$customerId"
+                            params={{ customerId: task.customer_id.toString() }}
                             className="hover:underline"
                           >
                             {task.customer_name}
@@ -566,8 +572,7 @@ export default function TasksPage() {
                                 }}
                               >
                                 <CalendarDays
-                                  className="h-4 w-4"
-                                  style={{ color: task.completed ? TASK_EVENT_COMPLETED_COLOR : TASK_EVENT_DEFAULT_COLOR }}
+                                  className="h-4 w-4 text-info-foreground"
                                 />
                               </Button>
                             )}
@@ -575,13 +580,7 @@ export default function TasksPage() {
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={
-                              task.priority === "High"
-                                ? "destructive"
-                                : task.priority === "Medium"
-                                  ? "secondary"
-                                  : "outline"
-                            }
+                            variant={priorityTone(task.priority)}
                           >
                             {task.priority === "High" ? "Hoch" : task.priority === "Medium" ? "Mittel" : "Niedrig"}
                           </Badge>
@@ -590,25 +589,22 @@ export default function TasksPage() {
                     ))}
                   </TableBody>
                 </Table>
-                
-                {/* Pagination */}
+
                 {totalPages > 1 && (
                   <div className="mt-4">
                     <Pagination>
                       <PaginationContent>
                         <PaginationItem>
-                          <PaginationPrevious 
+                          <PaginationPrevious
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                             className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                           />
                         </PaginationItem>
-                        
-                        {/* Generate page numbers */}
+
                         {Array.from({ length: totalPages }, (_, i) => i + 1)
-                          .filter(page => 
-                            // Show first page, last page, and pages around current page
-                            page === 1 || 
-                            page === totalPages || 
+                          .filter(page =>
+                            page === 1 ||
+                            page === totalPages ||
                             (page >= currentPage - 1 && page <= currentPage + 1)
                           )
                           .map((page, i, array) => (
@@ -629,9 +625,9 @@ export default function TasksPage() {
                             </Fragment>
                           ))
                         }
-                        
+
                         <PaginationItem>
-                          <PaginationNext 
+                          <PaginationNext
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                             className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                           />

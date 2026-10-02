@@ -1,50 +1,52 @@
 "use client"
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table"
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent, DialogBody,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog"
-import { 
-  Form, 
-  FormControl, 
-  FormDescription, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/page-header"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
@@ -76,6 +78,10 @@ type FormInput = z.input<typeof formSchema>;
 type FormValues = z.output<typeof formSchema>;
 
 export default function CustomFieldsPage() {
+  const [deleteField, setDeleteField] = useState<CustomField | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -100,21 +106,26 @@ export default function CustomFieldsPage() {
 
   // Load custom fields
   useEffect(() => {
+    let cancelled = false;
     const loadCustomFields = async () => {
       setIsLoading(true);
+      setLoadError(false);
       try {
         const fields = await customFieldService.getAllCustomFields();
-        setCustomFields(fields);
+        if (!cancelled) setCustomFields(fields);
       } catch (error) {
+        if (cancelled) return;
+        setLoadError(true);
         console.error("Failed to load custom fields:", error);
-        toast.error("Failed to load custom fields");
+
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     loadCustomFields();
-  }, []);
+    return () => { cancelled = true; };
+  }, [retry]);
 
   // Reset form when dialog opens/closes or editing field changes
   useEffect(() => {
@@ -122,7 +133,7 @@ export default function CustomFieldsPage() {
       if (editingField) {
         // Parse options if it's a JSON string
         const options = editingField.options || "";
-        
+
         form.reset({
           name: editingField.name,
           label: editingField.label,
@@ -164,11 +175,13 @@ export default function CustomFieldsPage() {
 
   // Handle delete field
   const handleDeleteField = async (field: CustomField) => {
-    if (window.confirm(`Sind Sie sicher, dass Sie das Feld "${field.label}" löschen möchten?`)) {
+    setDeleting(true);
+    try {
       try {
         const success = await customFieldService.deleteCustomField(field.id);
         if (success) {
-          setCustomFields(customFields.filter(f => f.id !== field.id));
+          setCustomFields(current => current.filter(f => f.id !== field.id));
+          setDeleteField(null);
           toast.success("Benutzerdefiniertes Feld erfolgreich gelöscht");
         } else {
           toast.error("Benutzerdefiniertes Feld konnte nicht gelöscht werden");
@@ -177,7 +190,7 @@ export default function CustomFieldsPage() {
         console.error("Fehler beim Löschen des benutzerdefinierten Feldes:", error);
         toast.error("Beim Löschen des benutzerdefinierten Feldes ist ein Fehler aufgetreten");
       }
-    }
+    } finally { setDeleting(false); }
   };
 
   const onSubmit = async (data: FormValues) => {
@@ -187,7 +200,7 @@ export default function CustomFieldsPage() {
         // Update existing field
         const updatedField = await customFieldService.updateCustomField(editingField.id, data);
         if (updatedField) {
-          setCustomFields(customFields.map(field => 
+          setCustomFields(customFields.map(field =>
             field.id === editingField.id ? updatedField : field
           ));
           toast.success("Benutzerdefiniertes Feld erfolgreich aktualisiert");
@@ -218,13 +231,16 @@ export default function CustomFieldsPage() {
   const fieldType = form.watch("type");
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="min-w-0">
       <PageHeader
         title="Benutzerdefinierte Felder"
         subtitle="Zusätzliche Informationen für Kundendatensätze definieren."
         actions={<Button onClick={handleCreateField}><Plus /> Feld hinzufügen</Button>}
       />
 
+      <AlertDialog open={Boolean(deleteField)} onOpenChange={open => { if (!open && !deleting) setDeleteField(null); }}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Feld löschen?</AlertDialogTitle><AlertDialogDescription>Das Feld „{deleteField?.label}“ wird gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel><AlertDialogAction disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive-hover" onClick={event => { event.preventDefault(); if (deleteField) void handleDeleteField(deleteField); }}>Löschen</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      </AlertDialog>
       <Card>
         <CardHeader>
           <CardTitle>Benutzerdefinierte Kundenfelder</CardTitle>
@@ -233,6 +249,7 @@ export default function CustomFieldsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {loadError && <Alert variant="destructive" className="mb-4"><AlertDescription>Felddefinitionen konnten nicht geladen werden.<Button size="sm" variant="outline" disabled={isLoading} onClick={() => setRetry(value => value + 1)}>Erneut versuchen</Button></AlertDescription></Alert>}
           {isLoading ? (
             <div className="flex justify-center items-center py-10">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -253,7 +270,7 @@ export default function CustomFieldsPage() {
                     <TableHead>Erforderlich</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Reihenfolge</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
+                    <TableHead className="sm:text-right">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -269,18 +286,18 @@ export default function CustomFieldsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{field.display_order}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="sm:text-right">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEditField(field)}
+                          aria-label={`Feld ${field.label} bearbeiten`} onClick={() => handleEditField(field)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDeleteField(field)}
+                          aria-label={`Feld ${field.label} löschen`} onClick={() => setDeleteField(field)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -295,7 +312,7 @@ export default function CustomFieldsPage() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent  size="wide">
           <DialogHeader>
             <DialogTitle>
               {editingField ? "Benutzerdefiniertes Feld bearbeiten" : "Benutzerdefiniertes Feld erstellen"}
@@ -308,8 +325,9 @@ export default function CustomFieldsPage() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
+              <DialogBody className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
@@ -343,7 +361,7 @@ export default function CustomFieldsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="type"
@@ -414,7 +432,7 @@ export default function CustomFieldsPage() {
                 />
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="default_value"
@@ -509,6 +527,7 @@ export default function CustomFieldsPage() {
                 />
               </div>
 
+            </DialogBody>
               <DialogFooter>
                 <Button
                   type="button"
@@ -519,7 +538,7 @@ export default function CustomFieldsPage() {
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   )}
                   {editingField ? "Feld aktualisieren" : "Feld erstellen"}
                 </Button>

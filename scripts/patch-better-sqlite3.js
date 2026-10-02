@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// Locate the package — path differs between npm and pnpm installs
+// Package paths differ between npm and pnpm installs.
 function findPackageDir() {
   const candidates = [
     path.join(__dirname, '../node_modules/better-sqlite3'),

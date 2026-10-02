@@ -43,7 +43,7 @@ export function ExecutionListToolbar({
       </div>
 
       <Select value={priorityFilter} onValueChange={onPriorityFilterChange}>
-        <SelectTrigger className="h-8 w-28 text-xs">
+        <SelectTrigger density="compact" aria-label="Priorität filtern" className="w-28">
           <SelectValue placeholder="Priorität" />
         </SelectTrigger>
         <SelectContent>
@@ -59,13 +59,13 @@ export function ExecutionListToolbar({
           <Badge variant="secondary" className="text-xs">
             {selectedCount} ausgewählt
           </Badge>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onBulkComplete}>
-            <CheckCircle2 className="h-3 w-3 mr-1" />
+          <Button variant="outline" size="sm" className="text-sm" onClick={onBulkComplete}>
+            <CheckCircle2 className="h-3 w-3" />
             Erledigen
           </Button>
           <SnoozePopover onSnooze={onBulkSnooze}>
-            <Button variant="outline" size="sm" className="h-7 text-xs">
-              <Clock className="h-3 w-3 mr-1" />
+            <Button variant="outline" size="sm" className="text-sm">
+              <Clock className="h-3 w-3" />
               Zurückstellen
             </Button>
           </SnoozePopover>

@@ -1,116 +1,107 @@
 # SimpleCRM
 
-SimpleCRM is a desktop-based Customer Relationship Management (CRM) application built with Electron, React, and TypeScript. It bundles essential CRM features on your local machine, helping you manage customers, products, deals, tasks, and your schedule. It also offers optional one-way data synchronization from your JTL MSSQL database.
+SimpleCRM is a desktop CRM for customers, products, deals, tasks, and appointments.
+It stores your records in a local SQLite database. An optional connection imports
+customer and product data from JTL through MSSQL.
 
-<p align="center">
-  <img src="assets/simplecrm.png" alt="SimpleCRM Dashboard" width="800">
-</p>
+![SimpleCRM dashboard with fictional customers, deals, and upcoming tasks](assets/screenshots/dashboard.png)
 
-## Features
+The screenshot uses fictional data in a separate test database.
 
-* **Customer Management:** Create, Read, Update, and Delete customer records.
-* **Product Management:** Keep track of your local product inventory and details.
-* **Deal Tracking:** Create, manage, and visualize your sales deals. Link products and monitor stages from lead to win.
-* **Task Management:** Create and manage tasks linked directly to customers.
-* **Calendar Integration:** Schedule appointments, meetings, and reminders within the app.
-* **JTL Synchronization (Optional):** Sync Customer and Product data from an external JTL MSSQL database into your local CRM (one-way sync).
-* **Local Database:** All your CRM data is stored securely and locally using SQLite (`better-sqlite3`).
-* **Secure Configuration:** MSSQL connection details are stored securely using your OS keychain via Keytar (`keytar`).
+## What you can do
 
-## How it Works
+- Keep customer records, notes, and custom fields.
+- Manage deals in a table or Kanban board and link products to them.
+- Schedule customer tasks and appointments in the calendar.
+- Review follow-up work, record activities, and snooze tasks.
+- Import JTL data and configure daily email reminders.
+- Choose a light, dark, or system theme.
 
-SimpleCRM leverages the Electron framework to deliver a web-powered experience on your desktop:
+## Install
 
-1. **Main Process (`electron/main.ts`):** Owns SQLite, MSSQL sync, notifications, business transactions, and IPC. Domain invariants are implemented in focused owner modules rather than renderer call sequences.
-2. **Renderer Process (`src/`):** The React/Vite UI. It can invoke only endpoints declared in `shared/ipc/channels.ts` and exposed by `electron/preload.ts`.
-3. **IPC Contract (`shared/ipc/channels.ts`):** A single endpoint graph defines each channel together with its Zod input and output schemas. The allowlist and TypeScript types are derived from it.
+Download the installer for your platform from
+[GitHub Releases](https://github.com/bl4ckh4nd/SimpleCRMPublic/releases).
 
-See [CONTEXT.md](CONTEXT.md) and [the architecture decisions](docs/adr/) for ownership, timing, and deletion invariants.
-3. **Database (`electron/sqlite-service.ts`, `electron/database-schema.ts`):** Manages the SQLite database (`database.sqlite` in your app data folder), defining the schema and handling all data operations (Create, Read, Update, Delete).
-4. **MSSQL & Sync (`electron/mssql-keytar-service.ts`, `electron/sync-service.ts`):** Connects securely to your JTL MSSQL database, fetches customer and product data, and updates your local SQLite database.
-5. **UI Components (`src/components/`):** Built with Shadcn/ui library for a consistent and customizable user interface.
+Available builds are Windows x64, macOS x64 and arm64, and Linux x64.
+The binaries are unsigned, so your operating system may show a trust warning.
 
-## Tech Stack
+## Run from source
 
-* **Framework:** Electron, React
-* **Language:** TypeScript
-* **UI:** Shadcn/ui, Tailwind CSS
-* **Routing:** TanStack Router
-* **Local Database:** SQLite (via `better-sqlite3`)
-* **External DB Connection:** `mssql` package
-* **Secure Storage:** `keytar`
-* **Build Tool:** Vite
-* **Bundler/Packager:** Electron Builder
+Use Node.js 22 and pnpm 9.15.9. Native dependencies need a C/C++ build toolchain.
+On Linux, install the development headers for libsecret.
 
-## Setup & Installation
+```bash
+git clone https://github.com/bl4ckh4nd/SimpleCRMPublic.git
+cd SimpleCRMPublic
+corepack enable
+pnpm install
+pnpm run electron:dev
+```
 
-1. **Clone the Repository:**
-   ```bash
-   git clone <your-repository-url>
-   cd simplecrmelectron
-   ```
-2. **Install Dependencies:**
-   ```bash
-   corepack enable
-   pnpm install
-   ```
-3. **Rebuild Native Modules:**
-   Electron apps sometimes need native modules rebuilt for your specific setup. The `postinstall` script should handle this, but if you encounter issues, run:
-   ```bash
-   pnpm run postinstall
-   # or force it with:
-   npx electron-rebuild -f -w better-sqlite3,keytar
-   ```
+The install step downloads Electron, patches better-sqlite3, and rebuilds the
+native modules. The development command starts Vite and Electron with hot reload.
 
-## Running the Application
+To run the production build locally:
 
-* **Development Mode:**
-  Starts one unified dev pipeline (renderer HMR + Electron main hot restart + preload hot reload).
-  ```bash
-   pnpm run electron:dev
-  ```
-  While this command is running, you should not need to manually rebuild after code changes.
-* **Production Mode:**
-  Runs the app as it would be packaged. Build it first with `pnpm run build`.
-  ```bash
-  pnpm run electron:start
-  ```
+```bash
+pnpm run build
+pnpm run electron:start
+```
 
-## Building the Application
+To create an installer without publishing it:
 
-To create an installer (`.exe`, `.dmg`, etc.):
+```bash
+pnpm run electron:build
+```
 
-1. **Build the Frontend & Electron Code:**
-   ```bash
-   pnpm run build
-   ```
-2. **Package with Electron Builder:**
-   ```bash
-   pnpm run electron:build
-   ```
-   The installer will be created in the `dist-build` directory.
+## Configuration and data
 
-## Publishing a Release
+Set up MSSQL and email reminders in the app's Settings.
+MSSQL and SMTP passwords use the operating system keychain through Keytar.
+SQLite data, logs, and non-secret settings live in Electron's platform-specific
+userData directory.
 
-Releases are published from the **Release** workflow in GitHub Actions. Run it
-from the `main` branch and choose a `patch`, `minor`, or `major` increment. The
-workflow then:
+JTL synchronization imports data into the desktop database. It does not replace
+SQLite with a remote service. The desktop app does not require a SaaS account.
 
-1. Runs release-script tests, lint, unit/integration tests, both TypeScript
-   checks, and the production build.
-2. Updates `package.json` and prepends `CHANGELOG.md` from commits since the
-   previous `v*` tag. Conventional subjects (`feat:`, `fix:`, `refactor:`, etc.)
-   are grouped automatically; other subjects are retained under **Other**.
-3. Builds Windows x64 NSIS, macOS x64/arm64 DMG and ZIP, and Linux x64 AppImage
-   artifacts on their native GitHub runners.
-4. Commits the version and changelog, creates an annotated version tag, pushes
-   both atomically, and publishes the GitHub Release with SHA-256 checksums.
+## Development checks
 
-The workflow refuses to publish if `main` changes while binaries are building,
-or if expected platform artifacts are missing. Current binaries are unsigned;
-Windows and macOS may therefore show trust warnings until signing identities
-are configured.
+```bash
+pnpm run release:test
+pnpm run lint
+pnpm test -- --runInBand
+pnpm run typecheck
+pnpm run test:e2e
+```
 
-## Configuration
+The Electron end-to-end tests use isolated databases and need no configured
+MSSQL server. The settings tests exercise failed connection attempts.
+On headless Linux, run the last command with `xvfb-run -a`.
 
-* **MSSQL Connection:** Configure the connection to your JTL MSSQL database in the **Settings** page within the app. Your password is stored securely in your operating system's keychain.
+## Runtime
+
+The React renderer calls Electron through the validated endpoints in
+`shared/ipc/channels.ts` and the preload allowlist. Electron main owns SQLite,
+MSSQL access, notifications, synchronization, and database transactions.
+
+The renderer cannot access Node.js or the database directly.
+See the [ownership decision](docs/adr/0001-main-process-ownership.md),
+[IPC decision](docs/adr/0002-endpoint-based-ipc-contract.md), and
+[UI conventions](docs/design-system.md).
+
+## Releases
+
+Run the GitHub Release workflow on main and choose patch, minor, or major.
+The workflow bumps the version, runs the checks, builds each platform, and
+publishes a tag and GitHub Release with SHA-256 checksums and updater metadata.
+
+Choose current to resume publication of the version already tagged at that
+commit. Do not bump package.json separately before starting the workflow.
+
+## Repository boundary
+
+This public repository owns the Electron desktop app.
+SaaS authentication, tenant state, billing, deployment configuration, and
+customer-specific settings belong in the private downstream repository.
+
+Do not commit credentials, real customer data, SQLite databases, or .env files.

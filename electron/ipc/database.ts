@@ -156,7 +156,7 @@ export function registerDatabaseHandlers(options: DatabaseHandlersOptions) {
     }, { logger })
   );
 
-  // --- Products ---
+  // Products
   disposers.push(
     registerIpcHandler(IPC.Products.GetAll, async () => {
       try {

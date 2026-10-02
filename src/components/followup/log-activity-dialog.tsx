@@ -1,7 +1,7 @@
 import { useState } from "react"
 import {
   Dialog,
-  DialogContent,
+  DialogContent, DialogBody,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -48,10 +48,11 @@ export function LogActivityDialog({ open, onOpenChange, onSubmit }: LogActivityD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent  size="compact">
         <DialogHeader>
           <DialogTitle>Aktivität protokollieren</DialogTitle>
         </DialogHeader>
+        <DialogBody>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="activity-type">Typ</Label>
@@ -91,6 +92,7 @@ export function LogActivityDialog({ open, onOpenChange, onSubmit }: LogActivityD
             />
           </div>
         </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen

@@ -1,11 +1,10 @@
-// simplecrmelectron/electron/database-schema.ts
 export const CUSTOMERS_TABLE = 'customers';
 export const PRODUCTS_TABLE = 'products';
 export const DEAL_PRODUCTS_TABLE = 'deal_products';
 export const SYNC_INFO_TABLE = 'sync_info'; // To store last sync status/time
-export const CALENDAR_EVENTS_TABLE = 'calendar_events'; // Added
-export const DEALS_TABLE = 'deals'; // Added deals table constant
-export const TASKS_TABLE = 'tasks'; // Added tasks table constant
+export const CALENDAR_EVENTS_TABLE = 'calendar_events';
+export const DEALS_TABLE = 'deals';
+export const TASKS_TABLE = 'tasks';
 export const CUSTOMER_CUSTOM_FIELDS_TABLE = 'customer_custom_fields'; // Custom fields definitions
 export const CUSTOMER_CUSTOM_FIELD_VALUES_TABLE = 'customer_custom_field_values'; // Custom field values
 
@@ -60,7 +59,6 @@ export const createProductsTable = `
   );
 `;
 
-// Added new table for Deal-Product relationship
 export const createDealProductsTable = `
 CREATE TABLE IF NOT EXISTS ${DEAL_PRODUCTS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +73,6 @@ CREATE TABLE IF NOT EXISTS ${DEAL_PRODUCTS_TABLE} (
 );
 `;
 
-// Store metadata about sync operations
 export const createSyncInfoTable = `
   CREATE TABLE IF NOT EXISTS ${SYNC_INFO_TABLE} (
     key TEXT PRIMARY KEY,
@@ -84,7 +81,6 @@ export const createSyncInfoTable = `
   );
 `;
 
-// Added schema for calendar events
 export const createCalendarEventsTable = `
   CREATE TABLE IF NOT EXISTS ${CALENDAR_EVENTS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +99,6 @@ export const createCalendarEventsTable = `
   );
 `;
 
-// Added schema for deals table
 export const createDealsTable = `
   CREATE TABLE IF NOT EXISTS ${DEALS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,7 +115,6 @@ export const createDealsTable = `
   );
 `;
 
-// Added schema for tasks table
 export const createTasksTable = `
   CREATE TABLE IF NOT EXISTS ${TASKS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -192,7 +186,6 @@ export const createJtlVersandartenTable = `
   );
 `;
 
-// Create table for custom field definitions
 export const createCustomerCustomFieldsTable = `
   CREATE TABLE IF NOT EXISTS ${CUSTOMER_CUSTOM_FIELDS_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,7 +204,6 @@ export const createCustomerCustomFieldsTable = `
   );
 `;
 
-// Create table for custom field values
 export const createCustomerCustomFieldValuesTable = `
   CREATE TABLE IF NOT EXISTS ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -252,13 +244,10 @@ export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_products_jtl_kArtikel ON ${PRODUCTS_TABLE}(jtl_kArtikel);`,
     `CREATE INDEX IF NOT EXISTS idx_products_sku ON ${PRODUCTS_TABLE}(sku);`,
     `CREATE INDEX IF NOT EXISTS idx_products_name ON ${PRODUCTS_TABLE}(name);`,
-    // Added indexes for new table
     `CREATE INDEX IF NOT EXISTS idx_deal_products_deal_id ON ${DEAL_PRODUCTS_TABLE}(deal_id);`,
     `CREATE INDEX IF NOT EXISTS idx_deal_products_product_id ON ${DEAL_PRODUCTS_TABLE}(product_id);`,
-    // Added indexes for calendar events
     `CREATE INDEX IF NOT EXISTS idx_calendar_events_start_date ON ${CALENDAR_EVENTS_TABLE}(start_date);`,
     `CREATE INDEX IF NOT EXISTS idx_calendar_events_end_date ON ${CALENDAR_EVENTS_TABLE}(end_date);`,
-    // Add indexes for deals and tasks
     `CREATE INDEX IF NOT EXISTS idx_deals_customer_id ON ${DEALS_TABLE}(customer_id);`,
     `CREATE INDEX IF NOT EXISTS idx_deals_stage ON ${DEALS_TABLE}(stage);`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_customer_id ON ${TASKS_TABLE}(customer_id);`,
@@ -268,7 +257,6 @@ export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_jtl_warenlager_name ON ${JTL_WARENLAGER_TABLE}(cName);`,
     `CREATE INDEX IF NOT EXISTS idx_jtl_zahlungsarten_name ON ${JTL_ZAHLUNGSARTEN_TABLE}(cName);`,
     `CREATE INDEX IF NOT EXISTS idx_jtl_versandarten_name ON ${JTL_VERSANDARTEN_TABLE}(cName);`,
-    // Indexes for custom fields
     `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_name ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(name);`,
     `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_active ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(active);`,
     `CREATE INDEX IF NOT EXISTS idx_customer_custom_fields_display_order ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(display_order);`,
@@ -278,11 +266,9 @@ export const indexes = [
     `CREATE INDEX IF NOT EXISTS idx_cfv_customer_field_composite ON ${CUSTOMER_CUSTOM_FIELD_VALUES_TABLE}(customer_id, field_id);`,
     // Covering index for the batch query
     `CREATE INDEX IF NOT EXISTS idx_cf_active_display ON ${CUSTOMER_CUSTOM_FIELDS_TABLE}(active, display_order, name) WHERE active = 1;`,
-    // Indexes for activity_log
     `CREATE INDEX IF NOT EXISTS idx_activity_log_customer_id ON ${ACTIVITY_LOG_TABLE}(customer_id);`,
     `CREATE INDEX IF NOT EXISTS idx_activity_log_deal_id ON ${ACTIVITY_LOG_TABLE}(deal_id);`,
     `CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON ${ACTIVITY_LOG_TABLE}(created_at);`,
     `CREATE INDEX IF NOT EXISTS idx_activity_log_customer_created ON ${ACTIVITY_LOG_TABLE}(customer_id, created_at);`,
-    // Indexes for tasks snoozed_until
     `CREATE INDEX IF NOT EXISTS idx_tasks_snoozed_until ON ${TASKS_TABLE}(snoozed_until);`,
 ];

@@ -48,16 +48,16 @@ export function SnoozePopover({ onSnooze, children, open, onOpenChange }: Snooze
       </PopoverTrigger>
       <PopoverContent className="w-48 p-1" align="end">
         <div className="flex flex-col">
-          <Button variant="ghost" size="sm" className="justify-start text-xs h-8" onClick={() => handleSnooze('tonight')}>
-            <Moon className="h-3.5 w-3.5 mr-2" />
+          <Button variant="ghost" size="sm" className="justify-start text-sm" onClick={() => handleSnooze('tonight')}>
+            <Moon className="h-3.5 w-3.5" />
             Heute Abend
           </Button>
-          <Button variant="ghost" size="sm" className="justify-start text-xs h-8" onClick={() => handleSnooze('tomorrow')}>
-            <Sun className="h-3.5 w-3.5 mr-2" />
+          <Button variant="ghost" size="sm" className="justify-start text-sm" onClick={() => handleSnooze('tomorrow')}>
+            <Sun className="h-3.5 w-3.5" />
             Morgen
           </Button>
-          <Button variant="ghost" size="sm" className="justify-start text-xs h-8" onClick={() => handleSnooze('next_week')}>
-            <CalendarDays className="h-3.5 w-3.5 mr-2" />
+          <Button variant="ghost" size="sm" className="justify-start text-sm" onClick={() => handleSnooze('next_week')}>
+            <CalendarDays className="h-3.5 w-3.5" />
             Nächste Woche
           </Button>
         </div>

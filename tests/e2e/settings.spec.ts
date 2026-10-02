@@ -5,10 +5,10 @@ test('external settings provide hermetic validation and persisted notification p
   const connectionButton = page.getByRole('button', { name: /Verbindung testen/i });
   await connectionButton.click();
   await expect(connectionButton).toBeEnabled();
-  await expect(page.locator('svg.text-red-500').first()).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Verbindung fehlgeschlagen' })).toBeVisible();
 
   await page.getByRole('link', { name: 'E-Mail-Benachrichtigungen' }).click();
-  await expect(page.getByRole('heading', { name: 'E-Mail-Benachrichtigungen' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'E-Mail-Benachrichtigungen', exact: true })).toBeVisible();
   await page.getByRole('switch', { name: 'Benachrichtigungen aktivieren' }).check();
   await page.getByRole('button', { name: 'Einstellungen speichern' }).click();
   await expect(page.getByText('Eingaben prüfen')).toBeVisible();

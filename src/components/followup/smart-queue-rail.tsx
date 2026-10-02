@@ -11,7 +11,7 @@ interface SmartQueueRailProps {
   onQueueSelect: (queue: string) => void
 }
 
-const presetQueues = [
+export const presetQueues = [
   { id: 'heute', label: 'Heute', icon: <CalendarDays className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'heute' as const, tooltip: 'Aufgaben und Deals, die heute fällig sind.' },
   { id: 'ueberfaellig', label: 'Überfällig', icon: <AlertTriangle className="h-4 w-4" />, urgency: 'critical' as const, countKey: 'ueberfaellig' as const, tooltip: 'Aufgaben mit abgelaufenem Fälligkeitsdatum, die noch offen sind.' },
   { id: 'diese_woche', label: 'Diese Woche', icon: <CalendarRange className="h-4 w-4" />, urgency: 'neutral' as const, countKey: 'dieseWoche' as const, tooltip: 'Aufgaben und Deals, die bis Ende dieser Woche fällig sind.' },

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import 'react-big-calendar/lib/css/react-big-calendar.css';
+@import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 @import './shadcn-big-calendar.css';
 
 @plugin "tailwindcss-animate";
@@ -6,6 +8,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  --text-lg--line-height: 24px;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
 
@@ -29,6 +32,18 @@
 
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-hover: var(--destructive-hover);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-neutral: var(--neutral);
+  --color-neutral-foreground: var(--neutral-foreground);
+
 
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
@@ -98,24 +113,37 @@
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 72.2% 50.6%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --input: 216.4 12% 54.1%;
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
+    --titlebar-height: 40px;
+    --destructive-hover: #b91c1c;
+    --success: #f0fdf4;
+    --success-foreground: #166534;
+    --warning: #fffbeb;
+    --warning-foreground: #92400e;
+    --info: #eff6ff;
+    --info-foreground: #1e40af;
+    --danger: #fef2f2;
+    --danger-foreground: #b91c1c;
+    --neutral: #f1f5f9;
+    --neutral-foreground: #475569;
+
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 220 48.8% 8.4%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: 222.2 47.4% 11.2%;
     --popover-foreground: 210 40% 98%;
 
     --primary: 210 40% 98%;
@@ -134,8 +162,20 @@
     --destructive-foreground: 210 40% 98%;
 
     --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --input: 215.4 16.3% 46.9%;
     --ring: 212.7 26.8% 83.9%;
+    --destructive-hover: #991b1b;
+    --success: #052e16;
+    --success-foreground: #86efac;
+    --warning: #451a03;
+    --warning-foreground: #fcd34d;
+    --info: #172554;
+    --info-foreground: #93c5fd;
+    --danger: #450a0a;
+    --danger-foreground: #fca5a5;
+    --neutral: #1e293b;
+    --neutral-foreground: #cbd5e1;
+
   }
 }
 
@@ -148,3 +188,44 @@
     color: var(--color-foreground);
   }
 }
+
+  html, body, #root { min-width: 0; min-height: 100%; }
+  body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { text-wrap: balance; }
+  button, input, textarea, select { transition-duration: 120ms; }
+  [aria-invalid="true"] { border-color: var(--danger-foreground); }
+  [data-density="compact"] { --control-height: 32px; }
+  [data-density="standard"] { --control-height: 40px; }
+  .dialog-content {
+    top: calc(50% + var(--titlebar-height) / 2);
+    width: calc(100% - 32px);
+    max-height: calc(100dvh - var(--titlebar-height) - 32px);
+    display: flex; flex-direction: column; overflow: hidden; padding: 0; gap: 0;
+  }
+  .dialog-content > form, .dialog-content > [data-dialog-form] { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .dialog-header { flex: none; padding: 24px 56px 16px 24px; text-align: left; gap: 8px; }
+  .dialog-body { min-height: 0; overflow-y: auto; padding: 0 24px 24px; flex: 1; scroll-padding-block: 16px; }
+  .dialog-content .dialog-header { flex-shrink: 0; }
+  .dialog-content .alert-dialog-header { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .dialog-footer { flex: none; padding: 16px 24px; border-top: 1px solid var(--color-border); background: var(--color-popover); gap: 8px; flex-wrap: wrap; }
+  .dialog-content input, .dialog-content textarea, .dialog-content button { scroll-margin-block: 16px; }
+  [data-density="compact"] th { height: 40px; padding-inline: 12px; }
+  [data-density="compact"] td { height: 40px; padding: 8px 12px; }
+  [data-density="standard"] td { height: 48px; padding: 12px 16px; }
+  [data-tabs-variant="underline"] { height: auto; min-height: 40px; background: transparent; padding: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; justify-content: flex-start; flex-wrap: wrap; }
+  [data-tabs-variant="underline"] > button { min-height: 40px; border-radius: 0; border-bottom: 2px solid transparent; }
+  [data-tabs-variant="underline"] > button[data-state="active"] { background: transparent; box-shadow: none; border-bottom-color: var(--color-primary); }
+  @media (max-width: 639px), (max-height: 479px) {
+    .dialog-header { padding: 16px 48px 12px 16px; }
+    .dialog-body { padding: 0 16px 16px; }
+    .dialog-footer { padding: 12px 16px; }
+  }
+  @media (pointer: coarse) {
+    :root { --titlebar-height: 44px; }
+    button:not([role="checkbox"]), input:not([type="hidden"]), select { min-height: 44px; }
+    button[role="checkbox"] { min-width: 44px; min-height: 44px; }
+    button[role="checkbox"]::before { inset: auto; width: 16px; height: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
+  }

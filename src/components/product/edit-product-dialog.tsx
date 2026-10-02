@@ -56,17 +56,16 @@ export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpda
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[525px]">
+      <DialogContent  size="regular">
         <DialogHeader>
           <DialogTitle>Produkt bearbeiten: {product.name}</DialogTitle>
           <DialogDescription>
             Ändern Sie die Details für das Produkt. Mit * markierte Felder sind erforderlich.
           </DialogDescription>
         </DialogHeader>
-        {error && <p className="text-sm font-medium text-destructive">Fehler: {error}</p>}
-        <ProductForm 
+        <ProductForm error={error}
           product={product}
-          onSubmit={handleSubmit} 
+          onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
           submitButtonText="Änderungen speichern"
           onCancel={() => onOpenChange(false)}
@@ -74,4 +73,4 @@ export function EditProductDialog({ product, isOpen, onOpenChange, onProductUpda
       </DialogContent>
     </Dialog>
   )
-} 
+}

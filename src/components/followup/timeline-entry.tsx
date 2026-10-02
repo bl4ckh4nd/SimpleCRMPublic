@@ -1,3 +1,5 @@
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Phone, Mail, StickyNote, ArrowRightLeft, CheckCircle2, PlusCircle, Handshake } from "lucide-react"
 import { format } from "date-fns"
 import { de } from "date-fns/locale"
@@ -14,11 +16,11 @@ const activityIcons: Record<string, React.ElementType> = {
 }
 
 const activityColors: Record<string, string> = {
-  call: "text-blue-500",
-  email: "text-violet-500",
-  note: "text-amber-500",
-  stage_change: "text-cyan-500",
-  task_completed: "text-green-500",
+  call: "text-info-foreground",
+  email: "text-info-foreground",
+  note: "text-warning-foreground",
+  stage_change: "text-info-foreground",
+  task_completed: "text-success-foreground",
   task_created: "text-muted-foreground",
   deal_created: "text-muted-foreground",
 }
@@ -28,6 +30,7 @@ interface TimelineEntryProps {
 }
 
 export function TimelineEntry({ entry }: TimelineEntryProps) {
+  const [expanded, setExpanded] = useState(false)
   const Icon = activityIcons[entry.activity_type] ?? StickyNote
   const colorClass = activityColors[entry.activity_type] ?? "text-muted-foreground"
 
@@ -39,17 +42,18 @@ export function TimelineEntry({ entry }: TimelineEntryProps) {
   }
 
   return (
-    <div className="flex gap-3 py-2 px-3 text-xs">
+    <div className="flex gap-3 py-2 px-3 text-sm">
       <div className="pt-0.5 shrink-0">
-        <Icon className={`h-3.5 w-3.5 ${colorClass}`} />
+        <Icon className={`h-4 w-4 ${colorClass}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{entry.title ?? entry.activity_type}</p>
+        <p className={`font-medium ${expanded ? "break-words" : "truncate"}`}>{entry.title ?? entry.activity_type}</p>
         {entry.description && (
-          <p className="text-muted-foreground mt-0.5 line-clamp-2">{entry.description}</p>
+          <p className={`text-muted-foreground mt-1 whitespace-pre-wrap break-words ${expanded ? "" : "line-clamp-2"}`}>{entry.description}</p>
         )}
+        {(entry.description || (entry.title?.length ?? 0) > 60) && <Button variant="link" size="sm" className="px-0" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "Weniger anzeigen" : "Mehr anzeigen"}</Button>}
       </div>
-      <span className="text-muted-foreground shrink-0 whitespace-nowrap">{date}</span>
+      <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">{date}</span>
     </div>
   )
 }

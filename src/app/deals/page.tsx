@@ -1,4 +1,7 @@
 "use client"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getDealStageColor } from "@/types/deal";
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Link } from "@tanstack/react-router"
@@ -16,7 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Dialog,
-  DialogContent,
+  DialogContent, DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -45,7 +48,6 @@ import { IPCChannels } from '@shared/ipc/channels';
 
 import { PageHeader } from "@/components/page-header"
 
-// Define the Deal type for better type safety
 type Deal = {
   id: number;
   name: string;
@@ -59,7 +61,6 @@ type Deal = {
   notes?: string;
 }
 
-// Define a type for API response of deals
 interface DealFromApi {
   id: number;
   name: string;
@@ -74,7 +75,6 @@ interface DealFromApi {
   last_modified: string;
 }
 
-// Convert API deal format to UI deal format
 function formatDealForUI(apiDeal: DealFromApi): Deal {
   return {
     id: apiDeal.id,
@@ -133,13 +133,17 @@ export default function DealsPage() {
   })
 
 
-  // Derived state for pagination
   const totalPages = Math.max(1, Math.ceil(allDeals.length / PAGE_SIZE))
   const deals = allDeals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Load all deals with optional filtering (pagination is client-side)
+  const readGeneration = useRef(0)
+  const [loadError, setLoadError] = useState(false)
+  useEffect(() => () => { readGeneration.current++ }, [])
   const loadDeals = useCallback(async () => {
+    const generation = ++readGeneration.current
     setIsLoading(true)
+    setLoadError(false)
     try {
       const filter: { stage?: string; query?: string } = {}
 
@@ -160,13 +164,16 @@ export default function DealsPage() {
         ? apiDeals.map(formatDealForUI)
         : []
 
+      if (generation !== readGeneration.current) return
       setAllDeals(formattedDeals)
       setPage(1)
     } catch (error) {
+      if (generation !== readGeneration.current) return
+      setLoadError(true)
       console.error('Failed to load deals:', error)
       toast.error("Fehler", { description: "Deals konnten nicht geladen werden" })
     } finally {
-      setIsLoading(false)
+      if (generation === readGeneration.current) setIsLoading(false)
     }
   }, [activeFilter, searchQuery])
 
@@ -182,7 +189,6 @@ export default function DealsPage() {
     setGroupingOptions(options)
   }, [])
 
-  // Setup dnd-kit sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -223,10 +229,8 @@ export default function DealsPage() {
       if (result.success && result.id) {
         toast.success("Deal erfolgreich hinzugefügt")
 
-        // Refresh the deals list
         await loadDeals()
 
-        // Reset form and close dialog
         setNewDeal({
           name: "",
           customer: "",
@@ -266,14 +270,12 @@ export default function DealsPage() {
       const dealId = Number(active.id);
       const newStage = over.id as string;
 
-      // Optimistically update the UI
       setAllDeals(currentDeals =>
         currentDeals.map(deal =>
           deal.id === dealId ? { ...deal, stage: newStage } : deal
         )
       );
 
-      // Persist the change to the database
       try {
         const result = await window.electronAPI.invoke(
           IPCChannels.Deals.UpdateStage,
@@ -298,11 +300,10 @@ export default function DealsPage() {
       }
     }
 
-    // Reset the active deal when dragging ends
     setActiveDeal(null);
   };
 
-  // Handle stage change from Kanban card dropdown (keyboard-accessible alternative to drag)
+  // The action menu provides a keyboard alternative to dragging.
   const handleKanbanStageChange = async (dealId: number, newStage: string) => {
     setAllDeals(current => current.map(d => d.id === dealId ? { ...d, stage: newStage } : d));
     try {
@@ -325,7 +326,6 @@ export default function DealsPage() {
     }, 300)
   }
 
-  // Handle filter selection
   const handleFilterSelect = (stage: string | null) => {
     setActiveFilter(stage)
     setPage(1)
@@ -333,41 +333,151 @@ export default function DealsPage() {
 
   return (
     <main className="flex-1">
-      <div className="px-6 py-4">
-        <PageHeader title="Deals" subtitle="Pipeline in der Tabellen- oder Kanbanansicht bearbeiten." />
+      <div className="px-4 py-4 sm:px-6">
+        <PageHeader title="Deals" subtitle="Pipeline in der Tabellen- oder Kanbanansicht bearbeiten." actions={<Dialog
+              open={isAddDealOpen}
+              onOpenChange={setIsAddDealOpen}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  Neuer Deal
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Neuen Deal hinzufügen</DialogTitle>
+                  <DialogDescription>Geben Sie die Details des Deals unten ein, um ihn zu Ihrer Pipeline hinzuzufügen.</DialogDescription>
+                </DialogHeader>
+                <DialogBody>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Deal-Name</Label>
+                    <Input
+                      id="name"
+                      value={newDeal.name}
+                      onChange={(e) => setNewDeal({ ...newDeal, name: e.target.value })}
+                      placeholder="Jahresservicevertrag"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="customer">Kunde</Label>
+                    <CustomerCombobox id="customer"
+                      value={newDeal.customer_id}
+                      onValueChange={(value) => {
+                        setNewDeal({
+                          ...newDeal,
+                          customer_id: value,
+                          customer: "" // Will be populated from the selected customer
+                        })
+                      }}
+                      placeholder="Kunde auswählen..."
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="value_calculation_method">Wertberechnung</Label>
+                    <Select
+                      value={newDeal.value_calculation_method}
+                      onValueChange={(value) => setNewDeal({
+                        ...newDeal,
+                        value_calculation_method: value as 'static' | 'dynamic'
+                      })}
+                    >
+                      <SelectTrigger id="value_calculation_method">
+                        <SelectValue placeholder="Berechnungsmethode auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="static">Statisch (manuell)</SelectItem>
+                        <SelectItem value="dynamic">Dynamisch (aus Produkten)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="value">Wert (€){newDeal.value_calculation_method === 'dynamic' ? ' (wird automatisch berechnet)' : ''}</Label>
+                    <Input
+                      id="value"
+                      value={newDeal.value}
+                      onChange={(e) => setNewDeal({ ...newDeal, value: e.target.value })}
+                      placeholder="5000"
+                      disabled={newDeal.value_calculation_method === 'dynamic'}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="stage">Phase</Label>
+                    <Select value={newDeal.stage} onValueChange={(value) => setNewDeal({ ...newDeal, stage: value })}>
+                      <SelectTrigger id="stage">
+                        <SelectValue placeholder="Phase auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Interessent">Interessent</SelectItem>
+                        <SelectItem value="Qualifiziert">Qualifiziert</SelectItem>
+                        <SelectItem value="Angebot">Angebot</SelectItem>
+                        <SelectItem value="Verhandlung">Verhandlung</SelectItem>
+                        <SelectItem value="Gewonnen">Gewonnen</SelectItem>
+                        <SelectItem value="Verloren">Verloren</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="expectedCloseDate">Voraussichtliches Abschlussdatum</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button id="expectedCloseDate"
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="h-4 w-4" />
+                          {newDeal.dateValue ? (
+                            format(newDeal.dateValue, "PPP", { locale: de })
+                          ) : (
+                            <span>Datum auswählen</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={newDeal.dateValue}
+                          onSelect={(date) => {
+                            setNewDeal({
+                              ...newDeal,
+                              dateValue: date,
+                              expectedCloseDate: date ? format(date, "yyyy-MM-dd") : ""
+                            })
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                </DialogBody>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDealOpen(false)}>
+                    Abbrechen
+                  </Button>
+                  <Button onClick={handleAddDeal}>Deal hinzufügen</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>} />
+{loadError && <Alert variant="destructive" className="mb-4"><AlertDescription>Deals konnten nicht geladen werden.<Button size="sm" variant="outline" disabled={isLoading} onClick={loadDeals}>Erneut versuchen</Button></AlertDescription></Alert>}
         <div className="flex flex-wrap gap-2 items-center mb-4">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
               <Input
+                density="compact"
                 type="search"
-                placeholder="Deals suchen..."
+                placeholder="Deals suchen..." aria-label="Deals suchen..."
                 className="pl-8 md:w-[300px]"
                 value={searchInput}
                 onChange={handleSearchChange}
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant={viewMode === "table" ? "default" : "outline"}
-                size="icon"
-                onClick={() => setViewMode("table")}
-                className="h-9 w-9"
-                aria-label="Tabellenansicht"
-                title="Tabellenansicht"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "kanban" ? "default" : "outline"}
-                size="icon"
-                onClick={() => setViewMode("kanban")}
-                className="h-9 w-9"
-                aria-label="Kanban-Ansicht"
-                title="Kanban-Ansicht"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-            </div>
+            <ToggleGroup type="single" size="sm" variant="outline" value={viewMode} onValueChange={value => { if (value === 'table' || value === 'kanban') setViewMode(value) }} aria-label="Pipelineansicht">
+              <ToggleGroupItem value="table" aria-label="Tabellenansicht"><List /></ToggleGroupItem>
+              <ToggleGroupItem value="kanban" aria-label="Kanban-Ansicht"><LayoutGrid /></ToggleGroupItem>
+            </ToggleGroup>
+
             {viewMode === "table" && (
               <GroupSelector
                 options={groupingOptions}
@@ -379,11 +489,11 @@ export default function DealsPage() {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto">
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                <Button size="sm" variant="outline" className="ml-auto">
+                  <SlidersHorizontal className="h-4 w-4" />
                   Filter
                   {activeFilter && <Badge variant="secondary" className="ml-2">{activeFilter}</Badge>}
-                  <ChevronDown className="ml-2 h-4 w-4" />
+                  <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -407,131 +517,7 @@ export default function DealsPage() {
             <ExportButton data={deals} fileName="deals.json">
               Exportieren
             </ExportButton>
-            <Dialog
-              open={isAddDealOpen}
-              onOpenChange={setIsAddDealOpen}
-            >
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Neuer Deal
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Neuen Deal hinzufügen</DialogTitle>
-                  <DialogDescription>Geben Sie die Details des Deals unten ein, um ihn zu Ihrer Pipeline hinzuzufügen.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Deal-Name</Label>
-                    <Input
-                      id="name"
-                      value={newDeal.name}
-                      onChange={(e) => setNewDeal({ ...newDeal, name: e.target.value })}
-                      placeholder="Jahresservicevertrag"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="customer">Kunde</Label>
-                    <CustomerCombobox
-                      value={newDeal.customer_id}
-                      onValueChange={(value) => {
-                        setNewDeal({
-                          ...newDeal,
-                          customer_id: value,
-                          customer: "" // Will be populated from the selected customer
-                        })
-                      }}
-                      placeholder="Kunde auswählen..."
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="value_calculation_method">Wertberechnung</Label>
-                    <Select
-                      value={newDeal.value_calculation_method}
-                      onValueChange={(value) => setNewDeal({
-                        ...newDeal,
-                        value_calculation_method: value as 'static' | 'dynamic'
-                      })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Berechnungsmethode auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="static">Statisch (manuell)</SelectItem>
-                        <SelectItem value="dynamic">Dynamisch (aus Produkten)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="value">Wert (€){newDeal.value_calculation_method === 'dynamic' ? ' (wird automatisch berechnet)' : ''}</Label>
-                    <Input
-                      id="value"
-                      value={newDeal.value}
-                      onChange={(e) => setNewDeal({ ...newDeal, value: e.target.value })}
-                      placeholder="5000"
-                      disabled={newDeal.value_calculation_method === 'dynamic'}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="stage">Phase</Label>
-                    <Select value={newDeal.stage} onValueChange={(value) => setNewDeal({ ...newDeal, stage: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Phase auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Interessent">Interessent</SelectItem>
-                        <SelectItem value="Qualifiziert">Qualifiziert</SelectItem>
-                        <SelectItem value="Angebot">Angebot</SelectItem>
-                        <SelectItem value="Verhandlung">Verhandlung</SelectItem>
-                        <SelectItem value="Gewonnen">Gewonnen</SelectItem>
-                        <SelectItem value="Verloren">Verloren</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="expectedCloseDate">Voraussichtliches Abschlussdatum</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {newDeal.dateValue ? (
-                            format(newDeal.dateValue, "PPP", { locale: de })
-                          ) : (
-                            <span>Datum auswählen</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={newDeal.dateValue}
-                          onSelect={(date) => {
-                            // Handle date selection
-                            setNewDeal({
-                              ...newDeal,
-                              dateValue: date,
-                              expectedCloseDate: date ? format(date, "yyyy-MM-dd") : ""
-                            })
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDealOpen(false)}>
-                    Abbrechen
-                  </Button>
-                  <Button onClick={handleAddDeal}>Deal hinzufügen</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+
         </div>
         <Card>
           <CardHeader className="pb-2">
@@ -550,7 +536,6 @@ export default function DealsPage() {
             ) : viewMode === "table" ? (
               <>
                 {isGrouped && selectedGrouping ? (
-                  // Grouped view
                   <div className="mt-4">
                     <GroupedList
                       groups={groupItemsByField(allDeals, selectedGrouping, dealGroupingFields)}
@@ -566,15 +551,7 @@ export default function DealsPage() {
                               </div>
                             </div>
                             <Badge
-                              variant={
-                                deal.stage === "Gewonnen"
-                                  ? "default"
-                                  : deal.stage === "Verloren"
-                                    ? "destructive"
-                                    : deal.stage === "Verhandlung"
-                                      ? "secondary"
-                                      : "outline"
-                              }
+                              variant={getDealStageColor(deal.stage)}
                             >
                               {deal.stage}
                             </Badge>
@@ -587,7 +564,6 @@ export default function DealsPage() {
                     />
                   </div>
                 ) : (
-                  // Regular table view
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -619,9 +595,9 @@ export default function DealsPage() {
                             <div className="flex flex-col items-center justify-center gap-3 text-center">
                               <FileBox className="h-10 w-10 text-muted-foreground/40" />
                               <div>
-                                <p className="font-medium">Keine Deals gefunden</p>
+                                <p className="font-medium">{loadError ? "Pipeline nicht verfügbar" : activeFilter || searchQuery ? "Keine passenden Deals" : "Keine Deals vorhanden"}</p>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                  {activeFilter ? `Keine Deals in Phase "${activeFilter}".` : 'Erstellen Sie Ihren ersten Deal, um Ihre Pipeline zu starten.'}
+                                  {loadError ? "Versuchen Sie die Abfrage erneut." : searchQuery ? "Ändern Sie die Suche." : activeFilter ? `Keine Deals in Phase "${activeFilter}".` : 'Erstellen Sie Ihren ersten Deal, um Ihre Pipeline zu starten.'}
                                 </p>
                               </div>
                             </div>
@@ -644,15 +620,7 @@ export default function DealsPage() {
                             <TableCell className="hidden md:table-cell">{formatDate(deal.expectedCloseDate)}</TableCell>
                             <TableCell>
                               <Badge
-                                variant={
-                                  deal.stage === "Gewonnen"
-                                    ? "default"
-                                    : deal.stage === "Verloren"
-                                      ? "destructive"
-                                      : deal.stage === "Verhandlung"
-                                        ? "secondary"
-                                        : "outline"
-                                }
+                                variant={getDealStageColor(deal.stage)}
                               >
                                 {deal.stage}
                               </Badge>

@@ -1,4 +1,6 @@
 "use client"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { customerStatusTone } from "@/lib/status-presentation";
 
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
@@ -47,7 +49,6 @@ import {
   FilterFn,
 } from "@tanstack/react-table"
 
-// Define columns outside the component or memoize them
 const columns: ColumnDef<Customer>[] = [
   {
     id: "select",
@@ -71,13 +72,12 @@ const columns: ColumnDef<Customer>[] = [
     enableHiding: false,
   },
   {
-    // Combined Name Column
     accessorFn: (row) => `${row.firstName || ''} ${row.name}`,
     id: 'fullName', // Explicit ID needed when using accessorFn
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
         Name
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => (
@@ -91,7 +91,7 @@ const columns: ColumnDef<Customer>[] = [
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
         Kundennr.
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => row.original.customerNumber || '-',
@@ -101,7 +101,7 @@ const columns: ColumnDef<Customer>[] = [
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
         Firma
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => row.original.company || '-',
@@ -111,13 +111,12 @@ const columns: ColumnDef<Customer>[] = [
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
         E-Mail
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="h-4 w-4" />
       </Button>
     ),
      cell: ({ row }) => row.original.email || '-',
   },
   {
-    // Combined Phone Column with proper prioritization
     accessorFn: (row) => getPrimaryPhone(row),
     id: 'contactPhone',
     header: "Telefon",
@@ -128,18 +127,17 @@ const columns: ColumnDef<Customer>[] = [
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
         Status
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => {
       const statusLabels: Record<string, string> = { Active: "Aktiv", Lead: "Lead", Inactive: "Inaktiv" };
       return (
-        <Badge variant={row.original.status === "Active" ? "default" : row.original.status === "Lead" ? "secondary" : "outline"}>
+        <Badge variant={customerStatusTone(row.original.status)}>
           {statusLabels[row.original.status] ?? row.original.status}
         </Badge>
       );
     },
-    // Enable filtering on this column
     filterFn: 'equals', // Use built-in 'equals' or a custom function if needed
   },
   {
@@ -148,29 +146,6 @@ const columns: ColumnDef<Customer>[] = [
     header: "JTL Kundennr.",
     cell: ({ row }) => row.original.jtl_kKunde?.toString() || '-',
   },
-  // {
-  //   id: "actions",
-  //   cell: ({ row }) => {
-  //     const customer = row.original;
-  //     const copyAffiliateLink = (link?: string) => {
-  //       if (link) {
-  //         navigator.clipboard.writeText(link);
-  //         toast.success("Affiliate-Link kopiert");
-  //       } else {
-  //         toast.info("Kein Affiliate-Link vorhanden.");
-  //       }
-  //     };
-  //     return customer.affiliateLink ? (
-  //       <Button variant="ghost" size="icon" onClick={() => copyAffiliateLink(customer.affiliateLink)} title="Affiliate-Link kopieren" aria-label="Affiliate-Link kopieren">
-  //         <Copy className="h-4 w-4" />
-  //       </Button>
-  //     ) : (
-  //       <span className="text-muted-foreground">-</span>
-  //     );
-  //   },
-  //   enableSorting: false,
-  //   enableHiding: false,
-  // }
 ];
 
 // German column name mapping for visibility dropdown
@@ -185,12 +160,10 @@ const columnDisplayNames: Record<string, string> = {
   'actions': 'Aktionen'
 };
 
-// Custom global filter function
 const globalFilterFn: FilterFn<Customer> = (row, columnId, filterValue) => {
   const customer = row.original;
   const query = String(filterValue).toLowerCase(); // Ensure query is string and lowercase
 
-  // Check across relevant fields
   const nameMatch = customer.name?.toLowerCase().includes(query) ?? false;
   const firstNameMatch = customer.firstName?.toLowerCase().includes(query) ?? false;
   const emailMatch = customer.email?.toLowerCase().includes(query) ?? false;
@@ -208,44 +181,36 @@ export default function CustomersPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const navigate = useNavigate()
 
-  // Grouping state
   const [isGrouped, setIsGrouped] = useState(false)
   const [selectedGrouping, setSelectedGrouping] = useState<string | null>(null)
   const [groupingOptions, setGroupingOptions] = useState<GroupOption[]>([])
   const [availableGroupingFields, setAvailableGroupingFields] = useState<typeof customerGroupingFields>([])
 
-  // React Table State
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [globalFilter, setGlobalFilter] = useState(''); // State for global filter input
 
-  // Initialize grouping options from customerGroupingFields and custom fields
   useEffect(() => {
     const initializeGroupingOptions = async () => {
       try {
-        // Get standard grouping options
         const standardOptions = customerGroupingFields.map(field => ({
           value: field.value,
           label: field.label
         }));
 
-        // Get custom field grouping options
         const customFieldGroupings = await getCustomFieldGroupingOptions();
         const customOptions = customFieldGroupings.map(field => ({
           value: field.value,
           label: field.label
         }));
 
-        // Combine standard and custom options
         setGroupingOptions([...standardOptions, ...customOptions]);
 
-        // Add custom field groupings to the available grouping fields
         setAvailableGroupingFields([...customerGroupingFields, ...customFieldGroupings]);
       } catch (error) {
         console.error("Failed to initialize grouping options:", error);
-        // Fallback to standard options
         const standardOptions = customerGroupingFields.map(field => ({
           value: field.value,
           label: field.label
@@ -258,21 +223,29 @@ export default function CustomersPage() {
     initializeGroupingOptions();
   }, []);
 
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
   useEffect(() => {
+    let cancelled = false
     const fetchCustomersWithCustomFields = async () => {
       setIsLoading(true)
       try {
-        setCustomers(await localDataService.getCustomers())
+        const customers = await localDataService.getCustomers()
+        if (!cancelled) setCustomers(customers)
       } catch (error) {
+        if (cancelled) return
+        setLoadError(true)
         console.error("Failed to fetch customers:", error)
         toast.error("Kunden konnten nicht aus der lokalen Datenbank geladen werden.")
-        setCustomers([])
+
       } finally {
-        setIsLoading(false)
+        if (!cancelled) setIsLoading(false)
       }
     }
+    setLoadError(false)
     fetchCustomersWithCustomFields()
-  }, [])
+    return () => { cancelled = true }
+  }, [retry])
 
   const table = useReactTable({
     data: customers,
@@ -298,10 +271,8 @@ export default function CustomersPage() {
 
   const handleCustomerAdded = (newCustomer: Customer) => {
     setCustomers(prev => [newCustomer, ...prev]);
-    // Optionally reset filters/sorting or navigate
   };
 
-  // Handle bulk delete action
   const handleDeleteSelected = async () => {
     const selectedRows = table.getFilteredSelectedRowModel().rows;
     const selectedIds = selectedRows.map(row => row.original.id);
@@ -338,24 +309,23 @@ export default function CustomersPage() {
   };
   return (
     <main className="flex-1">
-      <div className="px-6 py-4">
-        <PageHeader title="Kunden" subtitle="Kundenstamm durchsuchen, gruppieren und verwalten." />
-          {/* Toolbar: Search, Filters, Actions */}
+      <div className="px-4 py-4 sm:px-6">
+        <PageHeader title="Kunden" subtitle="Kundenstamm durchsuchen, gruppieren und verwalten." actions={<AddCustomerDialog onCustomerAdded={handleCustomerAdded} />} />
+          {loadError && <Alert variant="destructive" className="mb-4"><AlertDescription>Kunden konnten nicht geladen werden.<Button size="sm" variant="outline" disabled={isLoading} onClick={() => setRetry(value => value + 1)}>Erneut versuchen</Button></AlertDescription></Alert>}
           <div className="flex flex-wrap gap-2 items-center mb-4">
             <SyncStatusDisplay />
-            {/* Global Search */}
             <div className="relative flex-1 min-w-[250px]">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
               <Input
+                density="compact"
                 type="search"
-                placeholder="Kunden suchen..."
+                placeholder="Kunden suchen..." aria-label="Kunden suchen..."
                 className="pl-8 w-full"
                 value={globalFilter ?? ''}
                 onChange={(e) => setGlobalFilter(e.target.value)}
               />
             </div>
 
-            {/* Grouping Selector */}
             <GroupSelector
               options={groupingOptions}
               selectedGrouping={selectedGrouping}
@@ -364,15 +334,14 @@ export default function CustomersPage() {
               onToggleGrouping={setIsGrouped}
             />
 
-            {/* Status Filter */}
             {(() => {
               const statusLabels: Record<string, string> = { Active: 'Aktiv', Lead: 'Lead', Inactive: 'Inaktiv' }
               const currentFilter = table.getColumn('status')?.getFilterValue() as string | undefined
               return (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                    <Button size="sm" variant="outline">
+                      <SlidersHorizontal className="h-4 w-4" />
                       Statusfilter ({currentFilter ? (statusLabels[currentFilter] ?? currentFilter) : 'Alle'})
                     </Button>
                   </DropdownMenuTrigger>
@@ -386,11 +355,10 @@ export default function CustomersPage() {
               )
             })()}
 
-             {/* Column Visibility Toggle */}
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="ml-auto hidden sm:flex">
-                    Spaltenauswahl <ChevronDown className="ml-2 h-4 w-4" />
+                    <Button size="sm" variant="outline" className="ml-auto hidden sm:flex">
+                    Spaltenauswahl <ChevronDown className="h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -415,10 +383,9 @@ export default function CustomersPage() {
             <ExportButton data={customers} fileName="customers_export.json">
               Exportieren
             </ExportButton>
-            <AddCustomerDialog onCustomerAdded={handleCustomerAdded} />
+
           </div>
 
-           {/* Bulk Actions Bar (appears when rows are selected) */}
            {table.getFilteredSelectedRowModel().rows.length > 0 && (
              <div className="mb-4 flex items-center gap-2 rounded-md border bg-muted p-2">
                 <span className="text-sm font-medium">
@@ -431,7 +398,7 @@ export default function CustomersPage() {
                     onClick={() => setIsDeleteConfirmOpen(true)}
                     disabled={isLoading}
                 >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                     Ausgewählte löschen
                 </Button>
              </div>
@@ -472,7 +439,6 @@ export default function CustomersPage() {
                 <span className="ml-2">Lade Daten...</span>
               </div>
             ) : isGrouped && selectedGrouping ? (
-              // Grouped view
               <div className="mt-4">
                 <GroupedList
                   groups={groupItemsByField(table.getFilteredRowModel().rows.map(row => row.original), selectedGrouping, availableGroupingFields)}
@@ -488,7 +454,7 @@ export default function CustomersPage() {
                             {getPrimaryContact(customer)}
                           </div>
                         </div>
-                        <Badge variant={customer.status === "Active" ? "default" : customer.status === "Lead" ? "secondary" : "outline"}>
+                        <Badge variant={customerStatusTone(customer.status)}>
                           {customer.status}
                         </Badge>
                       </div>
@@ -500,7 +466,6 @@ export default function CustomersPage() {
                 />
               </div>
             ) : (
-              // Regular table view
               <>
                 <div className="rounded-md border">
                   <Table>
@@ -542,14 +507,13 @@ export default function CustomersPage() {
                       ) : (
                         <TableRow>
                           <TableCell colSpan={columns.length} className="h-24 text-center">
-                            {isLoading ? "Lade..." : "Keine Kunden gefunden."}
+                            {isLoading ? "Kunden werden geladen…" : loadError ? "Kundenbestand nicht verfügbar." : globalFilter ? "Keine passenden Kunden. Ändern Sie die Suche." : "Keine Kunden vorhanden."}
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
                 </div>
-                {/* Pagination */}
                 <div className="py-4">
                   <DataTablePagination table={table} />
                 </div>

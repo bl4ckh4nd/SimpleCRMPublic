@@ -114,7 +114,7 @@ export const localDataService = {
     return invoke(IPC.Db.DeleteCustomers, { customerIds: ids.map(Number) });
   },
 
-  // --- Products ---
+  // Products
   async getProducts(): Promise<Product[]> {
     try {
        const dbProducts = await invoke(IPC.Products.GetAll);

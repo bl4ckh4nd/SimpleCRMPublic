@@ -1,4 +1,5 @@
 "use client";
+import { DialogBody, DialogFooter } from "@/components/ui/dialog";
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
@@ -211,70 +212,71 @@ export function CalendarEventForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+    <DialogBody className="space-y-4">
       <div className="grid gap-4">
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="title">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="title">
             Titel*
           </Label>
-          <Input id="title" className="col-span-3" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Input id="title" className="sm:col-span-3" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="eventType">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="eventType">
             Ereignistyp
           </Label>
           <Input
             id="eventType"
-            className="col-span-3"
+            className="sm:col-span-3"
             value={eventType}
             placeholder="z.B. Meeting, Termin, Urlaub..."
             onChange={(event) => setEventType(event.target.value)}
           />
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="allDay">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="allDay">
             Ganztägig
           </Label>
-          <div className="col-span-3 flex items-center gap-2">
+          <div className="sm:col-span-3 flex items-center gap-2">
             <Switch id="allDay" checked={allDay} onCheckedChange={handleAllDayChange} />
             <span className="text-sm text-muted-foreground">Ganztägiges Ereignis ohne Uhrzeit</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="start">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="start">
             Start*
           </Label>
           <Input
             id="start"
             type={allDay ? "date" : "datetime-local"}
-            className="col-span-3"
+            className="sm:col-span-3"
             value={allDay ? formatDateOnly(start) : formatDateTimeLocal(start)}
             onChange={(event) => setStart(parseInputDate(event.target.value, allDay) || start)}
           />
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="end">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="end">
             Ende*
           </Label>
           <Input
             id="end"
             type={allDay ? "date" : "datetime-local"}
-            className="col-span-3"
+            className="sm:col-span-3"
             value={allDay ? formatDateOnly(end) : formatDateTimeLocal(end)}
             min={allDay ? formatDateOnly(start) : formatDateTimeLocal(start)}
             onChange={(event) => setEnd(parseInputDate(event.target.value, allDay) || end)}
           />
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="color">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="color">
             Farbe
           </Label>
-          <div className="col-span-3 flex flex-wrap items-center gap-2">
+          <div className="sm:col-span-3 flex flex-wrap items-center gap-2">
             {eventColorPalette.map((preset) => (
               <button
                 key={preset}
@@ -289,18 +291,18 @@ export function CalendarEventForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="description">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="description">
             Beschreibung
           </Label>
-          <Textarea id="description" className="col-span-3" value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Textarea id="description" className="sm:col-span-3" value={description} onChange={(event) => setDescription(event.target.value)} />
         </div>
 
-        <div className="grid grid-cols-4 items-center gap-4">
-          <Label className="text-right" htmlFor="recurrence">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+          <Label className="sm:text-right" htmlFor="recurrence">
             Wiederholung
           </Label>
-          <div className="col-span-3 flex items-center gap-2">
+          <div className="sm:col-span-3 flex items-center gap-2">
             <Switch id="recurrence" checked={showRecurrence} onCheckedChange={setShowRecurrence} />
             <span className="text-sm text-muted-foreground">Regelmäßiges Ereignis</span>
           </div>
@@ -308,12 +310,12 @@ export function CalendarEventForm({
 
         {showRecurrence && (
           <div className="space-y-4 rounded-md border p-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right" htmlFor="recurrenceFrequency">
+            <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+              <Label className="sm:text-right" htmlFor="recurrenceFrequency">
                 Frequenz
               </Label>
               <Select value={recurrenceFrequency} onValueChange={(value) => setRecurrenceFrequency(value as RecurrenceRule["frequency"]) }>
-                <SelectTrigger id="recurrenceFrequency" className="col-span-3">
+                <SelectTrigger id="recurrenceFrequency" className="sm:col-span-3">
                   <SelectValue placeholder="Frequenz wählen" />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,11 +328,11 @@ export function CalendarEventForm({
               </Select>
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right" htmlFor="recurrenceInterval">
+            <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+              <Label className="sm:text-right" htmlFor="recurrenceInterval">
                 Intervall
               </Label>
-              <div className="col-span-3 flex items-center gap-2">
+              <div className="sm:col-span-3 flex items-center gap-2">
                 <span>Alle</span>
                 <Input
                   id="recurrenceInterval"
@@ -352,12 +354,12 @@ export function CalendarEventForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right" htmlFor="recurrenceEndType">
+            <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+              <Label className="sm:text-right" htmlFor="recurrenceEndType">
                 Endet
               </Label>
               <Select value={recurrenceEndType} onValueChange={(value) => setRecurrenceEndType(value as typeof recurrenceEndType)}>
-                <SelectTrigger id="recurrenceEndType" className="col-span-3">
+                <SelectTrigger id="recurrenceEndType" className="sm:col-span-3">
                   <SelectValue placeholder="Ende wählen" />
                 </SelectTrigger>
                 <SelectContent>
@@ -369,14 +371,14 @@ export function CalendarEventForm({
             </div>
 
             {recurrenceEndType === "date" && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right" htmlFor="recurrenceEndDate">
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                <Label className="sm:text-right" htmlFor="recurrenceEndDate">
                   Enddatum
                 </Label>
                 <Input
                   id="recurrenceEndDate"
                   type="date"
-                  className="col-span-3"
+                  className="sm:col-span-3"
                   min={formatDateOnly(start)}
                   value={recurrenceEndDate}
                   onChange={(event) => setRecurrenceEndDate(event.target.value)}
@@ -385,15 +387,15 @@ export function CalendarEventForm({
             )}
 
             {recurrenceEndType === "occurrences" && (
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right" htmlFor="recurrenceOccurrences">
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                <Label className="sm:text-right" htmlFor="recurrenceOccurrences">
                   Wiederholungen
                 </Label>
                 <Input
                   id="recurrenceOccurrences"
                   type="number"
                   min={1}
-                  className="col-span-3"
+                  className="sm:col-span-3"
                   value={recurrenceOccurrences || ""}
                   onChange={(event) => setRecurrenceOccurrences(parseInt(event.target.value, 10) || 1)}
                 />
@@ -402,11 +404,11 @@ export function CalendarEventForm({
           </div>
         )}
 
-        <div className="grid grid-cols-4 items-start gap-4">
-          <Label className="text-right" htmlFor="linkTask">
+        <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-4">
+          <Label className="sm:text-right" htmlFor="linkTask">
             Mit Aufgabe verknüpfen
           </Label>
-          <div className="col-span-3 space-y-2">
+          <div className="sm:col-span-3 space-y-2">
             <div className="flex items-center gap-2">
               <Switch id="linkTask" checked={linkTask} onCheckedChange={handleLinkTaskChange} />
               <span className="text-sm text-muted-foreground">
@@ -416,12 +418,12 @@ export function CalendarEventForm({
 
             {linkTask && (
               <div className="space-y-4 rounded-md border p-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label className="text-right" htmlFor="taskCustomer">
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                  <Label className="sm:text-right" htmlFor="taskCustomer">
                     Kunde*
                   </Label>
-                  <div className="col-span-3">
-                    <CustomerCombobox
+                  <div className="sm:col-span-3">
+                    <CustomerCombobox id="taskCustomer"
                       value={taskCustomerId || undefined}
                       onValueChange={(value) => setTaskCustomerId(Number(value) || 0)}
                       onCustomerSelect={(option: CustomerOption | null) => {
@@ -433,12 +435,12 @@ export function CalendarEventForm({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label className="text-right" htmlFor="taskPriority">
+                <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                  <Label className="sm:text-right" htmlFor="taskPriority">
                     Priorität*
                   </Label>
                   <Select value={taskPriority} onValueChange={(value) => setTaskPriority(value as "High" | "Medium" | "Low") }>
-                    <SelectTrigger id="taskPriority" className="col-span-3">
+                    <SelectTrigger id="taskPriority" className="sm:col-span-3">
                       <SelectValue placeholder="Priorität wählen" />
                     </SelectTrigger>
                     <SelectContent>
@@ -450,11 +452,11 @@ export function CalendarEventForm({
                 </div>
 
                 {isEditMode && initialTaskData?.id && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right" htmlFor="taskCompleted">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
+                    <Label className="sm:text-right" htmlFor="taskCompleted">
                       Aufgabe erledigt
                     </Label>
-                    <div className="col-span-3 flex items-center gap-2">
+                    <div className="sm:col-span-3 flex items-center gap-2">
                       <Switch id="taskCompleted" checked={taskCompleted} onCheckedChange={setTaskCompleted} />
                       <span className="text-sm text-muted-foreground">
                         Übernimmt den Status in Kalender & Aufgabenliste.
@@ -468,12 +470,13 @@ export function CalendarEventForm({
         </div>
       </div>
 
-      <div className="flex justify-end gap-2">
+    </DialogBody>
+      <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           Abbrechen
         </Button>
         <Button type="submit">{isEditMode ? "Aktualisieren" : "Speichern"}</Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

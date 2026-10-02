@@ -1,44 +1,44 @@
 import { getDealStageColor, formatCurrency, formatDate } from '@/types/deal';
 
 describe('getDealStageColor', () => {
-  test('"Gewonnen" returns "default"', () => {
-    expect(getDealStageColor('Gewonnen')).toBe('default');
+  test('"Gewonnen" returns "success"', () => {
+    expect(getDealStageColor('Gewonnen')).toBe('success');
   });
 
-  test('"Abgeschlossen Gewonnen" returns "default"', () => {
-    expect(getDealStageColor('Abgeschlossen Gewonnen')).toBe('default');
+  test('"Abgeschlossen Gewonnen" returns "success"', () => {
+    expect(getDealStageColor('Abgeschlossen Gewonnen')).toBe('success');
   });
 
-  test('"Verloren" returns "destructive"', () => {
-    expect(getDealStageColor('Verloren')).toBe('destructive');
+  test('"Verloren" returns "danger"', () => {
+    expect(getDealStageColor('Verloren')).toBe('danger');
   });
 
-  test('"Abgeschlossen Verloren" returns "destructive"', () => {
-    expect(getDealStageColor('Abgeschlossen Verloren')).toBe('destructive');
+  test('"Abgeschlossen Verloren" returns "danger"', () => {
+    expect(getDealStageColor('Abgeschlossen Verloren')).toBe('danger');
   });
 
-  test('"Verhandlung" returns "secondary"', () => {
-    expect(getDealStageColor('Verhandlung')).toBe('secondary');
+  test('"Verhandlung" returns "info"', () => {
+    expect(getDealStageColor('Verhandlung')).toBe('info');
   });
 
-  test('"Angebot" returns "secondary"', () => {
-    expect(getDealStageColor('Angebot')).toBe('secondary');
+  test('"Angebot" returns "info"', () => {
+    expect(getDealStageColor('Angebot')).toBe('info');
   });
 
-  test('"Vorschlag" returns "secondary"', () => {
-    expect(getDealStageColor('Vorschlag')).toBe('secondary');
+  test('"Vorschlag" returns "info"', () => {
+    expect(getDealStageColor('Vorschlag')).toBe('info');
   });
 
-  test('"Prospekt" returns "outline" (default case)', () => {
-    expect(getDealStageColor('Prospekt')).toBe('outline');
+  test('"Prospekt" returns "neutral" (default case)', () => {
+    expect(getDealStageColor('Prospekt')).toBe('neutral');
   });
 
-  test('unknown stage returns "outline"', () => {
-    expect(getDealStageColor('Unknown Stage')).toBe('outline');
+  test('unknown stage returns "neutral"', () => {
+    expect(getDealStageColor('Unknown Stage')).toBe('neutral');
   });
 
-  test('empty string returns "outline"', () => {
-    expect(getDealStageColor('')).toBe('outline');
+  test('empty string returns "neutral"', () => {
+    expect(getDealStageColor('')).toBe('neutral');
   });
 });
 
