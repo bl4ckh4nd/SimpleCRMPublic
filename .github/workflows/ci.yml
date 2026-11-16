@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: instabox-medium
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -34,7 +34,7 @@ jobs:
         run: |
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-      - run: xvfb-run -a pnpm run test:e2e
+      - run: xvfb-run -a pnpm run test:e2e --workers=4
       - name: Upload Playwright diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
