@@ -19,7 +19,7 @@ concurrency:
 jobs:
   prepare:
     if: github.ref_name == 'main'
-    runs-on: instabox-medium
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
       version: ${{ steps.release.outputs.version }}
@@ -140,7 +140,7 @@ jobs:
 
   linux:
     needs: prepare
-    runs-on: instabox-medium
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
@@ -174,7 +174,7 @@ jobs:
 
   publish:
     needs: [prepare, windows, macos, linux]
-    runs-on: instabox-medium
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
