@@ -140,7 +140,14 @@ test('stored calendar colors retain readable foregrounds in every calendar view'
     await expect(page.getByText('Kontrast 0').first()).toBeVisible();
     if (name !== 'Agenda') {
       const colors = await page.locator('.rbc-event').evaluateAll(events => events.map(event => ({ bg: getComputedStyle(event).backgroundColor, fg: getComputedStyle(event).color })));
-      expect(colors).toEqual(expect.arrayContaining([{ bg: 'rgb(255, 255, 255)', fg: 'rgb(0, 0, 0)' }, { bg: 'rgb(0, 0, 0)', fg: 'rgb(255, 255, 255)' }, { bg: 'rgb(119, 119, 119)', fg: 'rgb(0, 0, 0)' }]));
+      const readable = [{ bg: 'rgb(255, 255, 255)', fg: 'rgb(0, 0, 0)' }, { bg: 'rgb(0, 0, 0)', fg: 'rgb(255, 255, 255)' }, { bg: 'rgb(119, 119, 119)', fg: 'rgb(0, 0, 0)' }];
+      // The month grid folds same-day events into "+ N more"; only the time grids show all three.
+      if (name === 'Monat') {
+        expect(colors.length).toBeGreaterThan(0);
+        for (const color of colors) expect(readable).toContainEqual(color);
+      } else {
+        expect(colors).toEqual(expect.arrayContaining(readable));
+      }
     }
     await testInfo.attach(`calendar-${name}`, { body: await page.screenshot(), contentType: 'image/png' });
   }
